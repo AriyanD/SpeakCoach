@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#F3F8F4" />
+    <title>SpeakCoach</title>
+    <link rel="icon" type="image/svg+xml" href="/speakcoach-symbol.svg" />
+    <link rel="stylesheet" href="/src/styles/main.css" />
+    <link rel="stylesheet" href="/src/styles/theme-fixes.css" />
+    <link id="speakcoach-dark-theme" rel="stylesheet" href="/src/styles/dark-theme.css" disabled />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('speakcoach.theme.preference.v1');
+          var dark = saved === 'dark' || (saved !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var theme = dark ? 'dark' : 'light';
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          var darkStylesheet = document.getElementById('speakcoach-dark-theme');
+          if (darkStylesheet) darkStylesheet.disabled = !dark;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.content = dark ? '#111814' : '#F3F8F4';
+        } catch (_) {}
+      })();
+    </script>
+
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,527 @@
+import { Capacitor, type HttpOptions, type HttpResponse } from '@capacitor/core';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
+import { getPreset, normalizeBaseUrl } from '../config/providers';
+import type { ResolvedSlotTier, SlotConfig } from '../config/types';
+import { loadAllSlotsConfig } from '../storage/localStore';
+import { computeAudioCacheHash, getCachedTtsAudio, setCachedTtsAudio } from './audioCache';
+import { nativeHttpRequest, redactUrlForLog } from './httpClient';
+import { executeWithTierFallback } from './tierManager';
+import { buildCustomEndpointRequest, buildGeminiEndpointRequest } from './customEndpointHelper';
+import { runWithSlotApiFallback } from './apiFallback';
+import { convertPcmBase64ToWavDataUrl } from './pcmWavHelper';
+
+export interface SpeakResult {
+  activeTier: ResolvedSlotTier;
+  fromCache: boolean;
+  durationEstimateMs: number;
+}
+
+type TransportFn = (opts: HttpOptions) => Promise<HttpResponse>;
+
+let activeHtmlAudio: HTMLAudioElement | null = null;
+let activeHtmlAudioFinish: (() => void) | null = null;
+let activePlaybackGeneration = 0;
+
+export function stopAllTts(): void {
+  activePlaybackGeneration++;
+  if (activeHtmlAudio) {
+    try {
+      activeHtmlAudio.pause();
+      activeHtmlAudio.currentTime = 0;
+    } catch {
+      // Ignore
+    }
+    activeHtmlAudio = null;
+  }
+  if (activeHtmlAudioFinish) {
+    const finish = activeHtmlAudioFinish;
+    activeHtmlAudioFinish = null;
+    finish();
+  }
+  try {
+    void TextToSpeech.stop().catch(() => {});
+  } catch {
+    // Ignore
+  }
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      // Ignore
+    }
+  }
+}
+
+export function normalizeAudioDataUrl(payload: unknown): string {
+  if (typeof payload === 'string') {
+    if (payload.startsWith('data:audio/')) return payload;
+    return `data:audio/mp3;base64,${payload}`;
+  }
+  return '';
+}
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+export async function synthesizeOnlineNeuralAudio(
+  text: string,
+  slotCfg: SlotConfig,
+  apiKey: string,
+  rate = 1.0,
+  transport?: TransportFn
+): Promise<{ dataUrl: string; fromCache: boolean }> {
+  const hash = computeAudioCacheHash({
+    providerId: slotCfg.providerId,
+    voiceOrModel: slotCfg.modelOrVoice,
+    rate,
+    text
+  });
+
+  const cached = await getCachedTtsAudio(hash);
+  if (cached) {
+    return { dataUrl: cached, fromCache: true };
+  }
+
+  const baseUrl = normalizeBaseUrl(slotCfg.baseUrl);
+
+  if (slotCfg.providerId === 'openai_tts' || slotCfg.providerId === 'custom_openai_tts') {
+    let model = 'tts-1';
+    let voice = slotCfg.customTtsVoice?.trim() || 'alloy';
+
+    if (slotCfg.modelOrVoice.includes(':')) {
+      const [modelPart, voicePart] = slotCfg.modelOrVoice.split(':');
+      model = modelPart?.trim() || 'tts-1';
+      voice = slotCfg.customTtsVoice?.trim() || voicePart?.trim() || 'alloy';
+    } else if (slotCfg.modelOrVoice.trim()) {
+      model = slotCfg.modelOrVoice.trim();
+    }
+
+    const prepared = buildCustomEndpointRequest({
+      baseUrl,
+      defaultPath: '/audio/speech',
+      apiKey,
+      slotConfig: slotCfg,
+      defaultHeaders: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const res = await nativeHttpRequest<string>(
+      {
+        url: prepared.url,
+        method: 'POST',
+        headers: prepared.headers,
+        data: {
+          model,
+          voice,
+          input: text,
+          speed: rate,
+          response_format: 'mp3'
+        },
+        responseType: 'blob',
+        timeoutMs: 15000
+      },
+      transport
+    );
+    const dataUrl = normalizeAudioDataUrl(res.data);
+    if (!dataUrl) throw new Error(`Empty audio payload from ${slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
+    await setCachedTtsAudio(hash, dataUrl);
+    return { dataUrl, fromCache: false };
+  }
+
+  if (slotCfg.providerId === 'gemini_tts') {
+    const rawModel = (slotCfg.modelOrVoice || 'gemini-3.8-flash-lite-tts').trim();
+    const model = rawModel.startsWith('models/') ? rawModel.slice('models/'.length) : rawModel;
+    const voice = slotCfg.customTtsVoice?.trim() || 'Puck';
+
+    // All Gemini TTS models (3.8-flash-tts, 3.8-flash-lite-tts, and legacy 3.1/2.5 preview)
+    // use the generateContent REST API with responseModalities: ['AUDIO'].
+    // Audio is returned as candidates[0].content.parts[N].inlineData.data (N may not be 0).
+    const supportedModels = [
+      'gemini-3.8-flash-tts',
+      'gemini-3.8-flash-lite-tts',
+      'gemini-3.1-flash-tts-preview',
+      'gemini-2.5-flash-preview-tts',
+      'gemini-2.5-pro-preview-tts'
+    ];
+    if (!supportedModels.includes(model)) {
+      throw new Error(
+        `Unsupported Gemini TTS model "${model}". Choose ${supportedModels.join(', ')}.`
+      );
+    }
+
+    const modelPath = model.startsWith('models/') ? model : `models/${model}`;
+    const prepared = buildGeminiEndpointRequest({
+      baseUrl,
+      defaultPath: `/${modelPath}:generateContent`,
+      apiKey,
+      slotConfig: slotCfg
+    });
+    const url = prepared.url;
+
+    console.debug(`[geminiTts] model=${model} voice=${voice} url=${redactUrlForLog(url)}`);
+
+    const res = await nativeHttpRequest<{
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{
+            inlineData?: { data?: string; mimeType?: string };
+            text?: string;
+          }>;
+        };
+      }>;
+    }>(
+      {
+        url,
+        method: 'POST',
+        headers: prepared.headers,
+        data: {
+          contents: [{ role: 'user', parts: [{ text }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+          }
+        },
+        timeoutMs: 30000,
+        maxRetries: 0 // No automatic retries for TTS — 429 retries waste quota
+      },
+      transport
+    );
+
+    // Log safe diagnostics (never log API key or audio data)
+    const candidateCount = res.data?.candidates?.length ?? 0;
+    const parts = res.data?.candidates?.[0]?.content?.parts ?? [];
+    const partCount = parts.length;
+    const audioPartIdx = parts.findIndex((p) => p.inlineData?.data);
+    const hasMimeType = audioPartIdx >= 0 ? (parts[audioPartIdx].inlineData?.mimeType ?? 'none') : 'none';
+    console.debug(
+      `[geminiTts] HTTP ${res.status} model=${model} candidates=${candidateCount} parts=${partCount} audioPartIdx=${audioPartIdx} mimeType=${hasMimeType}`
+    );
+
+    // Find the audio part — it may be at any index, not necessarily parts[0]
+    const inlineData = parts[audioPartIdx]?.inlineData;
+    if (!inlineData?.data) {
+      const responseKeys = Object.keys(res.data ?? {}).join(', ');
+      throw new Error(
+        `Gemini TTS returned no audio data. HTTP ${res.status} · model=${model} · candidateCount=${candidateCount} · partCount=${partCount} · responseKeys=[${responseKeys}]. Confirm model access and API key quota.`
+      );
+    }
+
+    const mimeType = (inlineData.mimeType || 'audio/pcm').toLowerCase();
+    const rawData = inlineData.data.trim();
+    const cleanB64 = rawData.startsWith('data:') ? (rawData.split(',')[1] ?? rawData) : rawData;
+    // If mimeType is audio/wav or data already has RIFF header, use as-is; otherwise wrap PCM in WAV
+    const dataUrl = mimeType.includes('wav')
+      ? `data:audio/wav;base64,${cleanB64}`
+      : convertPcmBase64ToWavDataUrl(cleanB64, 24000);
+    await setCachedTtsAudio(hash, dataUrl);
+    return { dataUrl, fromCache: false };
+  }
+
+  if (slotCfg.providerId === 'azure_tts') {
+    const voiceName = (slotCfg.modelOrVoice || 'en-US-JennyNeural').trim();
+    const langMatch = voiceName.match(/^([a-z]{2}-[A-Z]{2})/);
+    const xmlLang = langMatch ? langMatch[1] : 'en-US';
+    const prosodyRatePct = `${Math.round((rate - 1) * 100)}%`;
+    const ssml = `<speak version='1.0' xml:lang='${xmlLang}'><voice name='${escapeXml(
+      voiceName
+    )}'><prosody rate='${prosodyRatePct}'>${escapeXml(text)}</prosody></voice></speak>`;
+
+    const res = await nativeHttpRequest<string>(
+      {
+        url: `${baseUrl}/cognitiveservices/v1`,
+        method: 'POST',
+        headers: {
+          'Ocp-Apim-Subscription-Key': apiKey,
+          'Content-Type': 'application/ssml+xml',
+          'X-Microsoft-OutputFormat': 'audio-16khz-64kbitrate-mono-mp3'
+        },
+        data: ssml,
+        responseType: 'blob',
+        timeoutMs: 15000
+      },
+      transport
+    );
+    const dataUrl = normalizeAudioDataUrl(res.data);
+    if (!dataUrl) throw new Error('Empty audio payload from Azure Neural TTS');
+    await setCachedTtsAudio(hash, dataUrl);
+    return { dataUrl, fromCache: false };
+  }
+
+  if (slotCfg.providerId === 'elevenlabs_tts') {
+    const [voiceIdPart, modelIdPart] = (slotCfg.modelOrVoice || '21m00Tcm4TlvDq8ikWAM').split(':');
+    const voiceId = voiceIdPart?.trim() || '21m00Tcm4TlvDq8ikWAM';
+    const modelId = modelIdPart?.trim() || 'eleven_multilingual_v2';
+
+    const res = await nativeHttpRequest<string>(
+      {
+        url: `${baseUrl}/text-to-speech/${encodeURIComponent(voiceId)}`,
+        method: 'POST',
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg'
+        },
+        data: {
+          text,
+          model_id: modelId
+        },
+        responseType: 'blob',
+        timeoutMs: 15000
+      },
+      transport
+    );
+    const dataUrl = normalizeAudioDataUrl(res.data);
+    if (!dataUrl) throw new Error('Empty audio payload from ElevenLabs TTS');
+    await setCachedTtsAudio(hash, dataUrl);
+    return { dataUrl, fromCache: false };
+  }
+
+  throw new Error(`Unsupported online TTS provider: ${slotCfg.providerId}`);
+}
+
+export async function playAudioDataUrl(
+  dataUrl: string,
+  playbackRate = 1.0,
+  safetyTimeoutMs = 30000,
+  onPlaybackStart?: () => void
+): Promise<void> {
+  if (typeof Audio === 'undefined') return;
+  stopAllTts();
+  const currentGen = activePlaybackGeneration;
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (activeHtmlAudioFinish === finish) {
+        activeHtmlAudioFinish = null;
+      }
+      if (activeHtmlAudio === audio) {
+        activeHtmlAudio = null;
+      }
+      resolve();
+    };
+
+    if (activePlaybackGeneration !== currentGen) {
+      resolve();
+      return;
+    }
+
+    let audio: HTMLAudioElement;
+    try {
+      audio = new Audio(dataUrl);
+    } catch {
+      resolve();
+      return;
+    }
+
+    activeHtmlAudio = audio;
+    activeHtmlAudioFinish = finish;
+    audio.playbackRate = playbackRate;
+
+    const onEnded = () => finish();
+    const onError = () => finish();
+    const onPlaying = () => onPlaybackStart?.();
+    audio.onended = onEnded;
+    audio.onerror = onError;
+    if (typeof audio.addEventListener === 'function') {
+      audio.addEventListener('ended', onEnded, { once: true });
+      audio.addEventListener('error', onError, { once: true });
+      audio.addEventListener('playing', onPlaying, { once: true });
+    }
+
+    timer = setTimeout(finish, safetyTimeoutMs);
+
+    try {
+      const playRes = audio.play();
+      if (playRes && typeof playRes.then === 'function') {
+        playRes.catch(() => finish());
+      } else {
+        finish();
+      }
+    } catch {
+      finish();
+    }
+  });
+}
+
+export async function speakOfflineNativeTts(
+  text: string,
+  locale = 'en-US',
+  rate = 1.0,
+  safetyTimeoutMs = 30000,
+  onPlaybackStart?: () => void
+): Promise<void> {
+  const cleanLang = locale.toLowerCase().includes('gb') ? 'en-GB' : 'en-US';
+  stopAllTts();
+
+  // In browser preview, use SpeechSynthesis directly so its real onstart event
+  // can dismiss the waiting-for-audio message.
+  if (!Capacitor.isNativePlatform() && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        resolve();
+      };
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = cleanLang;
+        utter.rate = rate;
+        utter.onstart = () => onPlaybackStart?.();
+        utter.onend = finish;
+        utter.onerror = finish;
+        timer = setTimeout(finish, safetyTimeoutMs);
+        window.speechSynthesis.speak(utter);
+      } catch {
+        finish();
+      }
+    });
+    return;
+  }
+
+  try {
+    let started = false;
+    let startListener: { remove: () => Promise<void> } | null = null;
+    try {
+      startListener = await TextToSpeech.addListener('onRangeStart', () => {
+        if (!started) {
+          started = true;
+          onPlaybackStart?.();
+        }
+      });
+    } catch {
+      // Older native plugin implementations may not expose range-start events.
+    }
+    try {
+      await TextToSpeech.speak({
+        text,
+        lang: cleanLang,
+        rate,
+        pitch: 1.0,
+        volume: 1.0,
+        category: 'ambient'
+      });
+    } finally {
+      if (startListener) await startListener.remove().catch(() => {});
+    }
+    return;
+  } catch {
+    // Fallback to browser speechSynthesis when running in desktop browser preview
+  }
+
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        resolve();
+      };
+
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = cleanLang;
+        utter.rate = rate;
+        utter.onstart = () => onPlaybackStart?.();
+        utter.onend = () => finish();
+        utter.onerror = () => finish();
+        if (typeof utter.addEventListener === 'function') {
+          utter.addEventListener('end', () => finish(), { once: true });
+          utter.addEventListener('error', () => finish(), { once: true });
+        }
+        timer = setTimeout(finish, safetyTimeoutMs);
+        window.speechSynthesis.speak(utter);
+      } catch {
+        finish();
+      }
+    });
+  }
+}
+
+export async function speakSentenceWithTierFallback(
+  text: string,
+  options?: {
+    rate?: number;
+    transport?: TransportFn;
+    onPlaybackStart?: () => void;
+  }
+): Promise<SpeakResult> {
+  const playbackGeneration = activePlaybackGeneration;
+  const rate = options?.rate ?? 1.0;
+  const wordCount = Math.max(1, text.trim().split(/\s+/).length);
+  const durationEstimateMs = Math.round(((wordCount * 380) / Math.max(0.5, rate)));
+
+  const configs = await loadAllSlotsConfig();
+  const voiceSlot = configs.voice_tts;
+
+  let usedCache = false;
+  const usedProviderConfig: { current: { config: SlotConfig; account: 'primary' | 'secondary' } | null } = { current: null };
+
+  const outcome = await executeWithTierFallback(
+    'voice_tts',
+    async () => {
+      const attempt = await runWithSlotApiFallback('voice_tts', voiceSlot, (apiConfig, apiKey) =>
+        synthesizeOnlineNeuralAudio(text, apiConfig, apiKey, rate, options?.transport)
+      );
+      usedProviderConfig.current = { config: attempt.config, account: attempt.account };
+      const { dataUrl, fromCache } = attempt.result;
+      if (activePlaybackGeneration !== playbackGeneration) {
+        // Playback was cancelled while network request was pending
+        return true;
+      }
+      usedCache = fromCache;
+      await playAudioDataUrl(dataUrl, rate, 30000, options?.onPlaybackStart);
+      return true;
+    },
+    async (fallbackTier) => {
+      // Log quota / rate-limit errors prominently so they appear in diagnostics
+      if (fallbackTier.reason && (fallbackTier.reason.includes('429') || fallbackTier.reason.toLowerCase().includes('quota') || fallbackTier.reason.toLowerCase().includes('rate limit'))) {
+        console.warn(`[ttsService] Gemini TTS rate-limited (HTTP 429) — falling back to native TTS. ${fallbackTier.reason}`);
+      }
+      if (activePlaybackGeneration !== playbackGeneration) {
+        // Playback was cancelled
+        return true;
+      }
+      usedCache = false;
+      await speakOfflineNativeTts(text, voiceSlot.modelOrVoice || 'en-US', rate, 30000, options?.onPlaybackStart);
+      return true;
+    }
+  );
+
+  const activeTier = usedProviderConfig.current && outcome.activeTier.tier !== 3
+    ? {
+        ...outcome.activeTier,
+        providerId: usedProviderConfig.current.config.providerId,
+        providerName: getPreset('voice_tts', usedProviderConfig.current.config.providerId).name,
+        detailLabel: `Online AI (${usedProviderConfig.current.account === 'secondary' ? 'API 2 · ' : 'API 1 · '}Tier ${getPreset('voice_tts', usedProviderConfig.current.config.providerId).tier} · ${getPreset('voice_tts', usedProviderConfig.current.config.providerId).name})`,
+        isFallback: usedProviderConfig.current.account === 'secondary'
+      }
+    : outcome.activeTier;
+  return { activeTier, fromCache: usedCache, durationEstimateMs };
+}

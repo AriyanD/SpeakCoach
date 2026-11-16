@@ -1,0 +1,45 @@
+/* Theme-specific visual corrections discovered during Android install review. */
+
+/* Use the same restrained outline navigation icons in both themes.
+   The dark-theme icon treatment is the shared visual reference. */
+.bottom-nav .nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 54px;
+  padding: 8px 4px;
+  font-size: max(12px, .66rem);
+  font-weight: 500;
+  letter-spacing: .01em;
+}
+
+.bottom-nav .nav-btn svg {
+  display: block;
+  width: 21px;
+  height: 21px;
+  flex: 0 0 21px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bottom-nav .nav-btn.active svg {
+  stroke-width: 2;
+}
+
+/* Keep error messages readable on the light surface while retaining semantic colors. */
+.ai-generation-error {
+  color: var(--danger) !important;
+  background: var(--danger-bg) !important;
+  border: 1px solid var(--danger) !important;
+}
+
+.shadowing-recording-limit {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+}

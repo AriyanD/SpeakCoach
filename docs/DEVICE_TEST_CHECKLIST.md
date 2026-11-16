@@ -1,0 +1,59 @@
+# SpeakCoach Android device verification checklist
+
+These checks require a real Android device. CI unit tests and APK compilation do not replace them. Run them on a test device first; do not uninstall an existing installation until its backups have been exported and verified.
+
+## 1. API key persistence and migration
+- [ ] Save a primary API key in each applicable slot and a secondary key in at least one slot.
+- [ ] Force-close and relaunch SpeakCoach; verify each key is still present (masked) and each provider can be tested.
+- [ ] Save a settings-only backup and confirm its JSON contains no `apiKeys` property.
+- [ ] Save an AI settings backup with keys; confirm both primary and secondary credentials are present.
+- [ ] Restore the with-keys backup on a separate test install and verify all keys by running provider tests.
+- [ ] Restore the no-keys backup over an install with existing keys; verify those keys remain unchanged.
+- [ ] Upgrade from the previous app build and confirm legacy Preferences keys migrate to Android Keystore without being cleared before read-back succeeds.
+- [ ] If Keystore access is unavailable, confirm Settings displays a recovery warning and refuses to overwrite an unreadable key with an empty value.
+
+## 2. Backup and restore failure handling
+- [ ] Export test data with IELTS history, generated question sets, previous question-set generations, and Shadowing history.
+- [ ] Restore it on a second test install and verify counts and recent entries.
+- [ ] Import an invalid/incomplete AI settings backup; confirm provider settings and keys remain unchanged.
+- [ ] Import an older AI settings backup without an `apiKeys` section; confirm existing keys remain unchanged.
+- [ ] Confirm a failed restore reports whether rollback completed. Keep the app open if it reports incomplete rollback.
+
+## 3. IELTS question generation and scoring
+- [ ] With Slot 5 verified, refresh the library and confirm five AI-generated sets appear.
+- [ ] Turn off network access and attempt refresh; confirm existing sets remain and no prewritten fallback question appears.
+- [ ] Start an IELTS session and toggle Wi-Fi/mobile data; confirm the active question, recording, and session state are not reset by connectivity changes.
+- [ ] With no verified evaluator configured, finish a test; confirm answers are saved in History and evaluation can be retried when an API is available.
+- [ ] Re-evaluate a saved test using API 1, then API 2; confirm each successful evaluation remains in the result's evaluation history.
+- [ ] Export a test-data backup after multiple evaluations, restore it, and confirm all evaluation versions remain available.
+- [ ] Test a Gemini request through the normal connection and through the user's VPN/custom gateway; confirm the configured authentication style works and the API key is not added to the URL for official Gemini endpoints.
+- [ ] Start, complete, and save a Full Mock Test; verify history, answer text, source/provider metadata, and question-set completion state.
+- [ ] Test Part 1, Part 2 and Part 3 separately, including Skip / New question.
+- [ ] Confirm Pronunciation is shown as Not assessed unless a validated pronunciation-assessment provider supplied a real assessment.
+
+## 4. Speech and audio lifecycle
+- [ ] Grant microphone permission, record, stop, and verify the microphone is released.
+- [ ] Record and stop two separate answers in succession; confirm the second transcript contains only the second answer and no text from the first recording.
+- [ ] Deny permission and verify the app shows an actionable error without becoming stuck.
+- [ ] Test a long recording, an empty recording, rapid Stop taps, app backgrounding, screen lock, incoming call, and app resume.
+- [ ] While an IELTS answer is recording, switch to another app; confirm TTS stops, the microphone is released, completed answers remain saved, and the interrupted answer is clearly marked for re-recording.
+- [ ] While Shadowing is recording, background the app; confirm recording stops and the UI returns to a non-recording state when reopened.
+- [ ] Test on a device with an on-device speech service available and another configuration without one. Airplane-mode recognition must not be assumed unless verified on that device.
+- [ ] Confirm the UI explains that Android system speech recognition may use a network service when offline processing is only preferred.
+
+## 5. Shadowing and visual regression
+- [ ] Test normal Play, Slow Play, Record, Stop & Score, retry, and weak-word practice; verify visible loading/pressed states and no double actions.
+- [ ] Confirm Tier 2/3 feedback is labelled as word-match/timing guidance, not phoneme-level pronunciation assessment.
+- [ ] Check light, dark and system themes on a narrow phone and a larger phone.
+- [ ] Check keyboard-open layout, landscape, large system font, reduced motion, safe areas, and bottom navigation.
+
+## 6. Android Back navigation and bottom navigation
+- [ ] From Diagnostics, press Back; confirm the Settings root is restored at the top. Press Back again; confirm “Press back again to exit.” appears. Press Back once more within two seconds; confirm the app exits.
+- [ ] Repeat the root-to-exit sequence from the IELTS root and Shadowing root independently.
+- [ ] In IELTS, open History and a result; verify Back follows result → history → IELTS test menu, one page per press.
+- [ ] Confirm Back never switches from one bottom-navigation tab to another, regardless of the tab-switching sequence.
+- [ ] During an IELTS recording or other active test step, press Back; confirm the Quit test confirmation appears and the session is not cancelled until Quit test is confirmed.
+- [ ] On the Quit test confirmation, press Back; confirm only the dialog closes and the test continues.
+- [ ] Open a dropdown or model picker; press Back and confirm it closes before any page navigation.
+- [ ] Confirm expanded Settings and IELTS-result accordions remain open/closed as page content and are not treated as navigation layers.
+- [ ] Repeat with Android gesture navigation and three-button navigation, in light and dark themes.

@@ -1,0 +1,218 @@
+name: Build SpeakCoach Android APK
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Standalone Android APK
+    runs-on: ubuntu-24.04
+    env:
+      SPEAKCOACH_RELEASE_KEYSTORE_BASE64: ${{ secrets.SPEAKCOACH_RELEASE_KEYSTORE_BASE64 }}
+      SPEAKCOACH_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.SPEAKCOACH_RELEASE_KEYSTORE_PASSWORD }}
+      SPEAKCOACH_RELEASE_KEY_ALIAS: ${{ secrets.SPEAKCOACH_RELEASE_KEY_ALIAS }}
+      SPEAKCOACH_RELEASE_KEY_PASSWORD: ${{ secrets.SPEAKCOACH_RELEASE_KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Accept Android SDK Licenses
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          CMDLINE_BIN=$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager | sort -V | tail -n 1)
+          yes | "$CMDLINE_BIN" --sdk_root="$SDK_ROOT" --licenses > /dev/null || true
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Verify Android device compatibility
+        run: npm run check:android-compat
+
+      - name: Require persistent signing key for version releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.SPEAKCOACH_RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.SPEAKCOACH_RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.SPEAKCOACH_RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.SPEAKCOACH_RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ] || [ -z "$RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$RELEASE_KEY_ALIAS" ] || [ -z "$RELEASE_KEY_PASSWORD" ]; then
+            echo "A stable release keystore and all four signing secrets are required before publishing a version tag."
+            exit 1
+          fi
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          VERSION_NAME=$(grep 'versionName' android/app/build.gradle | head -n 1 | cut -d '"' -f 2)
+          if [ "$TAG_VERSION" != "$VERSION_NAME" ]; then
+            echo "Release tag v$TAG_VERSION does not match Android versionName $VERSION_NAME."
+            exit 1
+          fi
+
+      - name: Audit production dependencies
+        run: |
+          audit_status=0
+          npm run --silent audit:production > npm-audit-production-report.json 2>&1 || audit_status=$?
+          node -e "try { const r = require('./npm-audit-production-report.json'); const v = r.metadata?.vulnerabilities || {}; console.log('Production dependency audit:', JSON.stringify(v)); for (const [name, item] of Object.entries(r.vulnerabilities || {})) console.log(name + ': severity=' + item.severity + ', direct=' + item.isDirect + ', fixAvailable=' + JSON.stringify(item.fixAvailable)); } catch (e) { console.error('Production dependency audit report could not be parsed:', e.message); process.exitCode = 1; }"
+          report_status=$?
+          if [ "$audit_status" -ne 0 ]; then exit "$audit_status"; fi
+          exit "$report_status"
+
+      - name: Upload production dependency audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeakCoach-production-dependency-audit
+          path: npm-audit-production-report.json
+          if-no-files-found: warn
+
+      - name: Scan for retired account and Android identity references
+        run: |
+          if grep -RInI -E 'baraynahan|github.com/AriyanD/bandwave-ielts-speaking|github.com/baraynahan|com\.bandwave\.app|speakband-symbol' . --exclude-dir=.git --exclude='package-lock.json' --exclude='build-apk.yml'; then
+            echo "A retired account, repository URL, package ID or icon filename remains in the source tree."
+            exit 1
+          fi
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          npm test -- --reporter=verbose 2>&1 | tee vitest-results.log
+
+      - name: Upload unit test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeakCoach-unit-test-diagnostics
+          path: vitest-results.log
+          if-no-files-found: warn
+
+      - name: Build web bundle & sync Capacitor Android
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build-output.log
+          npx cap sync android 2>&1 | tee -a build-output.log
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeakCoach-build-diagnostics
+          path: build-output.log
+          if-no-files-found: warn
+
+      - name: Verify retired IELTS question bank is not bundled
+        run: |
+          if grep -R -F "Where is your hometown, and can you tell me a little bit about it?" dist/assets; then
+            echo "A retired prewritten IELTS question was found in the production bundle."
+            exit 1
+          fi
+
+      - name: Grant execute permission to Gradlew
+        working-directory: android
+        run: chmod +x ./gradlew
+
+      - name: Run Android unit tests
+        working-directory: android
+        run: |
+          set -o pipefail
+          ./gradlew testDebugUnitTest --no-daemon 2>&1 | tee ../android-test-output.log
+
+      - name: Upload Android test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeakCoach-android-test-diagnostics
+          path: android-test-output.log
+          if-no-files-found: warn
+
+      - name: Build Debug & Release Unsigned APKs
+        working-directory: android
+        run: ./gradlew assembleDebug assembleRelease --no-daemon
+
+      - name: Sign Release APK with persistent repository keystore
+        if: ${{ env.SPEAKCOACH_RELEASE_KEYSTORE_BASE64 != '' && env.SPEAKCOACH_RELEASE_KEYSTORE_PASSWORD != '' && env.SPEAKCOACH_RELEASE_KEY_ALIAS != '' && env.SPEAKCOACH_RELEASE_KEY_PASSWORD != '' }}
+        working-directory: android
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ env.SPEAKCOACH_RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ env.SPEAKCOACH_RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ env.SPEAKCOACH_RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ env.SPEAKCOACH_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > speakcoach-release.keystore
+
+          BUILD_TOOLS_DIR=$(ls -d "$SDK_ROOT"/build-tools/* | sort -V | tail -n 1)
+          UNSIGNED_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+          ALIGNED_APK="app/build/outputs/apk/release/SpeakCoach-release-aligned.apk"
+          VERSION_NAME=$(grep 'versionName' app/build.gradle | head -n 1 | cut -d '"' -f 2)
+          SIGNED_APK="app/build/outputs/apk/release/SpeakCoach-v${VERSION_NAME}.apk"
+
+          "$BUILD_TOOLS_DIR/zipalign" -v -p 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+          "$BUILD_TOOLS_DIR/apksigner" sign \
+            --ks speakcoach-release.keystore \
+            --ks-key-alias "$RELEASE_KEY_ALIAS" \
+            --ks-pass env:RELEASE_KEYSTORE_PASSWORD \
+            --key-pass env:RELEASE_KEY_PASSWORD \
+            --out "$SIGNED_APK" \
+            "$ALIGNED_APK"
+          "$BUILD_TOOLS_DIR/apksigner" verify "$SIGNED_APK"
+
+      - name: Copy debug APK for artifact upload
+        working-directory: android
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/SpeakCoach-debug.apk
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeakCoach-debug-apk
+          path: android/app/build/outputs/apk/debug/SpeakCoach-debug.apk
+          if-no-files-found: error
+
+      - name: Upload Stable-Signed Release APK Artifact
+        if: ${{ env.SPEAKCOACH_RELEASE_KEYSTORE_BASE64 != '' && env.SPEAKCOACH_RELEASE_KEYSTORE_PASSWORD != '' && env.SPEAKCOACH_RELEASE_KEY_ALIAS != '' && env.SPEAKCOACH_RELEASE_KEY_PASSWORD != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeakCoach-release-signed-apk
+          path: android/app/build/outputs/apk/release/SpeakCoach-v*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: SpeakCoach ${{ github.ref_name }}
+          generate_release_notes: true
+          make_latest: true
+          files: android/app/build/outputs/apk/release/SpeakCoach-v*.apk
+
+      - name: Upload unsigned Release APK when stable signing is not configured
+        if: ${{ env.SPEAKCOACH_RELEASE_KEYSTORE_BASE64 == '' || env.SPEAKCOACH_RELEASE_KEYSTORE_PASSWORD == '' || env.SPEAKCOACH_RELEASE_KEY_ALIAS == '' || env.SPEAKCOACH_RELEASE_KEY_PASSWORD == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeakCoach-release-unsigned-apk
+          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error

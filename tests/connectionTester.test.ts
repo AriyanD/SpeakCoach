@@ -1,0 +1,439 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createDefaultSlotConfig } from '../src/config/providers';
+import type { ConnectionTestResult } from '../src/config/types';
+import { bootstrapApp } from '../src/main';
+import { testSlotConnection } from '../src/services/connectionTester';
+import { networkMonitor } from '../src/services/networkMonitor';
+import { clearAllRuntimeFailures } from '../src/services/tierManager';
+
+const validGeneratorProbe = {
+  part1Questions: [
+    { topic: 'Daily routines', question: 'How do you usually plan your day?' },
+    { topic: 'Daily routines', question: 'What part of the day do you enjoy most?' },
+    { topic: 'Daily routines', question: 'Has your daily routine changed recently?' },
+    { topic: 'Public places', question: 'Which public place do you visit most?' },
+    { topic: 'Public places', question: 'What makes a public place comfortable?' },
+    { topic: 'Public places', question: 'Should cities create more public spaces?' }
+  ],
+  part2CueCard: {
+    topic: 'A useful object',
+    title: 'An object you use often',
+    prompt: 'Describe an object you use frequently.',
+    bullets: ['What it is', 'When you got it', 'How you use it', 'Why it is useful']
+  },
+  part3Questions: [
+    { topic: 'Objects and daily life', question: 'Why do people become attached to certain objects?' },
+    { topic: 'Objects and daily life', question: 'How have everyday objects changed in recent decades?' },
+    { topic: 'Objects and daily life', question: 'Should products be designed to last longer?' },
+    { topic: 'Objects and daily life', question: 'How does advertising influence what people buy?' }
+  ]
+};
+import {
+  loadSlotConnectionTestResult,
+  saveSlotConnectionTestResult
+} from '../src/storage/localStore';
+
+describe('Functional Deep Connection Tester', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    clearAllRuntimeFailures();
+    networkMonitor.setOnline(true);
+  });
+
+  it('passes immediately for Tier 3 offline providers without needing a key or internet', async () => {
+    const res = await testSlotConnection(
+      {
+        slotId: 'voice_tts',
+        providerId: 'android_native_tts',
+        baseUrl: 'offline://android-tts',
+        modelOrVoice: 'en-US'
+      },
+      { isOnlineOverride: false }
+    );
+    expect(res.ok).toBe(true);
+    expect(res.tier).toBe(3);
+    expect(res.label).toBe('Basic offline');
+    expect(res.message).toContain('PASS');
+  });
+
+  it('fails with clear message when online provider has no API key', async () => {
+    const cfg = createDefaultSlotConfig('llm_evaluator');
+    const res = await testSlotConnection(cfg, { apiKeyOverride: '' });
+    expect(res.ok).toBe(false);
+    expect(res.message).toContain('API key is empty');
+    expect(res.message).toContain('Step: API Key Validation');
+  });
+
+  it('deep tests LLM Generator by requesting JSON and validating response shape', async () => {
+    const genCfg = {
+      slotId: 'llm_generator' as const,
+      providerId: 'openai_compat_gen',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'gpt-4o-mini'
+    };
+
+    // 1. Successful JSON response
+    const passRes = await testSlotConnection(genCfg, {
+      apiKeyOverride: 'sk-gen-key',
+      transport: async (opts) => {
+        expect(opts.url).toBe('https://api.openai.com/v1/chat/completions');
+        return {
+          url: opts.url,
+          status: 200,
+          headers: {},
+          data: {
+            choices: [{ message: { content: JSON.stringify(validGeneratorProbe) } }]
+          }
+        };
+      }
+    });
+    expect(passRes.ok).toBe(true);
+    expect(passRes.message).toMatch(/^PASS — .+ test passed \(capability probe, /);
+
+    // 2. Invalid shape failure
+    const badShapeRes = await testSlotConnection(genCfg, {
+      apiKeyOverride: 'sk-gen-key',
+      transport: async (opts) => ({
+        url: opts.url,
+        status: 200,
+        headers: {},
+        data: {
+          choices: [{ message: { content: 'This is plain text without json' } }]
+        }
+      })
+    });
+    expect(badShapeRes.ok).toBe(false);
+    expect(badShapeRes.message).toContain('Step: JSON Response Shape Validation');
+
+    // 3. HTTP 401 failure
+    const authFailRes = await testSlotConnection(genCfg, {
+      apiKeyOverride: 'sk-bad-key',
+      transport: async (opts) => ({
+        url: opts.url,
+        status: 401,
+        headers: {},
+        data: { error: { message: 'Invalid API key' } }
+      })
+    });
+    expect(authFailRes.ok).toBe(false);
+    expect(authFailRes.message).toContain('Step: HTTP Request (HTTP 401)');
+  });
+
+  it('lightly tests the Evaluator API without generating a full IELTS feedback report', async () => {
+    const evalCfg = {
+      slotId: 'llm_evaluator' as const,
+      providerId: 'gemini_eval',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-2.5-flash'
+    };
+
+    // 1. Successful schema response
+    const validPayload = {
+      fluencyCoherenceBand: 6.5,
+      lexicalResourceBand: 7.0,
+      grammaticalRangeBand: 6.0
+    };
+
+    const passRes = await testSlotConnection(evalCfg, {
+      apiKeyOverride: 'gemini-test-key',
+      transport: async (opts) => {
+        expect(opts.url).toContain('gemini-2.5-flash:generateContent');
+        const request = opts.data as { contents: Array<{ parts: Array<{ text: string }> }>; generationConfig: Record<string, unknown> };
+        const prompt = request.contents[0].parts[0].text;
+        expect(prompt.length).toBeLessThan(500);
+        expect(prompt).toContain('short API connection test');
+        expect(prompt).not.toContain('topPriorities');
+        expect(opts.connectTimeout).toBe(45000);
+        expect(opts.readTimeout).toBe(45000);
+        return {
+          url: opts.url,
+          status: 200,
+          headers: {},
+          data: {
+            candidates: [
+              {
+                content: {
+                  parts: [{ text: JSON.stringify(validPayload) }]
+                }
+              }
+            ]
+          }
+        };
+      }
+    });
+    expect(passRes.ok).toBe(true);
+    expect(passRes.message).toMatch(/^PASS — .+ test passed \(/);
+
+    // 2. Missing required schema field
+    const invalidPayload = {
+      fluencyCoherenceBand: 6.5
+      // missing lexicalResourceBand and grammaticalRangeBand
+    };
+    const schemaFailRes = await testSlotConnection(evalCfg, {
+      apiKeyOverride: 'gemini-test-key',
+      transport: async (opts) => ({
+        url: opts.url,
+        status: 200,
+        headers: {},
+        data: {
+          candidates: [
+            {
+              content: {
+                parts: [{ text: JSON.stringify(invalidPayload) }]
+              }
+            }
+          ]
+        }
+      })
+    });
+    expect(schemaFailRes.ok).toBe(false);
+    expect(schemaFailRes.message).toContain('Step: JSON Schema Validation');
+    expect(schemaFailRes.message).toContain('missing numeric band scores');
+
+    // 3. HTTP 429 is reported as a provider limit, not as an offline fallback.
+    const rateLimitRes = await testSlotConnection(evalCfg, {
+      apiKeyOverride: 'gemini-test-key',
+      transport: async (opts) => ({
+        url: opts.url,
+        status: 429,
+        headers: {},
+        data: { error: { message: 'Quota exceeded' } }
+      })
+    });
+    expect(rateLimitRes.ok).toBe(false);
+    expect(rateLimitRes.message).toContain('HTTP 429');
+    expect(rateLimitRes.message).toContain('no offline evaluator is available');
+    expect(rateLimitRes.message).not.toContain('Auto-fallback to Basic offline is ready');
+  });
+
+  it('does not report the disabled IELTS offline evaluator as ready', async () => {
+    const res = await testSlotConnection({
+      slotId: 'llm_evaluator',
+      providerId: 'offline_rule_eval',
+      baseUrl: 'offline://rule-evaluator',
+      modelOrVoice: 'heuristic-v1'
+    }, { isOnlineOverride: false });
+
+    expect(res.ok).toBe(false);
+    expect(res.message).toContain('IELTS evaluation requires an online AI API');
+    expect(res.message).toContain('Offline IELTS evaluation is not available');
+  });
+
+  it('deep tests STT slot with bundled WAV and validates transcription response', async () => {
+    const sttCfg = {
+      slotId: 'ielts_stt' as const,
+      providerId: 'whisper_stt',
+      baseUrl: 'https://api.groq.com/openai/v1',
+      modelOrVoice: 'whisper-large-v3-turbo'
+    };
+
+    // 1. Success response
+    const passRes = await testSlotConnection(sttCfg, {
+      apiKeyOverride: 'groq-key',
+      transport: async (opts) => {
+        expect(opts.url).toContain('/audio/transcriptions');
+        expect(opts.dataType).toBe('formData');
+        expect(Array.isArray(opts.data)).toBe(true);
+        expect((opts.data as Array<Record<string, string>>).some((entry) => entry.type === 'base64File' && entry.key === 'file' && entry.fileName === 'sample.wav')).toBe(true);
+        return {
+          url: opts.url,
+          status: 200,
+          headers: {},
+          data: {
+            text: 'Hello SpeakCoach test',
+            words: [{ word: 'Hello', start: 0.1, end: 0.5 }]
+          }
+        };
+      }
+    });
+    expect(passRes.ok).toBe(true);
+    expect(passRes.message).toContain('transcription endpoint accepted the probe audio');
+
+    // 2. HTTP 429 rate limit failure
+    const rateLimitRes = await testSlotConnection(sttCfg, {
+      apiKeyOverride: 'groq-key',
+      transport: async (opts) => ({
+        url: opts.url,
+        status: 429,
+        headers: {},
+        data: { error: { message: 'Rate limit exceeded' } }
+      })
+    });
+    expect(rateLimitRes.ok).toBe(false);
+    expect(rateLimitRes.message).toContain('Step: HTTP Request (HTTP 429)');
+  });
+
+  it('keeps Gemini STT connection testing compatible with the previously working main-branch probe', async () => {
+    const result = await testSlotConnection({
+      slotId: 'ielts_stt',
+      providerId: 'gemini_stt',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-2.5-flash'
+    }, {
+      apiKeyOverride: 'gemini-stt-key',
+      transport: async opts => {
+        const payload = opts.data as Record<string, any>;
+        expect(payload.contents[0].parts[0].text).toBe('Transcribe the attached audio exactly as spoken.');
+        expect(payload.generationConfig.audioTranscriptionConfig).toEqual({ mode: 'VERBATIM' });
+        return {
+          url: opts.url, status: 200, headers: {},
+          // Match the original main-branch contract: the synthetic probe only
+          // verifies that Gemini accepted the request and returned a candidate.
+          data: { candidates: [{ content: {} }] }
+        };
+      }
+    });
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('transcription endpoint accepted the probe audio');
+  });
+
+  it('fails Gemini STT connection test when the API returns no candidates', async () => {
+    const result = await testSlotConnection({
+      slotId: 'ielts_stt',
+      providerId: 'gemini_stt',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-2.5-flash'
+    }, {
+      apiKeyOverride: 'gemini-stt-key',
+      transport: async opts => ({
+        url: opts.url, status: 200, headers: {},
+        data: { candidates: [] }
+      })
+    });
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('Gemini STT response did not contain candidates');
+  });
+
+  it('tests Azure Pronunciation Assessment through the actual short-audio assessment endpoint', async () => {
+    const result = await testSlotConnection({
+      slotId: 'pronunciation_scoring',
+      providerId: 'azure_pronunciation',
+      baseUrl: 'https://eastus.stt.speech.microsoft.com',
+      modelOrVoice: 'en-US'
+    }, {
+      apiKeyOverride: 'azure-speech-key',
+      transport: async opts => {
+        expect(opts.url).toContain('/speech/recognition/conversation/cognitiveservices/v1');
+        expect(opts.url).toContain('format=detailed');
+        expect(opts.url).toContain('language=en-US');
+        expect(opts.method).toBe('POST');
+        expect(opts.dataType).toBe('file');
+        expect(opts.headers?.['Ocp-Apim-Subscription-Key']).toBe('azure-speech-key');
+        expect(opts.headers?.['Pronunciation-Assessment']).toBeTruthy();
+        expect(opts.headers?.['Content-Type']).toContain('audio/wav');
+        expect(typeof opts.data).toBe('string');
+        return {
+          url: opts.url, status: 200, headers: {},
+          data: { RecognitionStatus: 'NoMatch' }
+        };
+      }
+    });
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('pronunciation-assessment endpoint accepted the WAV probe');
+  });
+
+  it('deep tests Whisper Alignment with the actual transcription endpoint, not only a model-list endpoint', async () => {
+    const cfg = {
+      slotId: 'pronunciation_scoring' as const,
+      providerId: 'whisper_alignment',
+      baseUrl: 'https://api.groq.com/openai/v1',
+      modelOrVoice: 'whisper-large-v3-turbo'
+    };
+    const result = await testSlotConnection(cfg, {
+      apiKeyOverride: 'groq-pronunciation-key',
+      transport: async opts => {
+        expect(opts.url).toContain('/audio/transcriptions');
+        expect(opts.method).toBe('POST');
+        expect(opts.dataType).toBe('formData');
+        expect(Array.isArray(opts.data)).toBe(true);
+        return {
+          url: opts.url,
+          status: 200,
+          headers: {},
+          data: { text: '', words: [] }
+        };
+      }
+    });
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('transcription endpoint accepted the probe audio');
+  });
+
+  it('deep tests TTS slot and validates playable audio data URL output', async () => {
+    const ttsCfg = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+
+    // 1. Valid audio binary response
+    const passRes = await testSlotConnection(ttsCfg, {
+      apiKeyOverride: 'sk-tts-key',
+      transport: async (opts) => {
+        expect(opts.url).toContain('/audio/speech');
+        return {
+          url: opts.url,
+          status: 200,
+          headers: {},
+          data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA' // valid mp3 base64 prefix
+        };
+      }
+    });
+    expect(passRes.ok).toBe(true);
+    expect(passRes.message).toMatch(/^PASS — .+ test passed \(/);
+
+    // 2. Empty audio payload
+    const emptyRes = await testSlotConnection(ttsCfg, {
+      apiKeyOverride: 'sk-tts-key',
+      transport: async (opts) => ({
+        url: opts.url,
+        status: 200,
+        headers: {},
+        data: ''
+      })
+    });
+    expect(emptyRes.ok).toBe(false);
+    expect(emptyRes.message).toContain('Step: Audio Synthesis Validation');
+  });
+
+  it('renders all 5 configurable provider slots in SettingsView with Deep test button', async () => {
+    const root = document.createElement('div');
+    await bootstrapApp(root, 'settings');
+
+    const slotCards = root.querySelectorAll('[data-slot-card]');
+    expect(slotCards).toHaveLength(5);
+
+    const testButtons = root.querySelectorAll('[data-test-slot]');
+    expect(testButtons).toHaveLength(5);
+    expect(testButtons[0].textContent).toContain('Test API 1');
+  });
+
+  it('persists the last connection-test result and timestamp per slot across app restarts', async () => {
+    const testResult: ConnectionTestResult = {
+      ok: true,
+      slotId: 'llm_evaluator',
+      providerId: 'openai_compat_eval',
+      tier: 1,
+      label: 'Online AI',
+      latencyMs: 142,
+      message: 'PASS — OpenAI (Tier 1) test passed (142 ms).'
+    };
+
+    await saveSlotConnectionTestResult('llm_evaluator', testResult);
+
+    const loaded = await loadSlotConnectionTestResult('llm_evaluator');
+    expect(loaded).not.toBeNull();
+    expect(loaded?.ok).toBe(true);
+    expect(loaded?.slotId).toBe('llm_evaluator');
+    expect(loaded?.latencyMs).toBe(142);
+    expect(typeof loaded?.timestamp).toBe('number');
+    expect(loaded?.timestamp).toBeGreaterThan(0);
+
+    const root = document.createElement('div');
+    await bootstrapApp(root, 'settings');
+
+    const statusEl = root.querySelector('#status-llm_evaluator');
+    expect(statusEl?.textContent).toContain('PASS — OpenAI (Tier 1) test passed');
+    expect(statusEl?.textContent).toContain('Tested:');
+  });
+});
