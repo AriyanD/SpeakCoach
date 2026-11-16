@@ -16,6 +16,8 @@
 
 <img src="docs/screenshots/overview-light.png" alt="SpeakCoach screens: Shadowing, IELTS, history and settings" width="100%">
 
+### ☕ [If SpeakCoach helps you, buy me a coffee](https://www.coffeebede.com/ariyand)
+
 </div>
 
 > Screenshots were captured from the app UI with **clearly fictional sample data** (sample question sets and one sample result). No real provider or account is shown.

@@ -20,7 +20,7 @@
 
 <div align="center">
 
-[![حمایت از SpeakCoach در کافی‌بده](https://img.shields.io/badge/%E2%98%95_%D8%AD%D9%85%D8%A7%DB%8C%D8%AA_%D8%A7%D8%B2_%D9%85%D9%86-%DA%A9%D8%A7%D9%81%DB%8C%E2%80%8C%D8%A8%D8%AF%D9%87-FFDD00?style=for-the-badge&labelColor=3b2a8c)](https://www.coffeebede.com/ariyand)
+### ☕ [اگر SpeakCoach به دردتان خورد، من را یک قهوه مهمان کنید](https://www.coffeebede.com/ariyand)
 
 </div>
 
@@ -162,11 +162,11 @@ TypeScript · رابط کاربری DOM خالص · Vite · Capacitor 6 (اند�
 
 ## حمایت از پروژه ☕
 
-SpeakCoach **رایگان** است و بدون سرور و اشتراک ارائه می‌شود. اگر برایتان مفید بود و دوست داشتید از ادامهٔ توسعه‌اش حمایت کنید، می‌توانید یک قهوه مهمان من باشید:
+SpeakCoach **رایگان** است و بدون سرور و اشتراک ارائه می‌شود. اگر برایتان مفید بود و دوست داشتید از ادامهٔ توسعه‌اش حمایت کنید، می‌توانید من را یک قهوه مهمان کنید:
 
 <div align="center">
 
-### ☕ [از من در کافی‌بده حمایت کنید](https://www.coffeebede.com/ariyand)
+### ☕ [من را یک قهوه مهمان کنید (کافی‌بده)](https://www.coffeebede.com/ariyand)
 
 </div>
 
