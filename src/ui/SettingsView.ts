@@ -4,6 +4,7 @@ import { APP_VERSION } from '../config/appVersion';
 import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
 import { testSlotConnection } from '../services/connectionTester';
+import { isOnlineProviderVerified } from '../services/slotConnectionStatus';
 import {
   detectProviderUrlMismatch,
   getCustomProviderIdForSlot
@@ -116,17 +117,20 @@ export async function renderSettingsView(
     const storedLastTest = lastTestResults.get(slotId);
     const lastTest = storedLastTest?.providerId === slotCfg.providerId ? storedLastTest : undefined;
     const evaluatorOfflineSelected = slotId === 'llm_evaluator' && preset.tier === 3;
+    const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
     const slotStatus = evaluatorOfflineSelected
       ? 'api-required'
-      : lastTest
-        ? (lastTest.ok ? 'ready' : 'error')
-        : resolved.label === 'Online AI'
-          ? 'ready'
-          : preset.requiresKey && !currentKey.trim()
-            ? 'needs-key'
-            : preset.requiresKey
-              ? 'not-tested'
-              : 'offline-ready';
+      : slotOnlineVerified
+        ? 'ready'
+        : lastTest
+          ? 'error'
+          : resolved.label === 'Online AI'
+            ? 'ready'
+            : preset.requiresKey && !currentKey.trim()
+              ? 'needs-key'
+              : preset.requiresKey
+                ? 'not-tested'
+                : 'offline-ready';
     const badgeClass = slotStatus === 'ready' ? 'online' : slotStatus === 'error' ? 'error' : 'offline';
     const badgeLabel = slotStatus === 'ready' ? 'Ready' : slotStatus === 'error' ? 'Error' : slotStatus === 'needs-key' ? 'API key needed' : slotStatus === 'offline-ready' ? 'Offline ready' : slotStatus === 'api-required' ? 'API required' : 'Not tested';
     const isCustom = preset.id.startsWith('custom_openai_');
@@ -1516,6 +1520,13 @@ export async function renderSettingsView(
         configs[slotId].secondary = verifiedConfig;
         secondaryStatus.className = `status-box ${testResult.ok ? 'pass' : 'fail'}`;
         secondaryStatus.textContent = `API 2: ${result.ok && result.tier !== 3 ? 'PASS' : 'FAIL'} — ${result.message}`;
+        if (slotBadge) {
+          const primaryTest = lastTestResults.get(slotId);
+          const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
+          const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, verifiedConfig);
+          slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
+          slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
@@ -1538,6 +1549,15 @@ export async function renderSettingsView(
           lastTestResults.delete(slotId);
           await clearSlotConnectionTestResult(slotId);
           markSlotNotVerified(`Saved ${getPreset(slotId, cfg.providerId).name}. Run Test API 1 to verify the connection.`);
+        }
+        // The slot badge represents the whole slot, not API 1 alone. A verified
+        // API 2 must keep it online even when API 1's last test failed.
+        if (slotBadge) {
+          const primaryTest = lastTestResults.get(slotId);
+          const currentPrimaryTest = primaryTest?.providerId === cfg.providerId ? primaryTest : undefined;
+          const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, cfg.secondary);
+          slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
+          slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
         }
         if (saveStatus) {
           saveStatus.hidden = false;
@@ -1584,8 +1604,12 @@ export async function renderSettingsView(
         dismissedVerificationErrors.delete(slotId);
         if (verificationActions) verificationActions.style.display = result.ok ? 'none' : 'flex';
         if (slotBadge) {
-          slotBadge.className = `tier-badge ${result.ok && result.tier !== 3 ? 'online' : 'offline'}`;
-          slotBadge.innerHTML = `<span class="tier-dot"></span>${result.ok && result.tier !== 3 ? 'Online AI' : 'Basic offline'}`;
+          const onlineVerified = isOnlineProviderVerified(
+            result.providerId === configs[slotId].providerId ? result : undefined,
+            configs[slotId].secondary
+          );
+          slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
+          slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
         }
         statusBox.className = `status-box ${result.ok && result.tier !== 3 ? 'pass' : 'fail'}`;
         statusBox.textContent = `API 1: ${result.ok && result.tier !== 3 ? 'PASS' : 'FAIL'} — ${result.message}`;
