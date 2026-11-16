@@ -1537,6 +1537,13 @@ export async function renderSettingsView(
         } catch { /* Keep the visible test error even if storage is unavailable. */ }
         secondaryStatus.className = 'status-box fail';
         secondaryStatus.textContent = `API 2: FAIL — ${message}`;
+        if (slotBadge) {
+          const primaryTest = lastTestResults.get(slotId);
+          const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
+          const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, configs[slotId].secondary);
+          slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
+          slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
+        }
       } finally { secondaryTestBtn.disabled = false; }
     });
 
