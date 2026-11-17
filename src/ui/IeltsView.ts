@@ -161,8 +161,12 @@ export function renderIeltsView(
                 const previous = await getIeltsTestResult(record.previousAttemptId!);
                 if (!previous) return;
                 const comparison = await compareIeltsAttempts(previous, record);
+                // Merge into the latest stored record so a concurrent re-evaluation
+                // cannot be overwritten by this delayed background response.
+                const latestRecord = await getIeltsTestResult(record.id);
+                if (!latestRecord) return;
                 await saveIeltsTestResult(
-                  { ...record, comparison, comparisonError: null },
+                  { ...latestRecord, comparison, comparisonError: null },
                   { clearDraft: false }
                 );
               } catch (error) {
