@@ -1473,7 +1473,7 @@ export async function renderSettingsView(
       };
       const rawKeyInput = keyInput?.value.trim() ?? '';
       const rawKey = preset.requiresKey
-        ? (rawKeyInput || await loadApiKeyStrict(slotId, preset.id, 'primary'))
+        ? (rawKeyInput || await readKeyForSettings(slotId, preset.id, 'primary'))
         : '';
       const previousConfig = { ...configs[slotId] };
       const primaryChanged = JSON.stringify({ ...configs[slotId], secondary: undefined }) !== JSON.stringify({ ...cfg, secondary: undefined }) || rawKey !== keysBySlot[slotId];
@@ -1553,7 +1553,7 @@ export async function renderSettingsView(
         }
         if (secondaryPreset) {
           const secondaryKeyInputValue = secondaryKeyInput?.value.trim() ?? '';
-          const secondaryKey = secondaryKeyInputValue || await loadApiKeyStrict(slotId, secondaryPreset.id, 'secondary');
+          const secondaryKey = secondaryKeyInputValue || await readKeyForSettings(slotId, secondaryPreset.id, 'secondary');
           if (!secondaryKey.trim()) throw new Error('Enter the API 2 key or choose a provider that already has a saved key.');
           if (secondaryKeyInputValue) await saveApiKey(slotId, secondaryPreset.id, secondaryKey, 'secondary');
           if (await loadApiKeyStrict(slotId, secondaryPreset.id, 'secondary') !== secondaryKey.trim()) {
@@ -1574,7 +1574,19 @@ export async function renderSettingsView(
 
         configs[slotId] = cfg;
         keysBySlot[slotId] = rawKey;
-        if (secondaryPreset) secondaryKeysBySlot[slotId] = (secondaryKeyInput?.value.trim() || await loadApiKeyStrict(slotId, secondaryPreset.id, 'secondary'));
+        if (keyInput) {
+          keyInput.value = '';
+          keyInput.placeholder = rawKey ? 'Key saved securely. Leave blank to keep it, or type a replacement.' : 'Enter your API key...';
+        }
+        if (secondaryPreset) {
+          secondaryKeysBySlot[slotId] = (secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, secondaryPreset.id, 'secondary'));
+          if (secondaryKeyInput) {
+            secondaryKeyInput.value = '';
+            secondaryKeyInput.placeholder = secondaryKeysBySlot[slotId]
+              ? 'API 2 key saved securely. Leave blank to keep it, or type a replacement.'
+              : 'Enter second API key';
+          }
+        }
         else secondaryKeysBySlot[slotId] = '';
         return { cfg, key: rawKey, primaryChanged };
       } catch (error) {
