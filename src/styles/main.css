@@ -3577,3 +3577,42 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .app-toast { transition: none; }
 }
+
+
+/* Accessibility audit: comfortable touch targets and a clear optional transcript reveal. */
+.btn,
+.nav-btn,
+.pill-btn,
+.provider-picker-trigger,
+.provider-picker-option,
+.model-picker-trigger,
+.model-option,
+.word-chip {
+  min-height: 48px;
+}
+
+.ielts-question-text-disclosure {
+  margin: 12px 0 14px;
+  padding: 0 13px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+}
+.ielts-question-text-disclosure > summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  color: var(--accent-strong);
+  font-size: .86rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.ielts-question-text-disclosure > summary::-webkit-details-marker { display: none; }
+.ielts-question-text-disclosure[open] > summary {
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.ielts-question-text-disclosure .ielts-question-text {
+  margin: 0;
+}
