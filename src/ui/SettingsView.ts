@@ -310,8 +310,8 @@ export async function renderSettingsView(
               type="password"
               class="form-input"
               id="key-${slotId}"
-              value="${escapeHtml(currentKey)}"
-              placeholder="${preset.requiresKey ? 'Enter your API key...' : 'No API key needed'}"
+              value=""
+              placeholder="${currentKey ? 'Key already stored securely. Leave blank to keep it, or type a replacement.' : (preset.requiresKey ? 'Enter your API key...' : 'No API key needed')}"
               autocomplete="off"
               ${preset.requiresKey ? '' : 'disabled'}
             />
@@ -443,7 +443,7 @@ export async function renderSettingsView(
               </div>
             </div>` : ''}
             <div class="form-field"><label class="form-label" for="secondary-key-${slotId}">API Key (${keyStorageLabel}) — API 2</label>
-              <input type="password" class="form-input" id="secondary-key-${slotId}" value="${escapeHtml(secondaryKeysBySlot[slotId])}" autocomplete="off" placeholder="Enter second API key" /></div>
+              <input type="password" class="form-input" id="secondary-key-${slotId}" value="" autocomplete="off" placeholder="${secondaryKeysBySlot[slotId] ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.' : 'Enter second API key'}" /></div>
             ${secondaryCopyKeyOptionsHtml ? `
             <div class="form-field">
               <label class="form-label" for="secondary-copy-key-source-${slotId}">Copy API key from another slot</label>
@@ -1240,7 +1240,7 @@ export async function renderSettingsView(
       secondaryProviderSelect.value = option.dataset.secondaryProviderId ?? '';
       secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    secondaryProviderSelect?.addEventListener('change', () => {
+    secondaryProviderSelect?.addEventListener('change', async () => {
       const selected = secondaryProviderSelect.value;
       if (secondaryProviderTrigger) secondaryProviderTrigger.querySelector('span')!.textContent = selected ? getPreset(slotId, selected).name : 'Not configured';
       secondaryProviderOptions?.querySelectorAll<HTMLButtonElement>('[data-secondary-provider-id]').forEach((option) => option.classList.toggle('active', option.dataset.secondaryProviderId === selected));
@@ -1259,7 +1259,13 @@ export async function renderSettingsView(
       const selectedPreset = getPreset(slotId, selected);
       const secondaryCustomAuthContainer = container.querySelector<HTMLElement>(`#secondary-custom-auth-container-${slotId}`);
       if (secondaryCustomAuthContainer) secondaryCustomAuthContainer.style.display = selectedPreset.id.startsWith('custom_openai_') ? '' : 'none';
-      if (secondaryProviderSelect.value !== configs[slotId].secondary?.providerId && secondaryKeyInput) secondaryKeyInput.value = '';
+      if (secondaryProviderSelect.value !== configs[slotId].secondary?.providerId && secondaryKeyInput) {
+        const storedKey = await readKeyForSettings(slotId, selectedPreset.id, 'secondary');
+        secondaryKeyInput.value = '';
+        secondaryKeyInput.placeholder = storedKey
+          ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.'
+          : 'Enter second API key';
+      }
       if (secondaryBaseUrlInput) secondaryBaseUrlInput.value = selectedPreset.defaultBaseUrl;
       if (secondaryModelInput) secondaryModelInput.value = selectedPreset.defaultModelOrVoice;
       if (secondaryCustomVoiceInput) secondaryCustomVoiceInput.value = '';
@@ -1440,7 +1446,13 @@ export async function renderSettingsView(
       if (baseUrlInput) baseUrlInput.value = nextPreset.defaultBaseUrl;
       updateBaseUrlPreview(nextPreset.defaultBaseUrl);
       if (modelInput) modelInput.value = nextPreset.defaultModelOrVoice;
-      if (keyInput) keyInput.value = await readKeyForSettings(slotId, nextPreset.id);
+      if (keyInput) {
+        const storedKey = await readKeyForSettings(slotId, nextPreset.id);
+        keyInput.value = '';
+        keyInput.placeholder = storedKey
+          ? 'Key already stored securely. Leave blank to keep it, or type a replacement.'
+          : 'Enter your API key...';
+      }
       markSlotNotVerified('Provider changed. Save this slot, then pass test to activate Online AI.');
     });
 
@@ -1459,7 +1471,10 @@ export async function renderSettingsView(
         endpointPathOverride: endpointPathInput?.value.trim() || undefined,
         customTtsVoice: customVoiceInput?.value.trim() || undefined
       };
-      const rawKey = keyInput?.value ?? '';
+      const rawKeyInput = keyInput?.value.trim() ?? '';
+      const rawKey = preset.requiresKey
+        ? (rawKeyInput || await loadApiKeyStrict(slotId, preset.id, 'primary'))
+        : '';
       const previousConfig = { ...configs[slotId] };
       const primaryChanged = JSON.stringify({ ...configs[slotId], secondary: undefined }) !== JSON.stringify({ ...cfg, secondary: undefined }) || rawKey !== keysBySlot[slotId];
       const secondaryProviderId = secondaryProviderSelect?.value ?? '';
@@ -1492,7 +1507,7 @@ export async function renderSettingsView(
         previousSecondary.customQueryParamName === secondaryDraft.customQueryParamName &&
         previousSecondary.endpointPathOverride === secondaryDraft.endpointPathOverride &&
         previousSecondary.customTtsVoice === secondaryDraft.customTtsVoice &&
-        (secondaryKeyInput?.value ?? '') === secondaryKeysBySlot[slotId];
+        ((secondaryKeyInput?.value.trim() ?? '') || secondaryKeysBySlot[slotId]) === secondaryKeysBySlot[slotId];
       const secondaryStillVerified = secondaryUnchanged && previousSecondary?.verified === true;
       cfg.secondary = secondaryDraft
         ? {
@@ -1529,15 +1544,18 @@ export async function renderSettingsView(
         // Persist and verify credentials before making the selected provider
         // active in the saved configuration.
         if (preset.requiresKey) {
-          await saveApiKey(slotId, preset.id, rawKey);
+          if (!rawKey.trim()) throw new Error('Enter an API key or select a provider that already has a saved key.');
+          if (rawKeyInput) await saveApiKey(slotId, preset.id, rawKey);
           if (await loadApiKeyStrict(slotId, preset.id) !== rawKey.trim()) {
             throw new Error('The primary API key could not be verified after saving. Provider settings were not switched.');
           }
           keyStorageReadErrors.delete(`${slotId}|${preset.id}|primary`);
         }
         if (secondaryPreset) {
-          const secondaryKey = secondaryKeyInput?.value ?? '';
-          await saveApiKey(slotId, secondaryPreset.id, secondaryKey, 'secondary');
+          const secondaryKeyInputValue = secondaryKeyInput?.value.trim() ?? '';
+          const secondaryKey = secondaryKeyInputValue || await loadApiKeyStrict(slotId, secondaryPreset.id, 'secondary');
+          if (!secondaryKey.trim()) throw new Error('Enter the API 2 key or choose a provider that already has a saved key.');
+          if (secondaryKeyInputValue) await saveApiKey(slotId, secondaryPreset.id, secondaryKey, 'secondary');
           if (await loadApiKeyStrict(slotId, secondaryPreset.id, 'secondary') !== secondaryKey.trim()) {
             throw new Error('The secondary API key could not be verified after saving. Provider settings were not switched.');
           }
@@ -1556,7 +1574,7 @@ export async function renderSettingsView(
 
         configs[slotId] = cfg;
         keysBySlot[slotId] = rawKey;
-        if (secondaryPreset) secondaryKeysBySlot[slotId] = secondaryKeyInput?.value ?? '';
+        if (secondaryPreset) secondaryKeysBySlot[slotId] = (secondaryKeyInput?.value.trim() || await loadApiKeyStrict(slotId, secondaryPreset.id, 'secondary'));
         else secondaryKeysBySlot[slotId] = '';
         return { cfg, key: rawKey, primaryChanged };
       } catch (error) {
