@@ -418,6 +418,34 @@ describe('Gemini TTS Adapter & PCM-to-WAV Conversion (Task F6)', () => {
     }
   });
 
+  it('accepts newly listed Gemini TTS model IDs without a code update', async () => {
+    const audio = Buffer.from('RIFF' + 'x'.repeat(48)).toString('base64');
+    let requestedUrl = '';
+    const result = await synthesizeOnlineNeuralAudio(
+      'Hello from a newly listed model',
+      {
+        slotId: 'voice_tts',
+        providerId: 'gemini_tts',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        modelOrVoice: 'gemini-experimental-tts-preview'
+      },
+      'test-key',
+      1,
+      async (options) => {
+        requestedUrl = options.url;
+        return {
+          url: options.url,
+          status: 200,
+          headers: {},
+          data: { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/wav', data: audio } }] } }] }
+        };
+      }
+    );
+
+    expect(requestedUrl).toContain('/models/gemini-experimental-tts-preview:generateContent');
+    expect(result.dataUrl).toBe(`data:audio/wav;base64,${audio}`);
+  });
+
   it('rejects non-TTS Gemini models instead of making a misleading audio request', async () => {
     await expect(
       synthesizeOnlineNeuralAudio(
@@ -430,7 +458,7 @@ describe('Gemini TTS Adapter & PCM-to-WAV Conversion (Task F6)', () => {
         },
         'test-key'
       )
-    ).rejects.toThrow('Unsupported Gemini TTS model');
+    ).rejects.toThrow('does not look like a Gemini TTS model');
   });
 
   it('runs functional Deep test successfully for Gemini TTS Voice slot', async () => {
