@@ -168,6 +168,8 @@ export async function bootstrapApp(
   initialTab: ActiveTab = 'shadowing'
 ): Promise<void> {
   let currentTab: ActiveTab = initialTab === 'home' ? 'shadowing' : initialTab;
+  // Declare before any navigation closures capture this state.
+  let lastRootBackAt = 0;
   const sectionStacks: Record<NavigationSection, ActiveTab[]> = {
     shadowing: ['shadowing'],
     ielts: ['ielts'],
@@ -372,7 +374,6 @@ export async function bootstrapApp(
   navIeltsBtn?.addEventListener('click', () => handleBottomNavTap('ielts'));
   navSettingsBtn?.addEventListener('click', () => handleBottomNavTap('settings'));
 
-  let lastRootBackAt = 0;
   let exitHintTimer: number | undefined;
   let quitDialogOpen = false;
 
