@@ -651,9 +651,18 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
           <span class="ielts-progress-fill" style="width: ${Math.min(100, Math.max(0, Math.round((currentQNum / totalQ) * 100)))}%"></span>
         </div>
         <div class="ielts-question-area">
-${showQuestionText && !isPart2 ? `<div class="ielts-question-text">
-            ${escapeHtml(String(currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''))}
-          </div>` : ''}
+${!isPart2
+            ? showQuestionText
+              ? `<div class="ielts-question-text">
+                  ${escapeHtml(String(currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''))}
+                </div>`
+              : `<details class="ielts-question-text-disclosure">
+                  <summary>Need to check the question? Show text</summary>
+                  <div class="ielts-question-text">
+                    ${escapeHtml(String(currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''))}
+                  </div>
+                </details>`
+            : ''}
           <div class="ielts-source-row">${renderSourceChip(state)}</div>
           ${cueCardHtml}
         </div>
