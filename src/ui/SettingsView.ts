@@ -1264,7 +1264,7 @@ export async function renderSettingsView(
       if (secondaryModelInput) secondaryModelInput.value = selectedPreset.defaultModelOrVoice;
       if (secondaryCustomVoiceInput) secondaryCustomVoiceInput.value = '';
       if (secondaryCustomVoiceContainer) secondaryCustomVoiceContainer.style.display = selectedPreset.id === 'android_native_tts' ? 'none' : '';
-      if (secondaryStatus { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Changes not tested'; }
+      if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Changes not tested'; }
     });
     [secondaryProviderSelect, secondaryBaseUrlInput, secondaryModelInput, secondaryCustomVoiceInput, secondaryKeyInput, secondaryAuthSelect, secondaryHeaderInput, secondaryQueryInput, secondaryEndpointInput].forEach((field) => {
       field?.addEventListener('input', () => { if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Changes not tested'; } });
