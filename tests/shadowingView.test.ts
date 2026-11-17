@@ -134,15 +134,21 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     const root = document.createElement('div');
     await bootstrapApp(root, 'shadowing');
 
-    // The recording area presents one primary action at a time.
-    expect(root.querySelector<HTMLButtonElement>('#sh-record-btn')?.hidden).toBe(false);
-    expect(root.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.hidden).toBe(true);
+    // One visible primary control changes from Start to Stop & Score while recording.
+    const recordButton = root.querySelector<HTMLButtonElement>('#sh-record-btn');
+    const stopAction = root.querySelector<HTMLButtonElement>('#sh-stop-score-btn');
+    expect(recordButton?.hidden).toBe(false);
+    expect(recordButton?.textContent).toContain('Record Repetition');
+    expect(stopAction?.hidden).toBe(true);
 
     // 1. Test Tier 3 rendering (offline default -> Mode B: SpeechRecognizer only, no audio kept)
-    root.querySelector<HTMLButtonElement>('#sh-record-btn')?.click();
+    recordButton?.click();
     await new Promise((r) => setTimeout(r, 20));
-    expect(root.querySelector<HTMLButtonElement>('#sh-record-btn')?.hidden).toBe(true);
-    expect(root.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.hidden).toBe(false);
+    const activeRecordButton = root.querySelector<HTMLButtonElement>('#sh-record-btn');
+    expect(activeRecordButton?.hidden).toBe(false);
+    expect(activeRecordButton?.textContent).toContain('Stop & Score');
+    expect(activeRecordButton?.getAttribute('aria-pressed')).toBe('true');
+    expect(root.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.hidden).toBe(true);
     expect(audioRecorder.getLastStartOptions()?.useOfflineRecognizer).toBe(true);
 
     audioRecorder.setMockRecognizerOutputForTest({
@@ -150,7 +156,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
       confidence: 0.92
     });
 
-    root.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.click();
+    activeRecordButton?.click();
     await new Promise((r) => setTimeout(r, 40));
 
     expect(root.querySelector('#sh-score-card')).not.toBeNull();
