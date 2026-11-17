@@ -175,7 +175,7 @@ export async function loadAllSlotsConfig(): Promise<AllSlotsConfig> {
     // Migrate only the previous built-in Gemini Translator default. Explicit
     // custom model choices and non-Google gateways are left untouched.
     const translation = result.llm_translation;
-    const officialGeminiEndpoint = translation.baseUrl.replace(/\\/+$/, '') === 'https://generativelanguage.googleapis.com/v1beta';
+    const officialGeminiEndpoint = normalizeBaseUrl(translation.baseUrl) === 'https://generativelanguage.googleapis.com/v1beta';
     let migratedTranslationModel = false;
     if (
       translation.providerId === 'gemini_translation' &&
@@ -189,7 +189,7 @@ export async function loadAllSlotsConfig(): Promise<AllSlotsConfig> {
     if (
       secondaryTranslation?.providerId === 'gemini_translation' &&
       secondaryTranslation.modelOrVoice === 'gemini-2.5-flash' &&
-      secondaryTranslation.baseUrl.replace(/\\/+$/, '') === 'https://generativelanguage.googleapis.com/v1beta'
+      normalizeBaseUrl(secondaryTranslation.baseUrl) === 'https://generativelanguage.googleapis.com/v1beta'
     ) {
       secondaryTranslation.modelOrVoice = getPreset('llm_translation', 'gemini_translation').defaultModelOrVoice;
       migratedTranslationModel = true;
