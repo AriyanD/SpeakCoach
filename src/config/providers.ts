@@ -160,12 +160,12 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         slotId: 'pronunciation_scoring',
         tier: 3,
         requiresKey: false,
-        defaultBaseUrl: 'offline://vosk-en-us',
-        defaultModelOrVoice: 'vosk-model-small-en-us',
-        modelSuggestions: ['vosk-model-small-en-us', 'android-offline'],
-        modelFieldLabel: 'Offline Engine (vosk-model-small-en-us / android-offline)',
-        baseUrlPlaceholder: 'offline://vosk-en-us',
-        description: 'Approximate word alignment & timing heuristics (cannot judge individual phonemes).'
+        defaultBaseUrl: 'offline://android-speech-recognizer',
+        defaultModelOrVoice: 'android-offline',
+        modelSuggestions: ['android-offline'],
+        modelFieldLabel: 'Offline recognizer (android-offline)',
+        baseUrlPlaceholder: 'offline://android-speech-recognizer',
+        description: 'Android system speech recognition with approximate word alignment; no Vosk model is bundled and individual phonemes are not assessed.'
       }
     ]
   },
