@@ -388,8 +388,8 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         tier: 1,
         requiresKey: true,
         defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-        defaultModelOrVoice: 'gemini-flash-latest',
-        modelSuggestions: ['gemini-flash-latest', 'gemini-pro-latest', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite'],
+        defaultModelOrVoice: 'gemini-3.1-flash-lite',
+        modelSuggestions: ['gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-pro-latest'],
         modelFieldLabel: 'Gemini Model',
         baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
         description: 'Google Gemini translation API with plain-text responses.'
