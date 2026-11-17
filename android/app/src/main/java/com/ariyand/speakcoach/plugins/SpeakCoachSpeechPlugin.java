@@ -3,8 +3,6 @@ package com.ariyand.speakcoach.plugins;
 import android.Manifest;
 import android.content.Intent;
 import android.content.Context;
-import android.media.AudioAttributes;
-import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
@@ -54,7 +52,6 @@ public class SpeakCoachSpeechPlugin extends Plugin {
     private long startTimeMs = 0L;
     private volatile String recorderError = "";
     private AudioManager audioManager;
-    private AudioFocusRequest audioFocusRequest;
     private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
     private boolean hasAudioFocus = false;
 
@@ -232,23 +229,12 @@ public class SpeakCoachSpeechPlugin extends Plugin {
         };
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-                        .setAudioAttributes(new AudioAttributes.Builder()
-                                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                                .build())
-                        .setAcceptsDelayedFocusGain(false)
-                        .setOnAudioFocusChangeListener(audioFocusChangeListener)
-                        .build();
-                hasAudioFocus = audioManager.requestAudioFocus(audioFocusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-            } else {
-                hasAudioFocus = audioManager.requestAudioFocus(
-                        audioFocusChangeListener,
-                        AudioManager.STREAM_VOICE_CALL,
-                        AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
-                ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-            }
+            // The legacy focus API remains available on the app's minimum SDK (22).
+            hasAudioFocus = audioManager.requestAudioFocus(
+                    audioFocusChangeListener,
+                    AudioManager.STREAM_VOICE_CALL,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
         } catch (Exception e) {
             // Audio focus is best-effort; a denied request must not block microphone capture.
             hasAudioFocus = false;
@@ -258,16 +244,13 @@ public class SpeakCoachSpeechPlugin extends Plugin {
     private void abandonCaptureAudioFocus() {
         if (audioManager != null && hasAudioFocus) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
-                    audioManager.abandonAudioFocusRequest(audioFocusRequest);
-                } else if (audioFocusChangeListener != null) {
+                if (audioFocusChangeListener != null) {
                     audioManager.abandonAudioFocus(audioFocusChangeListener);
                 }
             } catch (Exception ignored) {
             }
         }
         hasAudioFocus = false;
-        audioFocusRequest = null;
         audioFocusChangeListener = null;
         audioManager = null;
     }
