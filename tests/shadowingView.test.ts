@@ -27,6 +27,8 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-generate-ai-btn')).not.toBeNull();
     expect(root.querySelectorAll('.sentence-source-card')).toHaveLength(2);
     expect(root.querySelector('#sh-target-text')?.textContent).toContain('Generate an AI sentence');
+    expect(root.querySelector('#sh-translation-card')).not.toBeNull();
+    expect(root.querySelector<HTMLTextAreaElement>('#sh-translation-input')?.value).toBe('');
     expect(root.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.disabled).toBe(true);
 
     root.querySelector<HTMLButtonElement>('#sh-generate-ai-btn')?.click();
@@ -86,6 +88,8 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-recognizer-meta')?.textContent).toContain('87%');
 
     expect(root.querySelector('#sh-score-card')).not.toBeNull();
+    expect(root.querySelector<HTMLButtonElement>('#sh-word-chips [data-word-replay]')).not.toBeNull();
+    expect(root.querySelector<HTMLButtonElement>('#sh-word-chips [data-word-replay]')?.getAttribute('aria-label')).toContain('Play pronunciation of');
     // In offline SpeechRecognizer mode, no raw WAV is kept and word timing / replay are disabled with a clear notice
     expect(root.querySelector('#sh-vad-summary')).toBeNull();
     expect(root.querySelector('#sh-offline-timing-disabled')).not.toBeNull();
