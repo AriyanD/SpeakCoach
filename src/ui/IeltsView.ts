@@ -52,7 +52,6 @@ export function renderIeltsView(
   let requestedTopicInput = '';
   let preTestCheckDone = false;
   let evaluatorWarningText: string | null = null;
-  let showQuestionText = false;
   let viewIsActive = true;
   let lastRenderedViewKey: string | null = null;
 
@@ -652,16 +651,12 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         </div>
         <div class="ielts-question-area">
 ${!isPart2
-            ? showQuestionText
-              ? `<div class="ielts-question-text">
+            ? `<details class="ielts-question-text-disclosure">
+                <summary>Need to check the question? Show text</summary>
+                <div class="ielts-question-text">
                   ${escapeHtml(String(currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''))}
-                </div>`
-              : `<details class="ielts-question-text-disclosure">
-                  <summary>Need to check the question? Show text</summary>
-                  <div class="ielts-question-text">
-                    ${escapeHtml(String(currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''))}
-                  </div>
-                </details>`
+                </div>
+              </details>`
             : ''}
           <div class="ielts-source-row">${renderSourceChip(state)}</div>
           ${cueCardHtml}
@@ -742,19 +737,6 @@ ${!isPart2
   const unsubscribe = ieltsSessionEngine.subscribe((newState) => {
     render(newState);
   });
-  void loadAppSettings().then((settings) => {
-    if (!viewIsActive) return;
-    showQuestionText = settings.showQuestionText;
-    lastRenderedViewKey = null;
-    render(ieltsSessionEngine.getState());
-  }).catch(() => {
-    if (!viewIsActive) return;
-    // Voice-only remains the safe default if preferences cannot be read.
-    showQuestionText = false;
-    lastRenderedViewKey = null;
-    render(ieltsSessionEngine.getState());
-  });
-
   // Cleanup: stop any in-progress TTS and pending async operations when user leaves the IELTS view
   return () => {
     viewIsActive = false;
