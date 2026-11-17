@@ -84,7 +84,7 @@ describe('backup file compatibility', () => {
       authStyle: 'query_param'
     };
     await saveAllSlotsConfig(source);
-    await saveAppSettings({ allowBuiltinFallback: false, theme: 'dark', showQuestionText: true });
+    await saveAppSettings({ allowBuiltinFallback: false, theme: 'dark' });
     await saveApiKey('voice_tts', 'openai_tts', 'voice-secret-key');
     await saveApiKey('voice_tts', 'azure_tts', 'voice-secondary-secret', 'secondary');
     await saveApiKey('llm_generator', 'gemini_gen', 'generator-secret-key');
@@ -122,7 +122,8 @@ describe('backup file compatibility', () => {
       modelOrVoice: 'gemini-backup-model',
       authStyle: 'query_param'
     });
-    await expect(loadAppSettings()).resolves.toMatchObject({ allowBuiltinFallback: false, theme: 'dark', showQuestionText: true });
+    await expect(loadAppSettings()).resolves.toMatchObject({ allowBuiltinFallback: false, theme: 'dark' });
+    await expect(loadAppSettings()).resolves.not.toHaveProperty('showQuestionText');
     await expect(loadApiKey('voice_tts', 'openai_tts')).resolves.toBe('voice-secret-key');
     await expect(loadApiKey('voice_tts', 'azure_tts', 'secondary')).resolves.toBe('voice-secondary-secret');
     await expect(loadApiKey('llm_generator', 'gemini_gen')).resolves.toBe('generator-secret-key');
