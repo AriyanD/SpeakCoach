@@ -185,50 +185,16 @@ let hasRunDeduplication = false;
  *    within a close timestamp window (<= 10 minutes) caused by rapid re-renders.
  */
 export function deduplicateTestRecords(records: IeltsTestRecord[]): IeltsTestRecord[] {
-  const result: IeltsTestRecord[] = [];
+  // A stable record ID is the idempotency key for repeated saves of one
+  // session. Similar answers are not proof that two attempts are duplicates:
+  // learners may intentionally repeat the same prompt and give the same answer.
   const seenIds = new Set<string>();
-
-  for (const rec of records) {
-    if (!rec || !rec.id) continue;
-    if (seenIds.has(rec.id)) continue;
-
-    // Check if this matches an already accepted record with identical session content within 10 minutes
-    const isDuplicate = result.some((existing) => {
-      // Repeated attempts of the same saved question set are intentional records, never duplicates.
-      if (existing.questionSetId && rec.questionSetId && existing.questionSetId === rec.questionSetId && existing.id !== rec.id) return false;
-      if (existing.mode !== rec.mode) return false;
-      if (existing.overallBand !== rec.overallBand) {
-        if (existing.overallBand === null || rec.overallBand === null) return false;
-        if (Math.abs(existing.overallBand - rec.overallBand) > 0.01) return false;
-      }
-      const timeDiff = Math.abs(existing.timestamp - rec.timestamp);
-      if (timeDiff > 10 * 60 * 1000) return false;
-
-      // Compare answers signature
-      const existingAns = existing.answers || [];
-      const recAns = rec.answers || [];
-      if (existingAns.length !== recAns.length) return false;
-
-      if (existingAns.length === 0 && recAns.length === 0) return true;
-
-      // Check first and last answer question and text
-      const firstMatches =
-        existingAns[0]?.questionId === recAns[0]?.questionId &&
-        existingAns[0]?.transcript === recAns[0]?.transcript;
-      const lastIdx = existingAns.length - 1;
-      const lastMatches =
-        existingAns[lastIdx]?.questionId === recAns[lastIdx]?.questionId &&
-        existingAns[lastIdx]?.transcript === recAns[lastIdx]?.transcript;
-
-      return firstMatches && lastMatches;
-    });
-
-    if (!isDuplicate) {
-      seenIds.add(rec.id);
-      result.push(rec);
-    }
+  const result: IeltsTestRecord[] = [];
+  for (const record of records) {
+    if (!record || !record.id || seenIds.has(record.id)) continue;
+    seenIds.add(record.id);
+    result.push(record);
   }
-
   return result;
 }
 
