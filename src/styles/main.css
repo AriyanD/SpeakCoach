@@ -3217,3 +3217,73 @@ html[lang="fa"] .ielts-next-focus p {
   .sh-translation-controls { grid-template-columns: minmax(0, 1fr); }
   .sh-translate-btn { width: 100%; }
 }
+
+
+/* Mobile viewport and width containment: keep Shadowing content inside the device. */
+html, body {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+body {
+  min-height: 100dvh;
+}
+#app {
+  width: 100%;
+  min-width: 0;
+  min-height: 100dvh;
+}
+.view-container {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.view-container > *,
+.card,
+.shadowing-main-card,
+#sh-score-card,
+.sh-translation-card {
+  min-width: 0;
+  max-width: 100%;
+}
+#sh-score-card,
+#sh-translation-card,
+#sh-translation-result,
+#sh-translation-status {
+  overflow-wrap: anywhere;
+}
+.bottom-nav {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: min(100vw, 620px);
+  max-width: 100vw;
+  margin-inline: auto;
+  transform: none;
+  z-index: 1000;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+.word-replay-help {
+  margin: 14px 0 4px;
+  color: var(--text-secondary);
+  font-size: .8rem;
+  line-height: 1.45;
+}
+.word-tokens-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+.word-chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.sh-translation-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.sh-translation-controls,
+.sh-translation-controls > * {
+  min-width: 0;
+}
