@@ -2159,8 +2159,6 @@ dialog.sc-dialog::backdrop { background: rgba(12,20,16,.56); backdrop-filter: bl
 }
 .offline-quality-notice p { margin:9px 0 0; color:var(--text-secondary); font-size:.82rem; }
 .shadowing-offline-notice { margin:0 0 12px; }
-.settings-switch { display:flex; align-items:center; gap:8px; min-height:48px; white-space:nowrap; }
-.settings-switch input { width:20px; height:20px; accent-color:var(--accent); }
 .appearance-setting {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(112px, 132px);
@@ -3085,7 +3083,6 @@ html[lang="fa"] .bottom-nav { direction: rtl; }
 html[lang="fa"] .card,
 html[lang="fa"] .settings-accordion,
 html[lang="fa"] .form-field,
-html[lang="fa"] .settings-preference-card { text-align: right; }
 html[lang="fa"] input:not([type="url"]):not([type="password"]):not([type="email"]):not([data-ltr]),
 html[lang="fa"] textarea:not([data-ltr]),
 html[lang="fa"] select { text-align: right; }
