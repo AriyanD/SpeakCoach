@@ -111,7 +111,13 @@ export async function loadAppSettings(): Promise<AppSettings> {
 
 export async function saveAppSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
   const current = await loadAppSettings();
-  const updated: AppSettings = { ...current, ...settings, allowBuiltinFallback: false };
+  const updated: AppSettings = {
+    allowBuiltinFallback: false,
+    theme: settings.theme ?? current.theme,
+    language: settings.language !== undefined ? settings.language : current.language,
+    showTutorialOnStartup: settings.showTutorialOnStartup ?? current.showTutorialOnStartup,
+    onboardingCompleted: settings.onboardingCompleted ?? current.onboardingCompleted
+  };
   await setRaw(APP_SETTINGS_KEY, JSON.stringify(updated));
   try { if (typeof localStorage !== 'undefined') localStorage.setItem(THEME_MIRROR_KEY, updated.theme); } catch { /* Native Preferences remains the source of truth. */ }
   return updated;
