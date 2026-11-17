@@ -558,7 +558,104 @@ export async function renderSettingsView(
         ${cardsHtml}
       </div>
     </section>
-    <section class="card settings-diagnostics-card" aria-labelledby="settings-diagnostics-title">
+    <section class="card settings-preference-card">
+      <div class="card-header"><h2 class="card-title">IELTS Test Preferences</h2></div>
+      <div class="appearance-setting ielts-question-text-setting">
+        <div class="appearance-setting-copy">
+          <label class="form-label" for="show-ielts-question-text">Show examiner questions as text</label>
+          <p class="card-subtitle">When off, questions are presented by voice only. The Part 2 cue card remains visible, as in the real IELTS test.</p>
+        </div>
+        <label class="settings-switch" for="show-ielts-question-text">
+          <input type="checkbox" id="show-ielts-question-text" aria-describedby="ielts-question-text-status" ${appSettings.showQuestionText ? 'checked' : ''} />
+          <span>Show text</span>
+        </label>
+        <div id="ielts-question-text-status" class="appearance-status" role="status" aria-live="polite">${appSettings.showQuestionText ? 'Examiner questions will also appear as text.' : 'Examiner questions will be voice-only; the Part 2 cue card stays visible.'}</div>
+      </div>
+    </section>
+    <section class="card backup-card">
+      <div class="card-header"><h2 class="card-title">Backup &amp; Restore</h2></div>
+      <p class="card-subtitle">Choose which information to export or restore.</p>
+      <div class="backup-section">
+        <strong>AI provider settings</strong>
+        <p class="card-subtitle">Provider choices, model names, connection settings and preferences are saved here. You can export them with or without API keys.</p>
+        <aside class="backup-security-warning" role="note" aria-label="Security warning"><strong class="backup-security-title">Security warning</strong><p><strong>Export AI settings</strong> includes your API keys. Anyone who gets that file could use those keys. Keep it private and store it securely. For sharing or cloud storage, use the no-key export instead.</p></aside>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="export-ai-backup">Export AI settings (with keys)</button>
+          <button type="button" class="btn btn-secondary" id="export-ai-backup-no-keys">Export settings only (no keys)</button>
+          <button type="button" class="btn btn-secondary" id="import-ai-backup">Import AI settings</button>
+          <input type="file" id="import-ai-file" accept="application/json,.json" hidden />
+        </div>
+      </div>
+      <div class="backup-section">
+        <strong>Test data &amp; practice history</strong>
+        <p class="card-subtitle">IELTS history, AI-generated question sets and their undo history, question repetition tracking, and your latest Shadowing attempt.</p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-secondary" id="export-test-backup">Export test data</button>
+          <button type="button" class="btn btn-secondary" id="import-test-backup">Import test data</button>
+          <input type="file" id="import-test-file" accept="application/json,.json" hidden />
+        </div>
+      </div>
+      <div id="backup-status" class="status-box info" role="status" aria-live="polite">AI settings can be exported with API keys for device migration, or without keys for safer sharing. Importing a no-key backup leaves the API keys already stored on this device unchanged.</div>
+    </section>
+    <section class="card settings-language-card">
+      <div class="card-header"><h2 class="card-title">Language / زبان</h2></div>
+      <div class="appearance-setting">
+        <div class="appearance-setting-copy">
+          <label class="form-label" for="app-language">App language / زبان برنامه</label>
+          <p class="card-subtitle">Choose English or فارسی. IELTS questions and final examiner feedback remain in English.</p>
+        </div>
+        <select class="form-select appearance-select" id="app-language">
+          <option value="en" ${appSettings.language !== 'fa' ? 'selected' : ''}>English</option>
+          <option value="fa" ${appSettings.language === 'fa' ? 'selected' : ''}>فارسی</option>
+        </select>
+        <div id="app-language-status" class="appearance-status" role="status" aria-live="polite">Language preference is saved on this device.</div>
+      </div>
+    </section>
+    <section class="card settings-appearance-card">
+      <div class="card-header"><h2 class="card-title">Appearance</h2></div>
+      <div class="appearance-setting">
+        <div class="appearance-setting-copy">
+          <label class="form-label" for="app-theme">Appearance</label>
+          <p class="card-subtitle">Choose the look that feels comfortable. System follows your device setting.</p>
+        </div>
+        <select class="form-select appearance-select" id="app-theme" aria-describedby="app-theme-status">
+          <option value="system" ${appSettings.theme === 'system' ? 'selected' : ''}>System</option>
+          <option value="light" ${appSettings.theme === 'light' ? 'selected' : ''}>Light</option>
+          <option value="dark" ${appSettings.theme === 'dark' ? 'selected' : ''}>Dark</option>
+        </select>
+        <div id="app-theme-status" class="appearance-status" role="status" aria-live="polite">Current appearance: ${appSettings.theme === 'system' ? 'System' : appSettings.theme === 'dark' ? 'Dark' : 'Light'}.</div>
+      </div>
+    </section>
+    <section class="card settings-update-card" aria-labelledby="settings-update-title">
+      <div class="card-header"><h2 class="card-title" id="settings-update-title">Software updates</h2></div>
+      <p class="card-subtitle">Installed version: <strong>${escapeHtml(APP_VERSION)}</strong>. Check the official SpeakCoach GitHub releases for a newer version.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="check-speakcoach-update">Check for updates</button>
+      </div>
+      <div id="speakcoach-update-status" class="status-box info" role="status" aria-live="polite">Updates are checked against the public SpeakCoach repository.</div>
+      <div id="speakcoach-update-available" hidden>
+        <p><strong id="speakcoach-update-version"></strong></p>
+        <p class="card-subtitle" id="speakcoach-update-notes"></p>
+        <div class="btn-row">
+          <button type="button" class="btn btn-primary" id="download-speakcoach-update">Download update</button>
+          <button type="button" class="btn btn-primary" id="install-speakcoach-update" hidden>Install downloaded update</button>
+          <a class="btn btn-secondary" id="speakcoach-release-link" href="https://github.com/AriyanD/SpeakCoach/releases" target="_blank" rel="noopener noreferrer">View release</a>
+        </div>
+      </div>
+    </section>
+    <section class="card settings-about-card" aria-labelledby="settings-about-title">
+      <div class="card-header"><h2 class="card-title" id="settings-about-title">About</h2></div>
+      <p class="card-subtitle">SpeakCoach is a personal practice app for English shadowing and IELTS Speaking. It brings together speech practice, AI-assisted feedback and test history in one place.</p>
+      <div class="settings-about-meta">
+        <p><strong>Developed by</strong> AriyanD</p>
+        <p><strong>Version</strong> ${escapeHtml(APP_VERSION)}</p>
+        <p><a href="https://github.com/AriyanD" target="_blank" rel="noopener noreferrer">GitHub profile — github.com/AriyanD</a></p>
+        <p><a href="https://github.com/AriyanD/SpeakCoach" target="_blank" rel="noopener noreferrer">Project repository</a></p>
+      </div>
+      <div class="btn-row"><button type="button" class="btn btn-secondary" id="settings-open-setup-guide">Open setup guide / راهنمای شروع</button></div>
+      <p class="card-subtitle settings-about-disclaimer">AI-generated feedback is for learning and practice only. It is not an official IELTS score or a substitute for a certified examiner.</p>
+    </section>
+        <section class="card settings-diagnostics-card" aria-labelledby="settings-diagnostics-title">
       <div class="card-header">
         <div>
           <h2 class="card-title" id="settings-diagnostics-title">System Diagnostics</h2>
