@@ -36,5 +36,8 @@ describe('Settings credential rendering', () => {
     expect(container.innerHTML).not.toContain('primary-secret-test-key');
     expect(container.innerHTML).not.toContain('secondary-secret-test-key');
     expect(container.innerHTML).toContain('stored securely');
+    expect(container.querySelector('#quick-setup-run-btn')).not.toBeNull();
+    expect(container.querySelectorAll('#quick-setup-checklist [data-quick-setup-slot]')).toHaveLength(6);
+    expect(container.querySelector('.settings-advanced-settings')).not.toBeNull();
   });
 });
