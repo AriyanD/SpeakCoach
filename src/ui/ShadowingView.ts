@@ -490,12 +490,10 @@ export function renderShadowingView(
       </details>
 
       <div class="btn-row sh-record-controls">
-        <button type="button" class="btn btn-primary sh-record-action" id="sh-record-btn" ${isRec ? 'hidden' : ''} ${hasSentence ? '' : 'disabled'} aria-label="Start recording repetition">
-          ${isRec ? '<span class="recording-led"></span> Recording...' : 'Record Repetition'}
+        <button type="button" class="btn btn-primary sh-record-action" id="sh-record-btn" ${hasSentence ? '' : 'disabled'} aria-label="${isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
+          ${isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score' : 'Record Repetition'}
         </button>
-        <button type="button" class="btn btn-primary sh-record-action" id="sh-stop-score-btn" ${!isRec ? 'hidden' : ''} ${hasSentence ? '' : 'disabled'} aria-label="Stop recording and score repetition">
-          <span class="recording-led" aria-hidden="true"></span> Stop &amp; Score
-        </button>
+        <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
       </div>
 
       ${
@@ -727,6 +725,12 @@ export function renderShadowingView(
   const resolveShadowingSttSlotId = (): 'pronunciation_scoring' => 'pronunciation_scoring';
 
   container.querySelector<HTMLButtonElement>('#sh-record-btn')?.addEventListener('click', async () => {
+    if (audioRecorder.isRecording()) {
+      container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.click();
+      return;
+    }
+    const recordButton = container.querySelector<HTMLButtonElement>('#sh-record-btn');
+    if (recordButton) recordButton.disabled = true;
     // Always reset transcript & previous report to EMPTY on every new recording attempt
     clearAttemptState();
     const sttSlotId = resolveShadowingSttSlotId();
