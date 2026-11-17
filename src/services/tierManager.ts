@@ -92,6 +92,11 @@ export function clearAllRuntimeFailures(): void {
   slotRuntimeFailures.clear();
 }
 
+/** Tier 1 and Tier 2 are both online; only Tier 3 is offline. */
+export function isOnlineIeltsSttTier(tier: number, label: string): boolean {
+  return tier < 3 && label === 'Online AI';
+}
+
 function tierToLabel(tier: TierNumber): TierLabel {
   return tier === 3 ? 'Basic offline' : 'Online AI';
 }
