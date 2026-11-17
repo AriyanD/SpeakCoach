@@ -430,7 +430,7 @@ export async function testSlotConnection(
         const model = (slotConfig.modelOrVoice || preset.defaultModelOrVoice).trim();
         const modelPath = model.startsWith('models/') ? model : 'models/' + model;
         const prepared = buildGeminiEndpointRequest({ baseUrl, defaultPath: '/' + modelPath + ':generateContent', apiKey, slotConfig });
-        const res = await nativeHttpRequest({
+        const res = await nativeHttpRequest<{ candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }>({
           url: prepared.url, method: 'POST', headers: prepared.headers,
           data: { contents: [{ role: 'user', parts: [{ text: probePrompt }] }], generationConfig: { temperature: 0.1 } },
           timeoutMs: 45000, maxRetries: 1
@@ -439,7 +439,7 @@ export async function testSlotConnection(
       } else {
         const model = (slotConfig.modelOrVoice || preset.defaultModelOrVoice).trim();
         const prepared = buildCustomEndpointRequest({ baseUrl, defaultPath: '/chat/completions', apiKey, slotConfig, defaultHeaders: { 'Content-Type': 'application/json' } });
-        const res = await nativeHttpRequest({
+        const res = await nativeHttpRequest<{ choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }> }>({
           url: prepared.url, method: 'POST', headers: prepared.headers,
           data: { model, messages: [{ role: 'system', content: 'You are a precise translator. Return only the translation, without explanations or labels.' }, { role: 'user', content: probePrompt }], temperature: 0.1 },
           timeoutMs: 45000, maxRetries: 1

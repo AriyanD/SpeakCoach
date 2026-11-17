@@ -35,7 +35,7 @@ describe('backup file compatibility', () => {
 
   it('accepts legacy unversioned SpeakCoach test-data backups', () => {
     expect(normalizeBackupPayload({ ielts: { history: [] }, seenQuestions: {} }, 'test-data')).toMatchObject({
-      app: 'SpeakCoach', type: 'test-data', version: 1
+      app: 'SpeakCoach', type: 'test-data', version: 2
     });
   });
 
@@ -56,7 +56,7 @@ describe('backup file compatibility', () => {
 
   it('rejects a backup from a newer app version with an actionable message', () => {
     expect(() => normalizeBackupPayload({
-      app: 'SpeakCoach', type: 'test-data', version: 2
+      app: 'SpeakCoach', type: 'test-data', version: 3
     }, 'test-data')).toThrow(/newer SpeakCoach version/i);
   });
 
@@ -126,6 +126,26 @@ describe('backup file compatibility', () => {
     await expect(loadApiKey('voice_tts', 'openai_tts')).resolves.toBe('voice-secret-key');
     await expect(loadApiKey('voice_tts', 'azure_tts', 'secondary')).resolves.toBe('voice-secondary-secret');
     await expect(loadApiKey('llm_generator', 'gemini_gen')).resolves.toBe('generator-secret-key');
+  });
+
+  it('migrates version 1 AI settings backups that predate the Translation API slot', async () => {
+    const configs = createDefaultAllSlotsConfig();
+    await saveAllSlotsConfig(configs);
+    const currentBackup = await createBackup('ai-settings');
+    const legacyConfigs = { ...(currentBackup.configs as Record<string, unknown>) };
+    const legacyKeys = { ...(currentBackup.apiKeys as Record<string, unknown>) };
+    delete legacyConfigs.llm_translation;
+    delete legacyKeys.llm_translation;
+
+    await restoreBackup('ai-settings', {
+      ...currentBackup,
+      version: 1,
+      configs: legacyConfigs,
+      apiKeys: legacyKeys
+    });
+
+    await expect(loadAllSlotsConfig()).resolves.toEqual(configs);
+    await expect(loadApiKey('llm_translation', 'openai_compat_translation')).resolves.toBe('');
   });
 
   it('rejects incomplete AI settings backups instead of silently importing a partial set', async () => {

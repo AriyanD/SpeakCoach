@@ -1,4 +1,4 @@
-import { SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
+import { createDefaultSlotConfig, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { saveBackupFile } from './nativeBackupExport';
 import type { AllSlotsConfig, SlotId } from '../config/types';
 import {
@@ -17,7 +17,7 @@ import { getLastShadowingAttempt, restoreLastShadowingAttempt } from './shadowin
 import { exportIeltsQuestionSetSnapshot, importIeltsQuestionSetSnapshot } from './ieltsQuestionSetStore';
 
 export type BackupKind = 'ai-settings' | 'test-data';
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 
 export async function createBackup(
   kind: BackupKind,
@@ -144,10 +144,14 @@ function validateAiSettingsBackup(payload: Record<string, any>): {
   keys?: Record<string, { primary: string; secondary?: string }>;
   appSettings?: { theme?: 'system' | 'light' | 'dark'; showQuestionText?: boolean };
 } {
-  const incoming = payload.configs as Partial<AllSlotsConfig> | undefined;
-  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+  const rawIncoming = payload.configs as Partial<AllSlotsConfig> | undefined;
+  if (!rawIncoming || typeof rawIncoming !== 'object' || Array.isArray(rawIncoming)) {
     throw new Error('The backup does not contain provider settings.');
   }
+  const incoming: Partial<AllSlotsConfig> = { ...rawIncoming };
+  // Version 1 backups predate the independent translator slot. Migrate them
+  // by adding its untouched default config instead of rejecting the whole backup.
+  if (!incoming.llm_translation) incoming.llm_translation = createDefaultSlotConfig('llm_translation');
 
   for (const slotId of SLOT_ORDER) {
     const slot = incoming[slotId];
@@ -167,7 +171,9 @@ function validateAiSettingsBackup(payload: Record<string, any>): {
     if (!payload.apiKeys || typeof payload.apiKeys !== 'object' || Array.isArray(payload.apiKeys)) {
       throw new Error('The backup API key section is invalid. No settings or API keys were imported.');
     }
-    const keyMap = payload.apiKeys as Record<string, { primary: string; secondary?: string }>;
+    const keyMap = { ...(payload.apiKeys as Record<string, { primary: string; secondary?: string }>) };
+    // Older backups contain no translator credential; leave its new key empty.
+    if (!keyMap.llm_translation) keyMap.llm_translation = { primary: '' };
     keys = keyMap;
     for (const slotId of SLOT_ORDER) {
       const entry = keyMap[slotId];

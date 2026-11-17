@@ -348,8 +348,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         description: 'Preloaded graded shadowing sentences only. IELTS question generation requires a tested Online AI provider.'
       }
     ]
-  }
-,
+  },
   llm_translation: {
     id: 'llm_translation',
     number: 6,
