@@ -330,6 +330,7 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
 
       ${weakDrillBtn ? `<div class="sh-weak-drill">${weakDrillBtn}</div>` : ''}
 
+      <p class="word-replay-help" id="sh-word-replay-help">Tap any word below to hear its pronunciation separately.</p>
       <div class="word-tokens-wrap" id="sh-word-chips">
         ${chipsHtml}
       </div>
