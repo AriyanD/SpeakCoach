@@ -751,8 +751,8 @@ export function renderShadowingView(
         container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.click();
       }, 60_000);
       state.statusMessage = isOnlineStt
-        ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score Repetition".'
-        : 'Listening via Android system speech recognition (no raw audio retained by SpeakCoach in this mode)... Speak clearly, then tap "Stop & Score Repetition".';
+        ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score".'
+        : 'Listening via Android system speech recognition (no raw audio retained by SpeakCoach in this mode)... Speak clearly, then tap "Stop & Score".';
     } catch (err) {
       if (viewGeneration !== shadowingViewGeneration) return;
       state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
