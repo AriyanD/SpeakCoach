@@ -142,7 +142,7 @@ function uniqueKeyTargets(configs: AllSlotsConfig): ApiKeySnapshot[] {
 function validateAiSettingsBackup(payload: Record<string, any>): {
   incoming: Partial<AllSlotsConfig>;
   keys?: Record<string, { primary: string; secondary?: string }>;
-  appSettings?: { theme?: 'system' | 'light' | 'dark'; showQuestionText?: boolean };
+  appSettings?: { theme?: 'system' | 'light' | 'dark' };
 } {
   const rawIncoming = payload.configs as Partial<AllSlotsConfig> | undefined;
   if (!rawIncoming || typeof rawIncoming !== 'object' || Array.isArray(rawIncoming)) {
@@ -186,7 +186,7 @@ function validateAiSettingsBackup(payload: Record<string, any>): {
     }
   }
 
-  let appSettings: { theme?: 'system' | 'light' | 'dark'; showQuestionText?: boolean } | undefined;
+  let appSettings: { theme?: 'system' | 'light' | 'dark' } | undefined;
   if (payload.appSettings !== undefined) {
     if (!payload.appSettings || typeof payload.appSettings !== 'object' || Array.isArray(payload.appSettings)) {
       throw new Error('The backup app settings section is invalid. No settings were imported.');
@@ -195,12 +195,8 @@ function validateAiSettingsBackup(payload: Record<string, any>): {
     if (raw.theme !== undefined && !['system', 'light', 'dark'].includes(raw.theme)) {
       throw new Error('The backup contains an invalid appearance preference. No settings were imported.');
     }
-    if (raw.showQuestionText !== undefined && typeof raw.showQuestionText !== 'boolean') {
-      throw new Error('The backup contains an invalid examiner display preference. No settings were imported.');
-    }
     appSettings = {
-      ...(raw.theme !== undefined ? { theme: raw.theme } : {}),
-      ...(raw.showQuestionText !== undefined ? { showQuestionText: raw.showQuestionText } : {})
+      ...(raw.theme !== undefined ? { theme: raw.theme } : {})
     };
   }
 
@@ -281,9 +277,6 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
         const saved = await loadAppSettings();
         if (validated.appSettings.theme !== undefined && saved.theme !== validated.appSettings.theme) {
           throw new Error('The appearance preference could not be verified after import.');
-        }
-        if (validated.appSettings.showQuestionText !== undefined && saved.showQuestionText !== validated.appSettings.showQuestionText) {
-          throw new Error('The examiner display preference could not be verified after import.');
         }
       }
 

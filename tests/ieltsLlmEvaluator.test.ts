@@ -23,7 +23,8 @@ import {
   clearIeltsTestHistory,
   getIeltsTestHistory,
   loadIeltsDraft,
-  saveIeltsTestResult
+  saveIeltsTestResult,
+  saveIeltsDraft
 } from '../src/storage/ieltsHistoryStore';
 import { IeltsSessionController } from '../src/services/ieltsSessionEngine';
 import { renderIeltsHistoryView } from '../src/ui/IeltsHistoryView';
@@ -672,4 +673,80 @@ describe('IELTS LLM Evaluator Engine (Stage 3.4 · Tier 1 & Fallback)', () => {
     );
     expect(container.querySelector('#result-retry-eval-btn')).not.toBeNull();
   });
+
+  it('preserves an unrelated active IELTS draft when retry evaluation succeeds or fails', async () => {
+    const plan = generateIeltsSessionPlan();
+    const draft = {
+      mode: 'part1' as const,
+      plan,
+      currentStepIndex: 2,
+      candidateNotes: 'An unrelated in-progress session',
+      completedAnswers: [],
+      updatedAt: Date.now()
+    };
+    const record = {
+      id: 'retry-preserves-active-draft',
+      mode: 'part1' as const,
+      overallBand: null,
+      evaluation: null,
+      answers: [{
+        questionId: 'q1',
+        part: 'part1' as const,
+        questionText: 'Describe your hometown.',
+        transcript: 'My hometown is a lively place with several parks and cultural attractions.',
+        durationSec: 18
+      }]
+    };
+
+    await saveSlotConfig({
+      slotId: 'llm_evaluator',
+      providerId: 'openai_compat_eval',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'gpt-4o-mini'
+    });
+    await saveApiKey('llm_evaluator', 'openai_compat_eval', 'sk-test-live');
+    await verifyEvaluator('openai_compat_eval');
+    const saved = await saveIeltsTestResult(record);
+    await saveIeltsDraft(draft);
+
+    const successTransport = async (opts: HttpOptions): Promise<HttpResponse> => ({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      url: opts.url,
+      data: { choices: [{ message: { content: JSON.stringify({
+        fluencyCoherenceBand: 6.5,
+        lexicalResourceBand: 7,
+        grammaticalRangeBand: 6.5,
+        perCriterionComments: { fluency: 'Clear', lexical: 'Varied', grammar: 'Mostly accurate' },
+        corrections: [], vocabularyUpgrades: [], modelAnswers: [],
+        perAnswerFeedback: [], topPriorities: ['Extend answers']
+      }) } }] }
+    });
+
+    await retryIeltsEvaluation(saved, successTransport);
+    expect(await loadIeltsDraft()).toMatchObject({
+      mode: 'part1',
+      currentStepIndex: 2,
+      candidateNotes: 'An unrelated in-progress session'
+    });
+
+    await saveSlotConfig({
+      slotId: 'llm_evaluator',
+      providerId: 'offline_rule_eval',
+      baseUrl: 'offline://rule-evaluator',
+      modelOrVoice: 'rule-based'
+    });
+    const failedRecord = await saveIeltsTestResult({
+      ...record,
+      id: 'retry-failure-preserves-active-draft'
+    });
+    await saveIeltsDraft(draft);
+    await expect(retryIeltsEvaluation(failedRecord)).rejects.toBeInstanceOf(IeltsApiRequiredError);
+    expect(await loadIeltsDraft()).toMatchObject({
+      mode: 'part1',
+      currentStepIndex: 2,
+      candidateNotes: 'An unrelated in-progress session'
+    });
+  });
+
 });

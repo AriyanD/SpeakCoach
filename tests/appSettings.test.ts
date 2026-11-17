@@ -9,7 +9,6 @@ describe('App settings persistence', () => {
   it('defaults to AI-only IELTS question generation and voice-only examiner prompts', async () => {
     await expect(loadAppSettings()).resolves.toEqual({
       allowBuiltinFallback: false,
-      showQuestionText: false,
       theme: 'system',
       language: null,
       showTutorialOnStartup: true,
@@ -24,14 +23,22 @@ describe('App settings persistence', () => {
     }));
     await expect(loadAppSettings()).resolves.toMatchObject({
       allowBuiltinFallback: false,
-      showQuestionText: false,
       theme: 'dark'
     });
   });
 
-  it('persists the examiner question text preference', async () => {
-    await saveAppSettings({ showQuestionText: true });
-    await expect(loadAppSettings()).resolves.toMatchObject({ showQuestionText: true });
+  it('ignores and removes the retired examiner question text preference', async () => {
+    localStorage.setItem('speakcoach.app_settings.v1', JSON.stringify({
+      showQuestionText: true,
+      theme: 'dark'
+    }));
+
+    await saveAppSettings({ theme: 'dark' });
+
+    const saved = JSON.parse(localStorage.getItem('speakcoach.app_settings.v1') || '{}');
+    expect(saved).not.toHaveProperty('showQuestionText');
+    await expect(loadAppSettings()).resolves.toMatchObject({ theme: 'dark' });
+    await expect(loadAppSettings()).resolves.not.toHaveProperty('showQuestionText');
   });
 
   it('persists the AI-only setting across subsequent loads', async () => {
@@ -39,7 +46,6 @@ describe('App settings persistence', () => {
 
     await expect(loadAppSettings()).resolves.toEqual({
       allowBuiltinFallback: false,
-      showQuestionText: false,
       theme: 'system',
       language: null,
       showTutorialOnStartup: true,
@@ -53,7 +59,6 @@ describe('App settings persistence', () => {
 
     await expect(loadAppSettings()).resolves.toEqual({
       allowBuiltinFallback: false,
-      showQuestionText: false,
       theme: 'system',
       language: null,
       showTutorialOnStartup: true,
@@ -69,7 +74,6 @@ describe('App settings persistence', () => {
 
     await expect(loadAppSettings()).resolves.toEqual({
       allowBuiltinFallback: false,
-      showQuestionText: false,
       theme: 'system',
       language: null,
       showTutorialOnStartup: true,

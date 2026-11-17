@@ -104,4 +104,8 @@ describe('theme contrast and semantic palette', () => {
       expect(hueDistance(accentHue, oklchHue(tokens[status])), 'accent vs ' + status).toBeGreaterThanOrEqual(60);
     }
   });
+
+  it('keeps individual IELTS history delete controls at the 48px minimum touch target', () => {
+    expect(lightCss).toMatch(/\.history-delete-btn\s*\{[^}]*min-height:\s*48px/s);
+  });
 });

@@ -5,6 +5,7 @@ import { networkMonitor } from '../src/services/networkMonitor';
 import {
   clearAllRuntimeFailures,
   executeWithTierFallback,
+  isOnlineIeltsSttTier,
   markSlotRuntimeFailure,
   resolveGlobalTierSummary,
   resolveSlotTier,
@@ -307,5 +308,15 @@ describe('HTTP Client & 3-Tier Auto-Fallback Framework', () => {
     const afterDeepTest = await resolveSlotTier(evalCfg);
     expect(afterDeepTest.tier).toBe(3);
     expect(afterDeepTest.label).toBe('Basic offline');
+  });
+});
+
+
+describe('IELTS STT online tier detection', () => {
+  it('treats Tier 1 and Tier 2 as online and Tier 3 as offline', () => {
+    expect(isOnlineIeltsSttTier(1, 'Online AI')).toBe(true);
+    expect(isOnlineIeltsSttTier(2, 'Online AI')).toBe(true);
+    expect(isOnlineIeltsSttTier(3, 'Basic offline')).toBe(false);
+    expect(isOnlineIeltsSttTier(1, 'Basic offline')).toBe(false);
   });
 });

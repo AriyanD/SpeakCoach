@@ -105,7 +105,7 @@ export async function renderIeltsHistoryView(
         const tierClass = hasScore && evalRes?.activeTier?.tier === 1 ? 'online' : 'offline';
 
         return `
-          <div class="card ielts-history-record" data-record-id="${item.id}">
+          <div class="card ielts-history-record" data-record-id="${escapeHtml(item.id)}">
             <div class="ielts-history-record-header">
               <div>
                 <span class="ielts-badge-part ielts-history-mode">${modeBadge}</span>${item.attemptNumber ? `<span class="card-subtitle ielts-history-attempt">Attempt ${item.attemptNumber}</span>` : ''}
@@ -160,25 +160,25 @@ export async function renderIeltsHistoryView(
 
             <div class="btn-row ielts-history-actions">
               ${item.plan ? `
-              <button type="button" class="btn btn-secondary history-repeat-btn" data-id="${item.id}">
+              <button type="button" class="btn btn-secondary history-repeat-btn" data-id="${escapeHtml(item.id)}">
                 Repeat same test
               </button>
               ` : ''}
               ${item.answers.some(answer => String(answer.transcript || '').trim().length > 0) ? `
               <div class="history-reevaluation-controls">
                 <p class="card-subtitle history-reevaluation-help">Normally, no repeat is needed: the first evaluation runs automatically. Automatic uses API 1 and falls back to API 2 when needed. Choose one API only to compare models. If an API fails, answers remain saved; retry after restoring the connection.</p>
-                <select class="form-input history-api-choice" data-id="${item.id}" aria-label="Re-evaluation method">
+                <select class="form-input history-api-choice" data-id="${escapeHtml(item.id)}" aria-label="Re-evaluation method">
                   <option value="auto">Automatic (API 1 or API 2)</option>
                   <option value="primary">API 1 only — compare model</option>
                   <option value="secondary">API 2 only — compare model</option>
                 </select>
-                <button type="button" class="btn btn-secondary history-retry-btn" data-id="${item.id}">Re-evaluate</button>
+                <button type="button" class="btn btn-secondary history-retry-btn" data-id="${escapeHtml(item.id)}">Re-evaluate</button>
               </div>
               ` : ''}
-              <button type="button" class="btn ${hasScore ? 'btn-primary' : 'btn-secondary'} history-view-btn" data-id="${item.id}">
+              <button type="button" class="btn ${hasScore ? 'btn-primary' : 'btn-secondary'} history-view-btn" data-id="${escapeHtml(item.id)}">
                 ${hasScore ? 'View full report' : 'Inspect answers'}
               </button>
-              <button type="button" class="btn btn-secondary history-delete-btn" data-id="${item.id}" aria-label="Delete this test record" title="Delete this test record">
+              <button type="button" class="btn btn-secondary history-delete-btn" data-id="${escapeHtml(item.id)}" aria-label="Delete this test record" title="Delete this test record">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m3 3v6m6-6v6"/></svg>
                 <span>Delete</span>
               </button>
@@ -251,7 +251,8 @@ export async function renderIeltsHistoryView(
         const id = btn.dataset.id;
         const rec = history.find((h) => h.id === id);
         if (!rec) return;
-        const providerChoice = (container.querySelector<HTMLSelectElement>(`.history-api-choice[data-id="${id}"]`)?.value || 'auto') as 'auto' | 'primary' | 'secondary';
+        const recordCard = btn.closest<HTMLElement>('.ielts-history-record');
+        const providerChoice = (recordCard?.querySelector<HTMLSelectElement>('.history-api-choice')?.value || 'auto') as 'auto' | 'primary' | 'secondary';
         btn.disabled = true;
         btn.textContent = 'Re-evaluating…';
         try {
@@ -264,8 +265,7 @@ export async function renderIeltsHistoryView(
         } catch (error) {
           btn.disabled = false;
           btn.textContent = 'Re-evaluate';
-          const card = btn.closest<HTMLElement>('.ielts-history-record');
-          const notice = card?.querySelector<HTMLElement>('.ielts-history-no-score');
+          const notice = recordCard?.querySelector<HTMLElement>('.ielts-history-no-score');
           if (notice) notice.textContent = error instanceof Error ? error.message : String(error);
         }
       });

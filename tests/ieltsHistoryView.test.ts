@@ -274,4 +274,37 @@ describe('IeltsHistoryView Component & Tab Integration (Stage 4.4)', () => {
 
     expect(root.innerHTML).toContain('Question sets');
   });
+
+  it('escapes untrusted history record IDs before inserting them into HTML attributes', async () => {
+    const hostileId = 'record"><img src=x onerror=alert(1)>';
+    await saveIeltsTestResult({
+      id: hostileId,
+      mode: 'part1',
+      overallBand: null,
+      evaluation: null,
+      answers: [{
+        questionId: 'q1',
+        part: 'part1',
+        questionText: 'A safe question',
+        transcript: 'A sufficiently long answer for a retry.',
+        durationSec: 12
+      }]
+    });
+
+    const onRetryEvaluation = vi.fn().mockResolvedValue(undefined);
+    await renderIeltsHistoryView(container, {
+      onSelectResult: () => {},
+      onBackToTest: () => {},
+      onRetryEvaluation
+    });
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('script')).toBeNull();
+    const record = container.querySelector<HTMLElement>('.ielts-history-record');
+    expect(record?.getAttribute('data-record-id')).toBe(hostileId);
+    expect(container.querySelector<HTMLButtonElement>('.history-view-btn')?.dataset.id).toBe(hostileId);
+    container.querySelector<HTMLButtonElement>('.history-retry-btn')?.click();
+    await vi.waitFor(() => expect(onRetryEvaluation).toHaveBeenCalledOnce());
+  });
+
 });

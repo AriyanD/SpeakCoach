@@ -18,7 +18,6 @@ import { generateIeltsQuestionSets } from '../services/ieltsQuestionGenerator';
 import { compareIeltsAttempts } from '../services/ieltsLlmEvaluator';
 import { getIeltsQuestionSets, markIeltsQuestionSetCompleted, getPreviousIeltsQuestionSetGenerationCount, restorePreviousIeltsQuestionSets } from '../services/ieltsQuestionSetStore';
 import { confirmInApp } from './confirmDialog';
-import { loadAppSettings } from '../storage/appSettings';
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
@@ -52,31 +51,26 @@ export function renderIeltsView(
   let requestedTopicInput = '';
   let preTestCheckDone = false;
   let evaluatorWarningText: string | null = null;
-  let showQuestionText = false;
-  let viewIsActive = true;
   let lastRenderedViewKey: string | null = null;
 
-  /** Render a small inline chip showing the actual question source. */
+  /** Keep source provenance visible without exposing provider configuration during the exam. */
   function renderSourceChip(state: IeltsSessionStateSnapshot): string {
     if (state.questionSource === 'AI') {
-      const provider = state.questionSourceDetails?.providerName ?? 'AI';
-      const model = state.questionSourceDetails?.modelName;
-      const title = model ? `${provider} · ${model}` : provider;
       return `<span
         id="ielts-question-source-label"
         class="ielts-source-chip ielts-source-ai"
-        title="${escapeHtml(title)}"
-        aria-label="Question source: AI · ${escapeHtml(provider)}">
+        title="AI-generated IELTS question"
+        aria-label="Question source: AI-generated">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="5"/></svg>
-        <span>AI · ${escapeHtml(provider)}</span>
+        <span>AI question</span>
       </span>`;
     }
     return `<span
       id="ielts-question-source-label"
       class="ielts-source-chip ielts-source-bank"
-      title="Saved offline question set from an earlier version"
-      aria-label="Question source: saved offline set">
-      <span>Saved offline set</span>
+      title="Saved question set"
+      aria-label="Question source: saved question">
+      <span>Saved question</span>
     </span>`;
   }
 
@@ -156,25 +150,30 @@ export function renderIeltsView(
       };
       const persistCompletedResult = async (): Promise<void> => {
         try {
-          let record = await saveIeltsTestResult(completedRecordData);
-          // Comparison is supplementary: a comparison failure must never block
-          // access to the already-saved IELTS result.
-          if (record.previousAttemptId) {
-            try {
-              const previous = await getIeltsTestResult(record.previousAttemptId);
-              if (previous) {
-                const comparison = await compareIeltsAttempts(previous, record);
-                record = await saveIeltsTestResult(
-                  { ...record, comparison, comparisonError: null },
-                  { clearDraft: false }
-                );
-              }
-            } catch (error) {
-              console.warn('[SpeakCoach] IELTS attempt comparison could not be saved.', error);
-            }
-          }
+          const record = await saveIeltsTestResult(completedRecordData);
+          // The primary result must never wait for the optional comparison API.
           ieltsSessionEngine.reset();
           callbacks.onComplete(record);
+
+          if (record.previousAttemptId) {
+            void (async () => {
+              try {
+                const previous = await getIeltsTestResult(record.previousAttemptId!);
+                if (!previous) return;
+                const comparison = await compareIeltsAttempts(previous, record);
+                // Merge into the latest stored record so a concurrent re-evaluation
+                // cannot be overwritten by this delayed background response.
+                const latestRecord = await getIeltsTestResult(record.id);
+                if (!latestRecord) return;
+                await saveIeltsTestResult(
+                  { ...latestRecord, comparison, comparisonError: null },
+                  { clearDraft: false }
+                );
+              } catch (error) {
+                console.warn('[SpeakCoach] IELTS attempt comparison could not be saved.', error);
+              }
+            })();
+          }
         } catch (error) {
           container.innerHTML = `<section class="card ielts-saving-state" role="alert" aria-live="assertive">
             <h2 class="card-title ielts-state-title">Your result could not be saved yet</h2>
@@ -592,7 +591,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
       const examinerVoiceNoticeHtml = state.activeVoiceTier
         ? state.activeVoiceTier.tier >= 3
           ? `<div class="status-box info ielts-voice-tier-notice" role="status">Using the basic Android voice. Online TTS was unavailable for this question.${state.activeVoiceTier.reason ? `<p class="card-subtitle">Reason: ${escapeHtml(state.activeVoiceTier.reason)}</p>` : ''}</div>`
-          : `<div class="tier-badge online ielts-voice-tier-notice" role="status">Online AI examiner voice · ${escapeHtml(state.activeVoiceTier.providerName)}</div>`
+          : `<div class="tier-badge online ielts-voice-tier-notice" role="status">Examiner voice ready</div>`
         : '';
 
       let actionAreaHtml = '';
@@ -647,10 +646,18 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
           <span class="ielts-badge-part">${partLabel}</span>
           <span class="ielts-question-count">Question ${currentQNum} of ${totalQ}</span>
         </div>
+        <div class="ielts-progress-track" role="progressbar" aria-label="Test progress" aria-valuemin="0" aria-valuemax="${totalQ}" aria-valuenow="${currentQNum}">
+          <span class="ielts-progress-fill" style="width: ${Math.min(100, Math.max(0, Math.round((currentQNum / totalQ) * 100)))}%"></span>
+        </div>
         <div class="ielts-question-area">
-${showQuestionText && !isPart2 ? `<div class="ielts-question-text">
-            ${escapeHtml(String(currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''))}
-          </div>` : ''}
+${!isPart2
+            ? `<details class="ielts-question-text-disclosure">
+                <summary>Show question text</summary>
+                <div class="ielts-question-text">
+                  ${escapeHtml(String(currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''))}
+                </div>
+              </details>`
+            : ''}
           <div class="ielts-source-row">${renderSourceChip(state)}</div>
           ${cueCardHtml}
         </div>
@@ -730,22 +737,8 @@ ${showQuestionText && !isPart2 ? `<div class="ielts-question-text">
   const unsubscribe = ieltsSessionEngine.subscribe((newState) => {
     render(newState);
   });
-  void loadAppSettings().then((settings) => {
-    if (!viewIsActive) return;
-    showQuestionText = settings.showQuestionText;
-    lastRenderedViewKey = null;
-    render(ieltsSessionEngine.getState());
-  }).catch(() => {
-    if (!viewIsActive) return;
-    // Voice-only remains the safe default if preferences cannot be read.
-    showQuestionText = false;
-    lastRenderedViewKey = null;
-    render(ieltsSessionEngine.getState());
-  });
-
   // Cleanup: stop any in-progress TTS and pending async operations when user leaves the IELTS view
   return () => {
-    viewIsActive = false;
     unsubscribe();
     stopAllTts();
     const currentStatus = ieltsSessionEngine.getState().status;

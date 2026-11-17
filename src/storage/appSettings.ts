@@ -33,8 +33,6 @@ export interface AppSettings {
   theme: AppThemePreference;
   /** Legacy compatibility field. Built-in IELTS question fallback is no longer supported. */
   allowBuiltinFallback: boolean;
-  /** Show examiner prompts as text during IELTS practice, except the Part 2 cue card. */
-  showQuestionText: boolean;
   /** Selected language for app guidance. Null means first launch has not asked yet. */
   language: AppLanguage;
   /** Whether the setup guide should appear automatically on future launches. */
@@ -45,7 +43,6 @@ export interface AppSettings {
 
 const DEFAULTS: AppSettings = {
   allowBuiltinFallback: false,
-  showQuestionText: false,
   theme: 'system',
   language: null,
   showTutorialOnStartup: true,
@@ -97,9 +94,6 @@ export async function loadAppSettings(): Promise<AppSettings> {
     const settings: AppSettings = {
       // Ignore the legacy persisted opt-in: IELTS questions must now come from AI.
       allowBuiltinFallback: false,
-      showQuestionText: typeof parsed.showQuestionText === 'boolean'
-        ? parsed.showQuestionText
-        : DEFAULTS.showQuestionText,
       theme: parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'system'
         ? parsed.theme
         : DEFAULTS.theme,
@@ -117,7 +111,13 @@ export async function loadAppSettings(): Promise<AppSettings> {
 
 export async function saveAppSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
   const current = await loadAppSettings();
-  const updated: AppSettings = { ...current, ...settings, allowBuiltinFallback: false };
+  const updated: AppSettings = {
+    allowBuiltinFallback: false,
+    theme: settings.theme ?? current.theme,
+    language: settings.language !== undefined ? settings.language : current.language,
+    showTutorialOnStartup: settings.showTutorialOnStartup ?? current.showTutorialOnStartup,
+    onboardingCompleted: settings.onboardingCompleted ?? current.onboardingCompleted
+  };
   await setRaw(APP_SETTINGS_KEY, JSON.stringify(updated));
   try { if (typeof localStorage !== 'undefined') localStorage.setItem(THEME_MIRROR_KEY, updated.theme); } catch { /* Native Preferences remains the source of truth. */ }
   return updated;

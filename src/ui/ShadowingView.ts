@@ -307,9 +307,9 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
       }
 
       <div class="score-metrics-grid">
-        <div class="metric-tile">
+        <div class="metric-tile metric-tile-overall">
           <div class="metric-value" id="sh-overall-score">${report.overallScore}</div>
-          <div class="metric-label">Overall</div>
+          <div class="metric-label">Overall score</div>
         </div>
         <div class="metric-tile">
           <div class="metric-value" id="sh-pron-score">${report.pronunciationScore}</div>
@@ -470,31 +470,30 @@ export function renderShadowingView(
         }
       </div>
 
-      <div class="form-field sh-transcript-field">
-        <label class="form-label" for="sh-transcript-input">
-          Recognized speech:
-        </label>
-        <input
-          type="text"
-          class="form-input"
-          id="sh-transcript-input"
-          readonly
-          placeholder="Your speech will appear here."
-          value="${escapeHtml(state.recognizedTranscript)}"
-        />
-        <div class="card-subtitle sh-recognizer-meta" id="sh-recognizer-meta">
-          Alternatives / Confidence: ${altsHtml}
-          ${state.recognizerError ? ` · Recognizer Note: ${escapeHtml(state.recognizerError)}` : ''}
+      <details class="sh-transcript-details" ${state.recognizerError ? 'open' : ''}>
+        <summary>Transcript &amp; recognition details</summary>
+        <div class="form-field sh-transcript-field">
+          <label class="form-label" for="sh-transcript-input">Recognized speech</label>
+          <input
+            type="text"
+            class="form-input"
+            id="sh-transcript-input"
+            readonly
+            placeholder="Your speech will appear here."
+            value="${escapeHtml(state.recognizedTranscript)}"
+          />
+          <div class="card-subtitle sh-recognizer-meta" id="sh-recognizer-meta">
+            Alternatives / Confidence: ${altsHtml}
+            ${state.recognizerError ? ` · Recognizer Note: ${escapeHtml(state.recognizerError)}` : ''}
+          </div>
         </div>
-      </div>
+      </details>
 
       <div class="btn-row sh-record-controls">
-        <button type="button" class="btn btn-primary sh-record-action" id="sh-record-btn" ${isRec ? 'hidden' : ''} ${hasSentence ? '' : 'disabled'} aria-label="Start recording repetition">
-          ${isRec ? '<span class="recording-led"></span> Recording...' : 'Record Repetition'}
+        <button type="button" class="btn btn-primary sh-record-action" id="sh-record-btn" ${hasSentence ? '' : 'disabled'} aria-label="${isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
+          ${isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score' : 'Record Repetition'}
         </button>
-        <button type="button" class="btn btn-primary sh-record-action" id="sh-stop-score-btn" ${!isRec ? 'hidden' : ''} ${hasSentence ? '' : 'disabled'} aria-label="Stop recording and score repetition">
-          <span class="recording-led" aria-hidden="true"></span> Stop &amp; Score
-        </button>
+        <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
       </div>
 
       ${
@@ -726,6 +725,12 @@ export function renderShadowingView(
   const resolveShadowingSttSlotId = (): 'pronunciation_scoring' => 'pronunciation_scoring';
 
   container.querySelector<HTMLButtonElement>('#sh-record-btn')?.addEventListener('click', async () => {
+    if (audioRecorder.isRecording()) {
+      container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.click();
+      return;
+    }
+    const recordButton = container.querySelector<HTMLButtonElement>('#sh-record-btn');
+    if (recordButton) recordButton.disabled = true;
     // Always reset transcript & previous report to EMPTY on every new recording attempt
     clearAttemptState();
     const sttSlotId = resolveShadowingSttSlotId();
@@ -746,8 +751,8 @@ export function renderShadowingView(
         container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.click();
       }, 60_000);
       state.statusMessage = isOnlineStt
-        ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score Repetition".'
-        : 'Listening via Android system speech recognition (no raw audio retained by SpeakCoach in this mode)... Speak clearly, then tap "Stop & Score Repetition".';
+        ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score".'
+        : 'Listening via Android system speech recognition (no raw audio retained by SpeakCoach in this mode)... Speak clearly, then tap "Stop & Score".';
     } catch (err) {
       if (viewGeneration !== shadowingViewGeneration) return;
       state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;

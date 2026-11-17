@@ -580,7 +580,7 @@ export async function retryIeltsEvaluation(
       evaluationError: null,
       evaluationHistory: [...(record.evaluationHistory ?? []), historyEntry]
     };
-    await saveIeltsTestResult(updated);
+    await saveIeltsTestResult(updated, { clearDraft: false });
     return updated;
   } catch (err) {
     const reason =
@@ -593,7 +593,7 @@ export async function retryIeltsEvaluation(
       ...record,
       evaluationError: reason
     };
-    await saveIeltsTestResult(updated);
+    await saveIeltsTestResult(updated, { clearDraft: false });
     throw err;
   }
 }

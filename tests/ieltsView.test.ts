@@ -214,19 +214,24 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     cleanup();
   });
 
-  it('shows Part 1 question text only when the preference is enabled', async () => {
-    localStorage.setItem('speakcoach.app_settings.v1', JSON.stringify({
-      allowBuiltinFallback: true,
-      showQuestionText: true,
-      theme: 'system'
-    }));
+  it('keeps examiner question text hidden until the user reveals it for that question', async () => {
     const cleanup = renderIeltsView(container, mockGlobalTierSummary, {
       onComplete: vi.fn(),
       onViewHistory: vi.fn()
     });
     startQuestionSet(container, 'part1');
+
     await vi.waitFor(() => expect(ieltsSessionEngine.getState().status).not.toBe('preparing'));
-    await vi.waitFor(() => expect(container.querySelector('.ielts-question-text')).not.toBeNull());
+    await vi.waitFor(() => expect(container.querySelector('.ielts-question-text-disclosure')).not.toBeNull());
+
+    const disclosure = container.querySelector<HTMLDetailsElement>('.ielts-question-text-disclosure');
+    expect(disclosure?.open).toBe(false);
+    expect(disclosure?.querySelector('summary')?.textContent).toContain('Show question text');
+    expect(disclosure?.querySelector('.ielts-question-text')?.textContent?.trim()).toBeTruthy();
+    expect(container.querySelector('#ielts-question-source-label')?.textContent).toContain('AI question');
+    disclosure?.querySelector('summary')?.click();
+    expect(disclosure?.open).toBe(true);
+
     cleanup();
   });
 
@@ -245,6 +250,10 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     expect(container.querySelector('.ielts-source-ai')).not.toBeNull();
     expect(container.querySelector('.ielts-builtin-warning')).toBeNull();
     expect(container.querySelector('.ielts-cue-card')).not.toBeNull();
+    const progress = container.querySelector<HTMLElement>('.ielts-progress-track[role="progressbar"]');
+    expect(progress).not.toBeNull();
+    expect(Number(progress?.getAttribute('aria-valuenow'))).toBeGreaterThan(0);
+    expect(Number(progress?.getAttribute('aria-valuemax'))).toBeGreaterThan(0);
     expect(container.querySelector('.ielts-question-text')).toBeNull();
     expect(container.querySelector('[aria-label="Offline evaluation quality notice"]')).toBeNull();
     expect(container.querySelector('[aria-label="Offline transcription accuracy notice"]')).toBeNull();
