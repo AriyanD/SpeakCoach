@@ -35,6 +35,7 @@ describe('Provider Slots Configuration & Storage', () => {
     const defaults = createDefaultAllSlotsConfig();
     expect(defaults.llm_evaluator.providerId).toBe('openai_compat_eval');
     expect(defaults.llm_translation.providerId).toBe('openai_compat_translation');
+    expect(getPreset('llm_translation', 'gemini_translation').defaultModelOrVoice).toBe('gemini-flash-latest');
 
     await saveSlotConfig({
       slotId: 'llm_evaluator',
