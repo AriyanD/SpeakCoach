@@ -1,8 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { showToast } from '../src/ui/toast';
 
 describe('accessible toast feedback', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
   afterEach(() => {
+    vi.runOnlyPendingTimers();
     vi.useRealTimers();
     document.querySelector('.app-toast')?.remove();
   });
@@ -19,7 +24,6 @@ describe('accessible toast feedback', () => {
   });
 
   it('replaces the current message and dismisses it after the requested duration', () => {
-    vi.useFakeTimers();
     showToast('First message');
     showToast('Second message', 'info', 1500);
 
