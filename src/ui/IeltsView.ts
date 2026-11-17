@@ -51,7 +51,6 @@ export function renderIeltsView(
   let requestedTopicInput = '';
   let preTestCheckDone = false;
   let evaluatorWarningText: string | null = null;
-  let viewIsActive = true;
   let lastRenderedViewKey: string | null = null;
 
   /** Keep source provenance visible without exposing provider configuration during the exam. */
@@ -735,7 +734,6 @@ ${!isPart2
   });
   // Cleanup: stop any in-progress TTS and pending async operations when user leaves the IELTS view
   return () => {
-    viewIsActive = false;
     unsubscribe();
     stopAllTts();
     const currentStatus = ieltsSessionEngine.getState().status;
