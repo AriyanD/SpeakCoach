@@ -542,7 +542,7 @@ export async function renderSettingsView(
             <button type="button" class="btn btn-primary" id="quick-setup-run-btn">Set up recommended providers</button>
           </div>
           <ul class="quick-setup-checklist" id="quick-setup-checklist">
-            ${SLOT_ORDER.map((slotId) => `<li data-quick-setup-slot="${slotId}"><span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\\d+\\.\\s*/, ''))}</span><span class="card-subtitle">Not checked</span></li>`).join('')}
+            ${SLOT_ORDER.map((slotId) => `<li data-quick-setup-slot="${slotId}"><span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\d+\.\s*/, ''))}</span><span class="card-subtitle">Not checked</span></li>`).join('')}
           </ul>
           <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick Setup changes API 1 provider choices only after you confirm. Each configured provider is tested in sequence.</div>
         </div>
