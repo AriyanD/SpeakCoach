@@ -3414,3 +3414,89 @@ body {
   .view-container { padding-inline: 12px; }
   .card { padding: 13px; }
 }
+
+
+/* Shadowing visual hierarchy v1: focus on the sentence, action and outcome. */
+.shadowing-main-card #sh-target-text {
+  margin-top: 16px;
+  padding: 20px 18px;
+  border-radius: var(--radius-md);
+  font-size: clamp(1.15rem, 4.2vw, 1.45rem);
+  line-height: 1.65;
+  font-weight: 700;
+  letter-spacing: -.012em;
+  background: var(--bg-elevated);
+  border-color: var(--accent-border);
+}
+
+.shadowing-main-card .sh-record-controls .btn {
+  min-height: 52px;
+  font-size: .94rem;
+}
+
+.sh-transcript-details {
+  margin-top: 14px;
+  padding: 0 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+}
+
+.sh-transcript-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  color: var(--text-secondary);
+  font-size: .86rem;
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+
+.sh-transcript-details > summary::-webkit-details-marker { display: none; }
+.sh-transcript-details > summary::after {
+  content: '+';
+  color: var(--accent);
+  font-size: 1.2rem;
+  font-weight: 400;
+}
+.sh-transcript-details[open] > summary::after { content: '−'; }
+.sh-transcript-details[open] > summary {
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.sh-transcript-details .sh-transcript-field { margin-top: 10px; }
+
+#sh-score-card .score-metrics-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+#sh-score-card .metric-tile-overall {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  text-align: left;
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+#sh-score-card .metric-tile-overall .metric-value {
+  order: 2;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--accent-strong);
+}
+#sh-score-card .metric-tile-overall .metric-label {
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+@media (max-width: 420px) {
+  #sh-score-card .score-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #sh-score-card .metric-tile-overall { grid-column: 1 / -1; }
+}
