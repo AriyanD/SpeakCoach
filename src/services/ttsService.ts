@@ -78,7 +78,7 @@ export async function synthesizeOnlineNeuralAudio(
 ): Promise<{ dataUrl: string; fromCache: boolean }> {
   const hash = computeAudioCacheHash({
     providerId: slotCfg.providerId,
-    voiceOrModel: slotCfg.modelOrVoice,
+    voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}`,
     rate,
     text
   });
@@ -225,7 +225,7 @@ export async function synthesizeOnlineNeuralAudio(
   }
 
   if (slotCfg.providerId === 'azure_tts') {
-    const voiceName = (slotCfg.modelOrVoice || 'en-US-JennyNeural').trim();
+    const voiceName = (slotCfg.customTtsVoice?.trim() || slotCfg.modelOrVoice || 'en-US-JennyNeural').trim();
     const langMatch = voiceName.match(/^([a-z]{2}-[A-Z]{2})/);
     const xmlLang = langMatch ? langMatch[1] : 'en-US';
     const prosodyRatePct = `${Math.round((rate - 1) * 100)}%`;
@@ -256,7 +256,7 @@ export async function synthesizeOnlineNeuralAudio(
 
   if (slotCfg.providerId === 'elevenlabs_tts') {
     const [voiceIdPart, modelIdPart] = (slotCfg.modelOrVoice || '21m00Tcm4TlvDq8ikWAM').split(':');
-    const voiceId = voiceIdPart?.trim() || '21m00Tcm4TlvDq8ikWAM';
+    const voiceId = slotCfg.customTtsVoice?.trim() || voiceIdPart?.trim() || '21m00Tcm4TlvDq8ikWAM';
     const modelId = modelIdPart?.trim() || 'eleven_multilingual_v2';
 
     const res = await nativeHttpRequest<string>(
