@@ -106,6 +106,63 @@ describe('Stage 2 Part 2A — Tier 2 Whisper STT Adapter & Word Timestamps', () 
     expect(parsed.words[1].confidence).toBeUndefined();
   });
 
+  it('uses the transcription config and word timestamps with the dedicated Gemini Transcribe model', async () => {
+    let capturedBody: any;
+    const result = await requestWhisperWordTimestamps({
+      slotConfig: {
+        slotId: 'pronunciation_scoring',
+        providerId: 'gemini_pronunciation',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        modelOrVoice: 'gemini-3.5-transcribe'
+      },
+      apiKey: 'gemini-test-key',
+      wavBase64: generateProbeWavBase64(),
+      transport: async (opts: HttpOptions): Promise<HttpResponse> => {
+        capturedBody = opts.data;
+        return {
+          status: 200,
+          headers: {},
+          data: { candidates: [{ content: { parts: [{ audioTranscription: { text: 'Hello there.', words: [
+            { word: 'Hello', startOffset: '0.1s', endOffset: '0.4s' },
+            { word: 'there.', startOffset: '0.5s', endOffset: '0.8s' }
+          ] } }] } }] },
+          url: opts.url
+        };
+      }
+    });
+
+    expect(capturedBody.generationConfig.audioTranscriptionConfig).toEqual({
+      wordTimestamp: true, mode: 'VERBATIM'
+    });
+    expect(result.transcript).toBe('Hello there.');
+    expect(result.words).toHaveLength(2);
+  });
+
+  it('omits transcription-only config when a general Gemini audio model is selected', async () => {
+    let capturedBody: any;
+    await requestWhisperWordTimestamps({
+      slotConfig: {
+        slotId: 'ielts_stt',
+        providerId: 'gemini_stt',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        modelOrVoice: 'gemini-3.8-flash'
+      },
+      apiKey: 'gemini-test-key',
+      wavBase64: generateProbeWavBase64(),
+      transport: async (opts: HttpOptions): Promise<HttpResponse> => {
+        capturedBody = opts.data;
+        return {
+          status: 200,
+          headers: {},
+          data: { candidates: [{ content: { parts: [{ text: 'Hello there.' }] } }] },
+          url: opts.url
+        };
+      }
+    });
+
+    expect(capturedBody.generationConfig).toEqual({ temperature: 0 });
+  });
+
   it('tests connection for the STT slot (whisper_stt on Groq)', async () => {
     const mockTransport = async (opts: HttpOptions): Promise<HttpResponse> => ({
       status: 200,
