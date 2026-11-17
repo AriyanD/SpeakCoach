@@ -1343,6 +1343,10 @@ export async function renderSettingsView(
           return;
         }
       }
+      if (keyInput) {
+        keyInput.value = '';
+        keyInput.placeholder = currentKey ? 'Key saved securely. Leave blank to keep it, or type a replacement.' : 'Enter your API key...';
+      }
       if (customAuthContainer) customAuthContainer.style.display = '';
       if (customEndpointContainer) customEndpointContainer.style.display = '';
       markSlotNotVerified('Custom provider selected. Save this slot, then pass test to activate Online AI.');
