@@ -672,7 +672,7 @@ export async function renderSettingsView(
       message: 'This changes API 1 provider choices for the six AI features and sends test requests to the selected services. Tests may consume API credits or quota. Existing API 2 settings are preserved.',
       confirmLabel: 'Run quick setup',
       cancelLabel: 'Keep current settings',
-      tone: 'warning'
+      tone: 'danger'
     });
     if (!confirmed || !quickSetupButton) return;
 
