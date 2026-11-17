@@ -50,6 +50,21 @@ describe('Provider Slots Configuration & Storage', () => {
     expect(loaded.llm_evaluator.modelOrVoice).toBe('gemini-2.5-pro');
   });
 
+  it('migrates only the previous official Gemini Translator default to the current Flash alias', async () => {
+    localStorage.setItem('speakcoach.slots.config.v1', JSON.stringify({
+      llm_translation: {
+        providerId: 'gemini_translation',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        modelOrVoice: 'gemini-2.5-flash'
+      }
+    }));
+
+    const loaded = await loadAllSlotsConfig();
+    expect(loaded.llm_translation.modelOrVoice).toBe('gemini-flash-latest');
+    const persisted = JSON.parse(localStorage.getItem('speakcoach.slots.config.v1') || '{}');
+    expect(persisted.llm_translation.modelOrVoice).toBe('gemini-flash-latest');
+  });
+
   it('stores and retrieves API keys per slot and provider in keyStore', async () => {
     expect(await hasConfiguredApiKey('voice_tts', 'openai_tts')).toBe(false);
 
