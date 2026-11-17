@@ -214,6 +214,30 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     cleanup();
   });
 
+  it('offers a temporary question-text reveal while voice-only mode is enabled', async () => {
+    localStorage.setItem('speakcoach.app_settings.v1', JSON.stringify({
+      allowBuiltinFallback: true,
+      showQuestionText: false,
+      theme: 'system'
+    }));
+    const cleanup = renderIeltsView(container, mockGlobalTierSummary, {
+      onComplete: vi.fn(),
+      onViewHistory: vi.fn()
+    });
+    startQuestionSet(container, 'part1');
+
+    await vi.waitFor(() => expect(ieltsSessionEngine.getState().status).not.toBe('preparing'));
+    await vi.waitFor(() => expect(container.querySelector('.ielts-question-text-disclosure')).not.toBeNull());
+
+    const disclosure = container.querySelector<HTMLDetailsElement>('.ielts-question-text-disclosure');
+    expect(disclosure?.open).toBe(false);
+    expect(disclosure?.querySelector('.ielts-question-text')?.textContent?.trim()).toBeTruthy();
+    disclosure?.querySelector('summary')?.click();
+    expect(disclosure?.open).toBe(true);
+
+    cleanup();
+  });
+
   it('shows Part 1 question text only when the preference is enabled', async () => {
     localStorage.setItem('speakcoach.app_settings.v1', JSON.stringify({
       allowBuiltinFallback: true,
