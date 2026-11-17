@@ -167,18 +167,18 @@ export async function renderIeltsHistoryView(
               ${item.answers.some(answer => String(answer.transcript || '').trim().length > 0) ? `
               <div class="history-reevaluation-controls">
                 <p class="card-subtitle history-reevaluation-help">Normally, no repeat is needed: the first evaluation runs automatically. Automatic uses API 1 and falls back to API 2 when needed. Choose one API only to compare models. If an API fails, answers remain saved; retry after restoring the connection.</p>
-                <select class="form-input history-api-choice" data-id="${item.id}" aria-label="Re-evaluation method">
+                <select class="form-input history-api-choice" data-id="${escapeHtml(item.id)}" aria-label="Re-evaluation method">
                   <option value="auto">Automatic (API 1 or API 2)</option>
                   <option value="primary">API 1 only — compare model</option>
                   <option value="secondary">API 2 only — compare model</option>
                 </select>
-                <button type="button" class="btn btn-secondary history-retry-btn" data-id="${item.id}">Re-evaluate</button>
+                <button type="button" class="btn btn-secondary history-retry-btn" data-id="${escapeHtml(item.id)}">Re-evaluate</button>
               </div>
               ` : ''}
-              <button type="button" class="btn ${hasScore ? 'btn-primary' : 'btn-secondary'} history-view-btn" data-id="${item.id}">
+              <button type="button" class="btn ${hasScore ? 'btn-primary' : 'btn-secondary'} history-view-btn" data-id="${escapeHtml(item.id)}">
                 ${hasScore ? 'View full report' : 'Inspect answers'}
               </button>
-              <button type="button" class="btn btn-secondary history-delete-btn" data-id="${item.id}" aria-label="Delete this test record" title="Delete this test record">
+              <button type="button" class="btn btn-secondary history-delete-btn" data-id="${escapeHtml(item.id)}" aria-label="Delete this test record" title="Delete this test record">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-.8 13H6.8L6 7m3 3v6m6-6v6"/></svg>
                 <span>Delete</span>
               </button>
