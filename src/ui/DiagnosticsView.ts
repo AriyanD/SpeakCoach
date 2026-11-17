@@ -290,11 +290,11 @@ export async function renderDiagnosticsView(
     const isOnlineTier = resolved.label === 'Online AI';
 
     return `
-      <div class="slot-summary-row" data-diag-slot="${slotId}">
+      <div class="slot-summary-row" data-diag-slot="${escapeHtml(slotId)}">
         <div>
-          <div class="slot-summary-title">${def.title}</div>
-          <div class="card-subtitle">Active: <strong>${resolved.detailLabel}</strong></div>
-          <div class="card-subtitle">${conn.message}</div>
+          <div class="slot-summary-title">${escapeHtml(def.title)}</div>
+          <div class="card-subtitle">Active: <strong>${escapeHtml(resolved.detailLabel)}</strong></div>
+          <div class="card-subtitle">${escapeHtml(conn.message)}</div>
         </div>
         <span class="tier-badge ${isOnlineTier ? 'online' : 'offline'}">
           <span class="tier-dot"></span>
@@ -322,7 +322,7 @@ export async function renderDiagnosticsView(
           <div>
             <div class="slot-summary-title">App / Build Version &amp; Platform</div>
             <div class="card-subtitle" id="diag-version-text">
-              v${report.appVersion} · Platform: ${report.platform} · Checked: ${report.timestamp.slice(11, 19)} UTC
+              v${escapeHtml(report.appVersion)} · Platform: ${escapeHtml(report.platform)} · Checked: ${escapeHtml(report.timestamp.slice(11, 19))} UTC
             </div>
           </div>
           ${badgeForBool(report.networkOnline, 'ONLINE', 'OFFLINE')}
@@ -331,7 +331,7 @@ export async function renderDiagnosticsView(
         <div class="slot-summary-row">
           <div>
             <div class="slot-summary-title">Microphone Permission</div>
-            <div class="card-subtitle" id="diag-mic-detail">${report.micPermissionDetail}</div>
+            <div class="card-subtitle" id="diag-mic-detail">${escapeHtml(report.micPermissionDetail)}</div>
           </div>
           ${badgeForBool(micOk, micLabel, micLabel)}
         </div>
@@ -339,7 +339,7 @@ export async function renderDiagnosticsView(
         <div class="slot-summary-row">
           <div>
             <div class="slot-summary-title">Native TTS Availability</div>
-            <div class="card-subtitle" id="diag-tts-detail">${report.nativeTtsDetail}</div>
+            <div class="card-subtitle" id="diag-tts-detail">${escapeHtml(report.nativeTtsDetail)}</div>
           </div>
           ${badgeForBool(report.nativeTtsAvailable, 'READY', 'UNAVAILABLE')}
         </div>
@@ -347,7 +347,7 @@ export async function renderDiagnosticsView(
         <div class="slot-summary-row">
           <div>
             <div class="slot-summary-title">Secure Key Storage R/W Self-Test</div>
-            <div class="card-subtitle" id="diag-keystore-detail">${report.secureKeyStoreDetail}</div>
+            <div class="card-subtitle" id="diag-keystore-detail">${escapeHtml(report.secureKeyStoreDetail)}</div>
           </div>
           ${badgeForBool(report.secureKeyStoreOk, 'PASS', 'FAIL')}
         </div>

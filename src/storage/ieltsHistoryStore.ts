@@ -262,7 +262,8 @@ export async function deduplicateIeltsHistory(): Promise<number> {
  * Idempotently updates if a record with the same ID already exists.
  */
 export async function saveIeltsTestResult(
-  data: Omit<IeltsTestRecord, 'id' | 'timestamp'> & { id?: string; timestamp?: number }
+  data: Omit<IeltsTestRecord, 'id' | 'timestamp'> & { id?: string; timestamp?: number },
+  options: { clearDraft?: boolean } = {}
 ): Promise<IeltsTestRecord> {
   const recordId = data.id || `ielts_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const recordTimestamp = data.timestamp || Date.now();
@@ -314,8 +315,9 @@ export async function saveIeltsTestResult(
   const trimmed = deduped.slice(0, 50);
   await setStorageItem(HISTORY_KEY, JSON.stringify(trimmed));
 
-  // If a draft exists, clear it upon successful completion
-  await clearIeltsDraft();
+  // Clear the active draft only for a newly completed session. Updating an older
+  // result (for example, attaching a comparison) must not discard another draft.
+  if (options.clearDraft !== false) await clearIeltsDraft();
 
   return record;
 }
