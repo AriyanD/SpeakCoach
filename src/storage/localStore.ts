@@ -171,6 +171,34 @@ export async function loadAllSlotsConfig(): Promise<AllSlotsConfig> {
     for (const slotId of SLOT_ORDER) {
       result[slotId] = sanitizeSlotConfig(slotId, parsed[slotId]);
     }
+
+    // Migrate only the previous built-in Gemini Translator default. Explicit
+    // custom model choices and non-Google gateways are left untouched.
+    const translation = result.llm_translation;
+    const officialGeminiEndpoint = translation.baseUrl.replace(/\\/+$/, '') === 'https://generativelanguage.googleapis.com/v1beta';
+    let migratedTranslationModel = false;
+    if (
+      translation.providerId === 'gemini_translation' &&
+      translation.modelOrVoice === 'gemini-2.5-flash' &&
+      officialGeminiEndpoint
+    ) {
+      translation.modelOrVoice = getPreset('llm_translation', 'gemini_translation').defaultModelOrVoice;
+      migratedTranslationModel = true;
+    }
+    const secondaryTranslation = translation.secondary;
+    if (
+      secondaryTranslation?.providerId === 'gemini_translation' &&
+      secondaryTranslation.modelOrVoice === 'gemini-2.5-flash' &&
+      secondaryTranslation.baseUrl.replace(/\\/+$/, '') === 'https://generativelanguage.googleapis.com/v1beta'
+    ) {
+      secondaryTranslation.modelOrVoice = getPreset('llm_translation', 'gemini_translation').defaultModelOrVoice;
+      migratedTranslationModel = true;
+    }
+    if (migratedTranslationModel) {
+      await setRawItem(SLOTS_CONFIG_KEY, JSON.stringify(result));
+      await clearSlotConnectionTestResult('llm_translation');
+      clearSlotRuntimeFailure('llm_translation');
+    }
     return result;
   } catch {
     await preserveCorruptValue(SLOTS_CONFIG_KEY, raw);
