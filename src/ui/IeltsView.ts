@@ -65,10 +65,10 @@ export function renderIeltsView(
       return `<span
         id="ielts-question-source-label"
         class="ielts-source-chip ielts-source-ai"
-        title="${title}"
-        aria-label="Question source: AI · ${provider}">
+        title="${escapeHtml(title)}"
+        aria-label="Question source: AI · ${escapeHtml(provider)}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="5"/></svg>
-        <span>AI · ${provider}</span>
+        <span>AI · ${escapeHtml(provider)}</span>
       </span>`;
     }
     return `<span
@@ -142,7 +142,7 @@ export function renderIeltsView(
         console.warn('[SpeakCoach] Could not update generated question-set completion status.', error);
       }
 
-      saveIeltsTestResult({
+      const completedRecordData = {
         id: `${state.sessionId}_attempt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         mode: state.mode,
         plan: state.plan,
@@ -153,25 +153,46 @@ export function renderIeltsView(
         answers: answerSummaries,
         questionSource: state.questionSource,
         questionSourceDetails: state.questionSourceDetails
-      }).then(async (savedRecord) => {
-        let record = savedRecord;
-        if (record.previousAttemptId) {
-          const previous = await getIeltsTestResult(record.previousAttemptId);
-          if (previous) {
+      };
+      const persistCompletedResult = async (): Promise<void> => {
+        try {
+          let record = await saveIeltsTestResult(completedRecordData);
+          // Comparison is supplementary: a comparison failure must never block
+          // access to the already-saved IELTS result.
+          if (record.previousAttemptId) {
             try {
-              const comparison = await compareIeltsAttempts(previous, record);
-              record = await saveIeltsTestResult({ ...record, comparison, comparisonError: null });
+              const previous = await getIeltsTestResult(record.previousAttemptId);
+              if (previous) {
+                const comparison = await compareIeltsAttempts(previous, record);
+                record = await saveIeltsTestResult(
+                  { ...record, comparison, comparisonError: null },
+                  { clearDraft: false }
+                );
+              }
             } catch (error) {
-              record = await saveIeltsTestResult({
-                ...record,
-                comparisonError: error instanceof Error ? error.message : 'AI comparison could not be completed.'
-              });
+              console.warn('[SpeakCoach] IELTS attempt comparison could not be saved.', error);
             }
           }
+          ieltsSessionEngine.reset();
+          callbacks.onComplete(record);
+        } catch (error) {
+          container.innerHTML = `<section class="card ielts-saving-state" role="alert" aria-live="assertive">
+            <h2 class="card-title ielts-state-title">Your result could not be saved yet</h2>
+            <p class="card-subtitle" id="ielts-save-error"></p>
+            <p class="card-subtitle">Your answers are still held in the current session. Check available storage and try again.</p>
+            <button type="button" class="btn btn-primary" id="ielts-retry-save-btn">Retry saving result</button>
+          </section>`;
+          const errorEl = container.querySelector<HTMLElement>('#ielts-save-error');
+          if (errorEl) errorEl.textContent = error instanceof Error ? error.message : String(error);
+          container.querySelector<HTMLButtonElement>('#ielts-retry-save-btn')?.addEventListener('click', (event) => {
+            const button = event.currentTarget as HTMLButtonElement;
+            button.disabled = true;
+            button.textContent = 'Saving…';
+            void persistCompletedResult();
+          });
         }
-        ieltsSessionEngine.reset();
-        callbacks.onComplete(record);
-      });
+      };
+      void persistCompletedResult();
       return;
     }
 
@@ -233,7 +254,7 @@ export function renderIeltsView(
           <div id="ielts-eval-warning-banner" class="ielts-evaluator-chip" style="display:${evaluatorWarningText ? 'flex' : 'none'};">
             <div class="ielts-evaluator-copy">
               <strong>Evaluator connection warning</strong>
-              <p id="ielts-eval-warning-text" class="card-subtitle">${evaluatorWarningText || 'Your answers are saved even if evaluation is unavailable.'}</p>
+              <p id="ielts-eval-warning-text" class="card-subtitle">${escapeHtml(evaluatorWarningText || 'Your answers are saved even if evaluation is unavailable.')}</p>
             </div>
             <button type="button" class="btn btn-secondary" id="ielts-open-settings-btn">Review Settings</button>
           </div>
@@ -542,10 +563,10 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         const cueCard = currentStep?.canonicalQuestion?.cueCard || currentStep?.cueCard;
         cueCardHtml = `
           <div class="ielts-cue-card">
-            <div class="ielts-cue-card-title">${cueCard?.title || ''}</div>
+            <div class="ielts-cue-card-title">${escapeHtml(String(cueCard?.title || ''))}</div>
             <div class="ielts-cue-card-sub">You should say:</div>
             <ul class="ielts-cue-card-bullets">
-              ${(cueCard?.bullets || []).map((b) => `<li>${b}</li>`).join('')}
+              ${(cueCard?.bullets || []).map((b) => `<li>${escapeHtml(String(b))}</li>`).join('')}
             </ul>
           </div>
         `;
@@ -571,7 +592,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
       const examinerVoiceNoticeHtml = state.activeVoiceTier
         ? state.activeVoiceTier.tier >= 3
           ? `<div class="status-box info ielts-voice-tier-notice" role="status">Using the basic Android voice. Online TTS was unavailable for this question.${state.activeVoiceTier.reason ? `<p class="card-subtitle">Reason: ${escapeHtml(state.activeVoiceTier.reason)}</p>` : ''}</div>`
-          : `<div class="tier-badge online ielts-voice-tier-notice" role="status">Online AI examiner voice · ${state.activeVoiceTier.providerName}</div>`
+          : `<div class="tier-badge online ielts-voice-tier-notice" role="status">Online AI examiner voice · ${escapeHtml(state.activeVoiceTier.providerName)}</div>`
         : '';
 
       let actionAreaHtml = '';
@@ -590,7 +611,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
             <label class="ielts-notes-label">
               Notes (optional):
             </label>
-            <textarea class="ielts-notes-area" id="ielts-prep-notes" placeholder="Jot down keywords, bullet points, or ideas for your 2-minute talk...">${state.candidateNotes}</textarea>
+            <textarea class="ielts-notes-area" id="ielts-prep-notes" placeholder="Jot down keywords, bullet points, or ideas for your 2-minute talk...">${escapeHtml(state.candidateNotes)}</textarea>
           </div>
         `;
       } else if (state.status === 'recording') {
@@ -615,7 +636,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
           ${isPart2 && state.candidateNotes ? `
             <div class="ielts-candidate-notes">
               <strong>Your Notes:</strong>
-              <p class="ielts-candidate-notes-copy">${state.candidateNotes}</p>
+              <p class="ielts-candidate-notes-copy">${escapeHtml(state.candidateNotes)}</p>
             </div>
           ` : ''}
         `;
@@ -628,7 +649,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         </div>
         <div class="ielts-question-area">
 ${showQuestionText && !isPart2 ? `<div class="ielts-question-text">
-            ${currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''}
+            ${escapeHtml(String(currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''))}
           </div>` : ''}
           <div class="ielts-source-row">${renderSourceChip(state)}</div>
           ${cueCardHtml}

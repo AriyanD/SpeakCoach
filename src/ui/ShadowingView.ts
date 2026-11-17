@@ -119,6 +119,7 @@ function saveAiSentenceQueue(queue: GeneratedShadowingSentence[]): void {
 
 let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
 let shadowingModelPlaybackToken = 0;
+let shadowingViewGeneration = 0;
 
 function clearShadowingRecordingTimer(): void {
   if (shadowingRecordingTimeout) clearTimeout(shadowingRecordingTimeout);
@@ -353,7 +354,8 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
 export function renderShadowingView(
   container: HTMLElement,
   summary: GlobalTierSummary
-): void {
+): () => void {
+  const viewGeneration = ++shadowingViewGeneration;
   const sentence = state.sourceMode === 'ai' ? (state.aiSentenceQueue[state.index] ?? state.aiSentence) : getCurrentSentence();
   const list = getShadowingSentencesByDifficulty(state.difficulty);
   const hasSentence = !!sentence;
@@ -732,6 +734,10 @@ export function renderShadowingView(
 
     try {
       await audioRecorder.start('en-US', { useOfflineRecognizer: !isOnlineStt, preferOffline: !isOnlineStt });
+      if (viewGeneration !== shadowingViewGeneration) {
+        if (audioRecorder.isRecording()) await audioRecorder.stop();
+        return;
+      }
       clearShadowingRecordingTimer();
       // Keep the 60-second safety limit internal: no visible countdown in Shadowing.
       // Trigger the same stop-and-score flow the user would invoke manually.
@@ -743,14 +749,23 @@ export function renderShadowingView(
         ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score Repetition".'
         : 'Listening via Android system speech recognition (no raw audio retained by SpeakCoach in this mode)... Speak clearly, then tap "Stop & Score Repetition".';
     } catch (err) {
+      if (viewGeneration !== shadowingViewGeneration) return;
       state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
     }
+    if (viewGeneration !== shadowingViewGeneration) return;
     renderShadowingView(container, summary);
   });
 
   container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.addEventListener('click', async () => {
     clearShadowingRecordingTimer();
-    const rec = await audioRecorder.stop();
+    const rec = await audioRecorder.stop().catch((error) => {
+      if (viewGeneration === shadowingViewGeneration) {
+        state.statusMessage = `Could not stop recording: ${error instanceof Error ? error.message : String(error)}`;
+        renderShadowingView(container, summary);
+      }
+      return null;
+    });
+    if (!rec || viewGeneration !== shadowingViewGeneration) return;
     state.lastRecording = rec;
 
     // Resolve the configured online speech provider (Azure, Whisper or Gemini), with API 2 and offline fallbacks.
@@ -763,7 +778,14 @@ export function renderShadowingView(
       offlineTranscript: rec.offlineTranscript,
       offlineConfidence: rec.offlineConfidence,
       referenceText: targetText
+    }).catch((error) => {
+      if (viewGeneration === shadowingViewGeneration) {
+        state.statusMessage = `Speech transcription failed: ${error instanceof Error ? error.message : String(error)}`;
+        renderShadowingView(container, summary);
+      }
+      return null;
     });
+    if (!sttOutcome || viewGeneration !== shadowingViewGeneration) return;
 
     const rawRecognized = sttOutcome.transcript.trim();
 
@@ -861,6 +883,21 @@ export function renderShadowingView(
       renderShadowingView(container, summary);
     }
   });
+
+  // The main router invokes this when leaving Shadowing. Invalidate pending
+  // async recording/scoring work before stopping native capture and playback.
+  return () => {
+    shadowingViewGeneration++;
+    clearShadowingRecordingTimer();
+    shadowingModelPlaybackToken++;
+    state.activeModelPlayback = null;
+    stopAllTts();
+    if (audioRecorder.isRecording()) {
+      void audioRecorder.stop().catch((error) => {
+        console.warn('[SpeakCoach] Could not stop Shadowing recording during navigation cleanup.', error);
+      });
+    }
+  };
 }
 
 export async function pauseShadowingRecordingForBackground(): Promise<void> {

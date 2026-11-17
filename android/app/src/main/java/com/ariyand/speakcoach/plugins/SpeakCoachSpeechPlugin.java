@@ -64,6 +64,17 @@ public class SpeakCoachSpeechPlugin extends Plugin {
     private boolean recognizerRestartScheduled = false;
 
     @PluginMethod
+    public void checkMicPermission(PluginCall call) {
+        PermissionState state = getPermissionState("microphone");
+        String status = state == PermissionState.GRANTED
+                ? "granted"
+                : state == PermissionState.DENIED ? "denied" : "prompt";
+        JSObject ret = new JSObject();
+        ret.put("status", status);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void ensureMicPermission(PluginCall call) {
         if (getPermissionState("microphone") == PermissionState.GRANTED) {
             JSObject ret = new JSObject();

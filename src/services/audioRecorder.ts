@@ -7,6 +7,7 @@ export interface RecognizerAlternative {
 
 export interface SpeakCoachSpeechPluginInterface {
   ensureMicPermission(): Promise<{ granted: boolean }>;
+  checkMicPermission(): Promise<{ status: 'granted' | 'denied' | 'prompt' }>;
   startRecording(options: {
     locale?: string;
     useOfflineRecognizer?: boolean;
@@ -39,6 +40,11 @@ const SpeakCoachSpeechNative = registerPlugin<SpeakCoachSpeechPluginInterface>('
 export async function requestNativeMicPermission(): Promise<boolean> {
   const res = await SpeakCoachSpeechNative.ensureMicPermission();
   return Boolean(res?.granted);
+}
+
+export async function checkNativeMicPermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  const res = await SpeakCoachSpeechNative.checkMicPermission();
+  return res?.status === 'granted' || res?.status === 'denied' ? res.status : 'prompt';
 }
 
 export function encodeFloat32ToWav16kMonoBytes(

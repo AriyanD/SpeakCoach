@@ -267,7 +267,7 @@ export async function bootstrapApp(
     navSettingsBtn?.classList.toggle('active', currentTab === 'settings' || currentTab === 'diagnostics');
 
     if (currentTab === 'shadowing') {
-      renderShadowingView(viewContainer, summary);
+      activeCleanup = renderShadowingView(viewContainer, summary);
     } else if (currentTab === 'ielts') {
       activeCleanup = renderIeltsView(viewContainer, summary, {
         onComplete: (record) => {
@@ -336,6 +336,34 @@ export async function bootstrapApp(
     if (isSameNavigationSection(currentTab, tab)) {
       scrollAppToTop(viewContainer);
       return;
+    }
+
+    // Moving from an active IELTS session to another bottom tab is equivalent
+    // to pressing Back: preserve the draft unless the user confirms quitting.
+    if (getSection(currentTab) === 'ielts' && section !== 'ielts') {
+      const status = ieltsSessionEngine.getSnapshot().status;
+      const action = getIeltsBackAction(status);
+      if (action === 'ignore') return;
+      if (action === 'confirm') {
+        if (quitDialogOpen) return;
+        quitDialogOpen = true;
+        void handleIeltsSessionBack(
+          status,
+          () => confirmInApp({
+            title: 'Quit this test?',
+            message: 'Your answers saved so far will remain in the session history. You can return to this test later.',
+            confirmLabel: 'Quit test',
+            cancelLabel: 'Keep practising',
+            tone: 'danger'
+          }),
+          () => ieltsSessionEngine.cancelSession()
+        ).then((result) => {
+          if (result === 'cancelled') resetSectionToRoot(section);
+        }).finally(() => {
+          quitDialogOpen = false;
+        });
+        return;
+      }
     }
     resetSectionToRoot(section);
   };
