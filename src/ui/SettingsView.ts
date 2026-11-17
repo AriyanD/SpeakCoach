@@ -18,6 +18,7 @@ import { setThemePreference } from '../services/themeManager';
 import { showSetupGuide, applyAppLanguage } from './OnboardingView';
 import { applyLanguageToDocument } from '../services/appLanguage';
 import { confirmInApp } from './confirmDialog';
+import { showToast } from './toast';
 import { createBackup, downloadBackupFile, parseBackupJsonText, readBackupFile, restoreBackup, type BackupKind } from '../services/dataBackup';
 import { isNativeBackupImportAvailable, selectNativeBackupFile } from '../services/nativeBackupImport';
 import { getIeltsQuestionStoreRecoveryNotices } from '../services/ieltsQuestionSetStore';
@@ -1542,6 +1543,9 @@ export async function renderSettingsView(
       if (value?.trim()) {
         keyInput.value = value;
         keyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        showToast('API key copied into this field. Save settings to keep the change.');
+      } else {
+        showToast('No saved API key was found in the selected source.', 'info');
       }
     });
 
@@ -1572,6 +1576,9 @@ export async function renderSettingsView(
       if (value?.trim()) {
         secondaryKeyInput.value = value;
         secondaryKeyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        showToast('API key copied into this field. Save settings to keep the change.');
+      } else {
+        showToast('No saved API key was found in the selected source.', 'info');
       }
     });
 
