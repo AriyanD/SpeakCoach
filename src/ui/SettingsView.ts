@@ -499,170 +499,86 @@ export async function renderSettingsView(
     `;
   }).join('');
 
+  const requiredCoreSlots: SlotId[] = ['llm_generator', 'llm_evaluator'];
+  const hasMissingRequiredApi = (): boolean => requiredCoreSlots.some((slotId) => {
+    const preset = getPreset(slotId, configs[slotId].providerId);
+    return preset.tier === 3 || (preset.requiresKey && !(keysBySlot[slotId] ?? '').trim());
+  });
+
   container.innerHTML = `
-    <section class="card settings-intro-card">
+    <section class="card settings-intro-card" aria-labelledby="ai-provider-settings-title">
       <div class="card-header">
-        <h1 class="card-title">AI provider settings</h1>
+        <h1 class="card-title" id="ai-provider-settings-title">AI provider settings</h1>
       </div>
-      <p class="card-subtitle">
-        Connect the services you want to use. Requests are sent directly from your device. If a service is unavailable, supported practice can continue with offline tools.
+      <p class="card-subtitle settings-provider-intro">
+        An API connection is required for core AI features, including generating IELTS questions, evaluating answers, and creating new Shadowing sentences. Basic device-based speech tools may still work without an API, but connecting providers improves voice generation and speech-to-text quality and reliability. Requests are sent directly from your device.
       </p>
-      <div class="offline-quality-notice" role="note" aria-label="Offline feature accuracy notice">
-        <strong>About offline accuracy</strong>
-        <p>Some features can run without an AI connection, but their results are basic estimates. IELTS question generation and speaking evaluation are more useful with a tested AI provider. Android speech recognition and word/timing matching are approximate; they do not assess phoneme-level pronunciation. Connect and test a validated pronunciation-assessment provider for that capability.</p>
-      </div>
-    </section>
-    ${recoveryNoticeHtml}
-    ${apiKeyRecoveryNoticeHtml}
-    ${browserKeyStorageNoticeHtml}
-    <section class="card quick-setup-card" aria-labelledby="quick-setup-title">
-      <div class="card-header"><h2 class="card-title" id="quick-setup-title">Quick setup</h2></div>
-      <p class="card-subtitle">Set up the recommended providers for all six AI features. Enter a Gemini key and, optionally, a Groq key. Saved keys for the recommended providers can be reused when a field is left blank.</p>
-      <div class="form-grid">
-        <div class="form-field">
-          <label class="form-label" for="quick-setup-gemini-key">Gemini API key</label>
-          <input type="password" class="form-input" id="quick-setup-gemini-key" autocomplete="off" placeholder="Paste Gemini key (optional if already saved)" />
+      ${recoveryNoticeHtml}
+      ${apiKeyRecoveryNoticeHtml}
+      ${browserKeyStorageNoticeHtml}
+      <div class="quick-setup-disclosure">
+        <button type="button" class="btn btn-secondary quick-setup-toggle" id="quick-setup-toggle" aria-expanded="false" aria-controls="quick-setup-panel">
+          <span>Quick Setup</span><span class="quick-setup-toggle-icon" aria-hidden="true">＋</span>
+        </button>
+        <div class="quick-setup-panel" id="quick-setup-panel" hidden>
+          <p class="card-subtitle">For the best experience, we recommend configuring the providers manually in API Settings below. If you use free API plans, separate accounts may help distribute legitimate usage where the provider's terms allow it; do not use multiple accounts to bypass provider limits or restrictions.</p>
+          <p class="card-subtitle">If you prefer a simpler setup, start with these two services: Google Gemini provides the core AI generation and evaluation, while Groq can provide speech recognition and Shadowing alignment. Gemini is essential for the core features; Groq is an optional addition for better speech support.</p>
+          <ul class="quick-setup-links">
+            <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get a Google Gemini API key</a></li>
+            <li><a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Get a Groq API key</a></li>
+          </ul>
+          <div class="form-grid">
+            <div class="form-field">
+              <label class="form-label" for="quick-setup-gemini-key">Gemini API key</label>
+              <input type="password" class="form-input" id="quick-setup-gemini-key" autocomplete="off" placeholder="Paste Gemini key (optional if already saved)" />
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="quick-setup-groq-key">Groq API key (optional)</label>
+              <input type="password" class="form-input" id="quick-setup-groq-key" autocomplete="off" placeholder="Paste Groq key (optional)" />
+            </div>
+          </div>
+          <p class="card-subtitle">Quick Setup configures the recommended providers across the six features, tests each selected connection in sequence, and preserves existing API 2 settings.</p>
+          <div class="btn-row">
+            <button type="button" class="btn btn-primary" id="quick-setup-run-btn">Set up recommended providers</button>
+          </div>
+          <ul class="quick-setup-checklist" id="quick-setup-checklist">
+            ${SLOT_ORDER.map((slotId) => `<li data-quick-setup-slot="${slotId}"><span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\\d+\\.\\s*/, ''))}</span><span class="card-subtitle">Not checked</span></li>`).join('')}
+          </ul>
+          <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick Setup changes API 1 provider choices only after you confirm. Each configured provider is tested in sequence.</div>
         </div>
-        <div class="form-field">
-          <label class="form-label" for="quick-setup-groq-key">Groq API key (optional)</label>
-          <input type="password" class="form-input" id="quick-setup-groq-key" autocomplete="off" placeholder="Paste Groq key (optional)" />
+      </div>
+      <div class="settings-api-group-heading">
+        <div class="settings-api-group-title">
+          <h2 class="card-title">API Settings</h2>
+          <span class="settings-api-required-label">Required</span>
         </div>
+        <span id="required-api-status" class="settings-required-badge ${hasMissingRequiredApi() ? 'missing' : 'configured'}" role="status" aria-live="polite">${hasMissingRequiredApi() ? 'Core API setup needed' : 'Core APIs configured'}</span>
       </div>
-      <p class="card-subtitle">Recommended: Gemini for TTS, IELTS transcription, evaluation, question generation and translation; Groq Whisper for Shadowing alignment and IELTS transcription when a Groq key is available. Existing API 2 settings are preserved.</p>
-      <div class="btn-row">
-        <button type="button" class="btn btn-primary" id="quick-setup-run-btn">Set up recommended providers</button>
-      </div>
-      <ul class="quick-setup-checklist" id="quick-setup-checklist">
-        ${SLOT_ORDER.map((slotId) => `<li data-quick-setup-slot="${slotId}"><span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\d+\.\s*/, ''))}</span><span class="card-subtitle">Not checked</span></li>`).join('')}
-      </ul>
-      <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick setup changes API 1 provider choices only after you confirm. Each configured provider is tested in sequence.</div>
-    </section>
-    <details class="card settings-advanced-settings">
-      <summary class="settings-accordion-summary">
-        <span class="settings-accordion-heading">
-          <span class="card-title">Advanced settings</span>
-          <span class="card-subtitle">Provider URLs, models, API keys, API 2 and connection tests</span>
-        </span>
-        <span class="settings-chevron" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="settings-accordion-content">
+      <div class="settings-provider-cards">
         ${cardsHtml}
       </div>
-    </details>
-    <section class="card settings-preference-card">
-      <div class="card-header"><h2 class="card-title">IELTS Test Preferences</h2></div>
-      <div class="appearance-setting ielts-question-text-setting">
-        <div class="appearance-setting-copy">
-          <label class="form-label" for="show-ielts-question-text">Show examiner questions as text</label>
-          <p class="card-subtitle">When off, questions are presented by voice only. The Part 2 cue card remains visible, as in the real IELTS test.</p>
-        </div>
-        <label class="settings-switch" for="show-ielts-question-text">
-          <input type="checkbox" id="show-ielts-question-text" aria-describedby="ielts-question-text-status" ${appSettings.showQuestionText ? 'checked' : ''} />
-          <span>Show text</span>
-        </label>
-        <div id="ielts-question-text-status" class="appearance-status" role="status" aria-live="polite">${appSettings.showQuestionText ? 'Examiner questions will also appear as text.' : 'Examiner questions will be voice-only; the Part 2 cue card stays visible.'}</div>
-      </div>
-    </section>
-    <section class="card backup-card">
-      <div class="card-header"><h2 class="card-title">Backup &amp; Restore</h2></div>
-      <p class="card-subtitle">Choose which information to export or restore.</p>
-      <div class="backup-section">
-        <strong>AI provider settings</strong>
-        <p class="card-subtitle">Provider choices, model names, connection settings and preferences are saved here. You can export them with or without API keys.</p>
-        <aside class="backup-security-warning" role="note" aria-label="Security warning"><strong class="backup-security-title">Security warning</strong><p><strong>Export AI settings</strong> includes your API keys. Anyone who gets that file could use those keys. Keep it private and store it securely. For sharing or cloud storage, use the no-key export instead.</p></aside>
-        <div class="btn-row">
-          <button type="button" class="btn btn-secondary" id="export-ai-backup">Export AI settings (with keys)</button>
-          <button type="button" class="btn btn-secondary" id="export-ai-backup-no-keys">Export settings only (no keys)</button>
-          <button type="button" class="btn btn-secondary" id="import-ai-backup">Import AI settings</button>
-          <input type="file" id="import-ai-file" accept="application/json,.json" hidden />
-        </div>
-      </div>
-      <div class="backup-section">
-        <strong>Test data &amp; practice history</strong>
-        <p class="card-subtitle">IELTS history, AI-generated question sets and their undo history, question repetition tracking, and your latest Shadowing attempt.</p>
-        <div class="btn-row">
-          <button type="button" class="btn btn-secondary" id="export-test-backup">Export test data</button>
-          <button type="button" class="btn btn-secondary" id="import-test-backup">Import test data</button>
-          <input type="file" id="import-test-file" accept="application/json,.json" hidden />
-        </div>
-      </div>
-      <div id="backup-status" class="status-box info" role="status" aria-live="polite">AI settings can be exported with API keys for device migration, or without keys for safer sharing. Importing a no-key backup leaves the API keys already stored on this device unchanged.</div>
-    </section>
-    <section class="card settings-language-card">
-      <div class="card-header"><h2 class="card-title">Language / زبان</h2></div>
-      <div class="appearance-setting">
-        <div class="appearance-setting-copy">
-          <label class="form-label" for="app-language">App language / زبان برنامه</label>
-          <p class="card-subtitle">Choose English or فارسی. IELTS questions and final examiner feedback remain in English.</p>
-        </div>
-        <select class="form-select appearance-select" id="app-language">
-          <option value="en" ${appSettings.language !== 'fa' ? 'selected' : ''}>English</option>
-          <option value="fa" ${appSettings.language === 'fa' ? 'selected' : ''}>فارسی</option>
-        </select>
-        <div id="app-language-status" class="appearance-status" role="status" aria-live="polite">Language preference is saved on this device.</div>
-      </div>
-    </section>
-    <section class="card settings-appearance-card">
-      <div class="card-header"><h2 class="card-title">Appearance</h2></div>
-      <div class="appearance-setting">
-        <div class="appearance-setting-copy">
-          <label class="form-label" for="app-theme">Appearance</label>
-          <p class="card-subtitle">Choose the look that feels comfortable. System follows your device setting.</p>
-        </div>
-        <select class="form-select appearance-select" id="app-theme" aria-describedby="app-theme-status">
-          <option value="system" ${appSettings.theme === 'system' ? 'selected' : ''}>System</option>
-          <option value="light" ${appSettings.theme === 'light' ? 'selected' : ''}>Light</option>
-          <option value="dark" ${appSettings.theme === 'dark' ? 'selected' : ''}>Dark</option>
-        </select>
-        <div id="app-theme-status" class="appearance-status" role="status" aria-live="polite">Current appearance: ${appSettings.theme === 'system' ? 'System' : appSettings.theme === 'dark' ? 'Dark' : 'Light'}.</div>
-      </div>
-    </section>
-    <section class="card settings-update-card" aria-labelledby="settings-update-title">
-      <div class="card-header"><h2 class="card-title" id="settings-update-title">Software updates</h2></div>
-      <p class="card-subtitle">Installed version: <strong>${escapeHtml(APP_VERSION)}</strong>. Check the official SpeakCoach GitHub releases for a newer version.</p>
-      <div class="btn-row">
-        <button type="button" class="btn btn-secondary" id="check-speakcoach-update">Check for updates</button>
-      </div>
-      <div id="speakcoach-update-status" class="status-box info" role="status" aria-live="polite">Updates are checked against the public SpeakCoach repository.</div>
-      <div id="speakcoach-update-available" hidden>
-        <p><strong id="speakcoach-update-version"></strong></p>
-        <p class="card-subtitle" id="speakcoach-update-notes"></p>
-        <div class="btn-row">
-          <button type="button" class="btn btn-primary" id="download-speakcoach-update">Download update</button>
-          <button type="button" class="btn btn-primary" id="install-speakcoach-update" hidden>Install downloaded update</button>
-          <a class="btn btn-secondary" id="speakcoach-release-link" href="https://github.com/AriyanD/SpeakCoach/releases" target="_blank" rel="noopener noreferrer">View release</a>
-        </div>
-      </div>
-    </section>
-    <section class="card settings-about-card" aria-labelledby="settings-about-title">
-      <div class="card-header"><h2 class="card-title" id="settings-about-title">About</h2></div>
-      <p class="card-subtitle">SpeakCoach is a personal practice app for English shadowing and IELTS Speaking. It brings together speech practice, AI-assisted feedback and test history in one place.</p>
-      <div class="settings-about-meta">
-        <p><strong>Developed by</strong> AriyanD</p>
-        <p><strong>Version</strong> ${escapeHtml(APP_VERSION)}</p>
-        <p><a href="https://github.com/AriyanD" target="_blank" rel="noopener noreferrer">GitHub profile — github.com/AriyanD</a></p>
-        <p><a href="https://github.com/AriyanD/SpeakCoach" target="_blank" rel="noopener noreferrer">Project repository</a></p>
-      </div>
-      <div class="btn-row"><button type="button" class="btn btn-secondary" id="settings-open-setup-guide">Open setup guide / راهنمای شروع</button></div>
-      <p class="card-subtitle settings-about-disclaimer">AI-generated feedback is for learning and practice only. It is not an official IELTS score or a substitute for a certified examiner.</p>
-    </section>
-    <details class="card settings-accordion" id="settings-diagnostics-accordion">
-      <summary class="settings-accordion-summary">
-        <span class="settings-accordion-heading">
-          <span class="card-title">System Diagnostics</span>
-          <span class="card-subtitle">Connection checks, permissions and session logs</span>
-        </span>
-        <span class="settings-chevron" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="settings-accordion-content">
-        <p class="card-subtitle">Open the detailed diagnostics screen.</p>
-        <div class="btn-row">
-          <button type="button" class="btn btn-secondary" id="settings-open-diagnostics-btn">Open Diagnostics</button>
-        </div>
-      </div>
-    </details>
-  `;
+    </section>`;
 
+
+
+  const quickSetupToggle = container.querySelector<HTMLButtonElement>('#quick-setup-toggle');
+  const quickSetupPanel = container.querySelector<HTMLElement>('#quick-setup-panel');
+  quickSetupToggle?.addEventListener('click', () => {
+    if (!quickSetupPanel) return;
+    const opening = quickSetupPanel.hidden;
+    quickSetupPanel.hidden = !opening;
+    quickSetupToggle.setAttribute('aria-expanded', String(opening));
+    const icon = quickSetupToggle.querySelector<HTMLElement>('.quick-setup-toggle-icon');
+    if (icon) icon.textContent = opening ? '－' : '＋';
+  });
+
+  const refreshRequiredApiStatus = (): void => {
+    const status = container.querySelector<HTMLElement>('#required-api-status');
+    if (!status) return;
+    const missing = hasMissingRequiredApi();
+    status.className = `settings-required-badge ${missing ? 'missing' : 'configured'}`;
+    status.textContent = missing ? 'Core API setup needed' : 'Core APIs configured';
+  };
 
   const quickSetupButton = container.querySelector<HTMLButtonElement>('#quick-setup-run-btn');
   const quickSetupStatus = container.querySelector<HTMLElement>('#quick-setup-status');
@@ -776,6 +692,7 @@ export async function renderSettingsView(
         quickSetupStatus.className = failed > 0 ? 'status-box info' : 'status-box pass';
         quickSetupStatus.textContent = `Quick setup finished: ${passed} of ${attempted} tested providers passed; ${skipped} slot(s) skipped because no matching key was available. Review any failed rows below.`;
       }
+      refreshRequiredApiStatus();
       await _onSettingsUpdated();
     } finally {
       quickSetupButton.disabled = false;
@@ -1754,6 +1671,7 @@ export async function renderSettingsView(
           }
         }
         else secondaryKeysBySlot[slotId] = '';
+        refreshRequiredApiStatus();
         return { cfg, key: rawKey, primaryChanged };
       } catch (error) {
         const rollbackErrors: string[] = [];
