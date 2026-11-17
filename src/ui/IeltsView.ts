@@ -142,7 +142,7 @@ export function renderIeltsView(
         console.warn('[SpeakCoach] Could not update generated question-set completion status.', error);
       }
 
-      saveIeltsTestResult({
+      const completedRecordData = {
         id: `${state.sessionId}_attempt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         mode: state.mode,
         plan: state.plan,
@@ -153,25 +153,46 @@ export function renderIeltsView(
         answers: answerSummaries,
         questionSource: state.questionSource,
         questionSourceDetails: state.questionSourceDetails
-      }).then(async (savedRecord) => {
-        let record = savedRecord;
-        if (record.previousAttemptId) {
-          const previous = await getIeltsTestResult(record.previousAttemptId);
-          if (previous) {
+      };
+      const persistCompletedResult = async (): Promise<void> => {
+        try {
+          let record = await saveIeltsTestResult(completedRecordData);
+          // Comparison is supplementary: a comparison failure must never block
+          // access to the already-saved IELTS result.
+          if (record.previousAttemptId) {
             try {
-              const comparison = await compareIeltsAttempts(previous, record);
-              record = await saveIeltsTestResult({ ...record, comparison, comparisonError: null });
+              const previous = await getIeltsTestResult(record.previousAttemptId);
+              if (previous) {
+                const comparison = await compareIeltsAttempts(previous, record);
+                record = await saveIeltsTestResult(
+                  { ...record, comparison, comparisonError: null },
+                  { clearDraft: false }
+                );
+              }
             } catch (error) {
-              record = await saveIeltsTestResult({
-                ...record,
-                comparisonError: error instanceof Error ? error.message : 'AI comparison could not be completed.'
-              });
+              console.warn('[SpeakCoach] IELTS attempt comparison could not be saved.', error);
             }
           }
+          ieltsSessionEngine.reset();
+          callbacks.onComplete(record);
+        } catch (error) {
+          container.innerHTML = `<section class="card ielts-saving-state" role="alert" aria-live="assertive">
+            <h2 class="card-title ielts-state-title">Your result could not be saved yet</h2>
+            <p class="card-subtitle" id="ielts-save-error"></p>
+            <p class="card-subtitle">Your answers are still held in the current session. Check available storage and try again.</p>
+            <button type="button" class="btn btn-primary" id="ielts-retry-save-btn">Retry saving result</button>
+          </section>`;
+          const errorEl = container.querySelector<HTMLElement>('#ielts-save-error');
+          if (errorEl) errorEl.textContent = error instanceof Error ? error.message : String(error);
+          container.querySelector<HTMLButtonElement>('#ielts-retry-save-btn')?.addEventListener('click', (event) => {
+            const button = event.currentTarget as HTMLButtonElement;
+            button.disabled = true;
+            button.textContent = 'Saving…';
+            void persistCompletedResult();
+          });
         }
-        ieltsSessionEngine.reset();
-        callbacks.onComplete(record);
-      });
+      };
+      void persistCompletedResult();
       return;
     }
 
@@ -542,7 +563,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         const cueCard = currentStep?.canonicalQuestion?.cueCard || currentStep?.cueCard;
         cueCardHtml = `
           <div class="ielts-cue-card">
-            <div class="ielts-cue-card-title">${cueCard?.title || ''}</div>
+            <div class="ielts-cue-card-title">${escapeHtml(String(cueCard?.title || ''))}</div>
             <div class="ielts-cue-card-sub">You should say:</div>
             <ul class="ielts-cue-card-bullets">
               ${(cueCard?.bullets || []).map((b) => `<li>${escapeHtml(String(b))}</li>`).join('')}
