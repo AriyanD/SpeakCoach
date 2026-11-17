@@ -9,6 +9,7 @@ import {
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
 import {
   parseWhisperWordTimestamps,
+  requestGeminiAudioTranscription,
   requestWhisperWordTimestamps,
   transcribeWithTier2WhisperOrFallback
 } from '../src/services/whisperSttService';
@@ -108,7 +109,7 @@ describe('Stage 2 Part 2A — Tier 2 Whisper STT Adapter & Word Timestamps', () 
 
   it('uses the transcription config and word timestamps with the dedicated Gemini Transcribe model', async () => {
     let capturedBody: any;
-    const result = await requestWhisperWordTimestamps({
+    const result = await requestGeminiAudioTranscription({
       slotConfig: {
         slotId: 'pronunciation_scoring',
         providerId: 'gemini_pronunciation',
