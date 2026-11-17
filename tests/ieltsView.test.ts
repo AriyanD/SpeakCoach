@@ -226,7 +226,9 @@ describe('IeltsView UI Component (Question Set Library)', () => {
 
     const disclosure = container.querySelector<HTMLDetailsElement>('.ielts-question-text-disclosure');
     expect(disclosure?.open).toBe(false);
+    expect(disclosure?.querySelector('summary')?.textContent).toContain('Show question text');
     expect(disclosure?.querySelector('.ielts-question-text')?.textContent?.trim()).toBeTruthy();
+    expect(container.querySelector('#ielts-question-source-label')?.textContent).toContain('AI question');
     disclosure?.querySelector('summary')?.click();
     expect(disclosure?.open).toBe(true);
 
