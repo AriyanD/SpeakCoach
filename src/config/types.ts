@@ -3,7 +3,8 @@ export type SlotId =
   | 'pronunciation_scoring'
   | 'ielts_stt'
   | 'llm_evaluator'
-  | 'llm_generator';
+  | 'llm_generator'
+  | 'llm_translation';
 
 export type TierNumber = 1 | 2 | 3;
 

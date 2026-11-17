@@ -3174,3 +3174,46 @@ html[lang="fa"] .ielts-next-focus p {
   text-align: left;
   unicode-bidi: plaintext;
 }
+
+
+/* Shadowing word replay and compact translation panel */
+.word-chip[data-word-replay] {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.word-chip[data-word-replay]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.word-chip[data-word-replay]:disabled {
+  cursor: wait;
+  opacity: .72;
+}
+.sh-translation-card { margin-top: 14px; }
+.sh-translation-card .card-header { margin-bottom: 10px; }
+.sh-translation-input { min-height: 88px; resize: vertical; line-height: 1.55; }
+.sh-translation-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin-top: 10px;
+}
+.sh-translation-language-field { min-width: 0; margin: 0; }
+.sh-translate-btn { min-height: 48px; white-space: nowrap; }
+.sh-translation-result {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-elevated);
+}
+.sh-translation-result p { margin: 6px 0 0; line-height: 1.65; overflow-wrap: anywhere; }
+#sh-translation-status { margin-top: 10px; }
+@media (max-width: 380px) {
+  .sh-translation-controls { grid-template-columns: minmax(0, 1fr); }
+  .sh-translate-btn { width: 100%; }
+}

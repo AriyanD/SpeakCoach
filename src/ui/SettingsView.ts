@@ -88,7 +88,8 @@ export async function renderSettingsView(
     pronunciation_scoring: await readKeyForSettings('pronunciation_scoring', configs.pronunciation_scoring.providerId),
     ielts_stt: await readKeyForSettings('ielts_stt', configs.ielts_stt.providerId),
     llm_evaluator: await readKeyForSettings('llm_evaluator', configs.llm_evaluator.providerId),
-    llm_generator: await readKeyForSettings('llm_generator', configs.llm_generator.providerId)
+    llm_generator: await readKeyForSettings('llm_generator', configs.llm_generator.providerId),
+    llm_translation: await readKeyForSettings('llm_translation', configs.llm_translation.providerId)
   };
 
   const secondaryKeysBySlot: Record<SlotId, string> = {
@@ -96,7 +97,8 @@ export async function renderSettingsView(
     pronunciation_scoring: configs.pronunciation_scoring.secondary ? await readKeyForSettings('pronunciation_scoring', configs.pronunciation_scoring.secondary.providerId, 'secondary') : '',
     ielts_stt: configs.ielts_stt.secondary ? await readKeyForSettings('ielts_stt', configs.ielts_stt.secondary.providerId, 'secondary') : '',
     llm_evaluator: configs.llm_evaluator.secondary ? await readKeyForSettings('llm_evaluator', configs.llm_evaluator.secondary.providerId, 'secondary') : '',
-    llm_generator: configs.llm_generator.secondary ? await readKeyForSettings('llm_generator', configs.llm_generator.secondary.providerId, 'secondary') : ''
+    llm_generator: configs.llm_generator.secondary ? await readKeyForSettings('llm_generator', configs.llm_generator.secondary.providerId, 'secondary') : '',
+    llm_translation: configs.llm_translation.secondary ? await readKeyForSettings('llm_translation', configs.llm_translation.secondary.providerId, 'secondary') : ''
   };
 
   const unreadableApiKeyWarnings = Array.from(keyStorageReadErrors).map((entry) => {
@@ -116,9 +118,9 @@ export async function renderSettingsView(
     const currentKey = keysBySlot[slotId] ?? '';
     const storedLastTest = lastTestResults.get(slotId);
     const lastTest = storedLastTest?.providerId === slotCfg.providerId ? storedLastTest : undefined;
-    const evaluatorOfflineSelected = slotId === 'llm_evaluator' && preset.tier === 3;
+    const apiRequiredOfflineSelected = (slotId === 'llm_evaluator' || slotId === 'llm_translation') && preset.tier === 3;
     const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
-    const slotStatus = evaluatorOfflineSelected
+    const slotStatus = apiRequiredOfflineSelected
       ? 'api-required'
       : slotOnlineVerified
         ? 'ready'
@@ -151,7 +153,7 @@ export async function renderSettingsView(
     const optionsHtml = def.providers
       .map(
         (p) =>
-          `<option value="${escapeHtml(p.id)}" ${p.id === preset.id ? 'selected' : ''} ${slotId === 'llm_evaluator' && p.tier === 3 ? 'disabled' : ''}>${escapeHtml(
+          `<option value="${escapeHtml(p.id)}" ${p.id === preset.id ? 'selected' : ''} ${(slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3 ? 'disabled' : ''}>${escapeHtml(
             p.name
           )}</option>`
       )
@@ -199,8 +201,8 @@ export async function renderSettingsView(
       .map((source, index) => `<button type="button" class="provider-picker-option ${index === 0 ? 'active' : ''}" data-secondary-copy-key-source="${source.slotId}|${source.account}">${escapeHtml(source.label)}</button>`)
       .join('');
 
-    const statusHtml = evaluatorOfflineSelected
-      ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.</div>`
+    const statusHtml = apiRequiredOfflineSelected
+      ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${slotId === 'llm_translation' ? 'Translation requires an online AI API. No offline translation engine is available.' : 'IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.'}</div>`
       : lastTest
         ? `<div class="status-box ${lastTest.ok ? 'pass' : 'fail'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
              ${escapeHtml(lastTest.message)}${ 
@@ -248,7 +250,7 @@ export async function renderSettingsView(
               </button>
               <div class="provider-picker-options" id="provider-options-${slotId}" hidden>
                 <p class="card-subtitle provider-picker-help">After selecting a provider and adding its API key, tap <strong>Test API 1</strong> below. Wait for a successful result before using online features. Test API 2 separately for a secondary provider.</p>
-                ${def.providers.map((p) => `<button type="button" class="provider-picker-option ${p.id === preset.id ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button>`).join('')}
+                ${def.providers.map((p) => `<button type="button" class="provider-picker-option ${p.id === preset.id ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
               </div>
             </div>
           </div>

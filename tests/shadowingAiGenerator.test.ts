@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeShadowingSentenceForDuplicateCheck, parseShadowingSentenceResponse } from '../src/services/shadowingAiGenerator';
+import { clampShadowingSentenceBatchCount, normalizeShadowingSentenceForDuplicateCheck, parseShadowingSentenceResponse } from '../src/services/shadowingAiGenerator';
 
 describe('AI Shadowing sentence response parsing', () => {
   it('counts whitespace-separated words correctly and accepts nested sentence fields', () => {
@@ -10,6 +10,12 @@ describe('AI Shadowing sentence response parsing', () => {
     }), 'easy');
     expect(parsed.text.split(/\s+/)).toHaveLength(14);
     expect(parsed.topic).toBe('Daily routines');
+  });
+
+  it('allows a 20-sentence batch and clamps unsafe batch sizes', () => {
+    expect(clampShadowingSentenceBatchCount(20)).toBe(20);
+    expect(clampShadowingSentenceBatchCount(100)).toBe(20);
+    expect(clampShadowingSentenceBatchCount(1)).toBe(2);
   });
 
   it('normalizes Unicode text and punctuation without collapsing different sentences', () => {

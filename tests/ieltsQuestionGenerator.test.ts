@@ -628,14 +628,15 @@ describe('IELTS Question Generator (Slot 5 Online AI + Deduplication + Tier Fall
     const mockGlobalSummary: GlobalTierSummary = {
       isOnlineNetwork: true,
       onlineSlotsCount: 2,
-      totalSlotsCount: 5,
+      totalSlotsCount: 6,
       label: 'Online AI',
       slots: {
         voice_tts: { slotId: 'voice_tts', providerId: 'native_tts', providerName: 'Native TTS', tier: 3, label: 'Basic offline', detailLabel: 'Native offline', isFallback: false },
         ielts_stt: { slotId: 'ielts_stt', providerId: 'native_stt', providerName: 'Native STT', tier: 3, label: 'Basic offline', detailLabel: 'Native offline', isFallback: false },
         pronunciation_scoring: { slotId: 'pronunciation_scoring', providerId: 'offline_rule_based', providerName: 'Rule-based', tier: 3, label: 'Basic offline', detailLabel: 'Offline', isFallback: false },
         llm_evaluator: { slotId: 'llm_evaluator', providerId: 'gemini_eval', providerName: 'Gemini Evaluator', tier: 1, label: 'Online AI', detailLabel: 'Gemini', isFallback: false },
-        llm_generator: { slotId: 'llm_generator', providerId: 'gemini_gen', providerName: 'Google Gemini Generator (Tier 1)', tier: 1, label: 'Online AI', detailLabel: 'Gemini', isFallback: false }
+        llm_generator: { slotId: 'llm_generator', providerId: 'gemini_gen', providerName: 'Google Gemini Generator (Tier 1)', tier: 1, label: 'Online AI', detailLabel: 'Gemini', isFallback: false },
+        llm_translation: { slotId: 'llm_translation', providerId: 'offline_translation', providerName: 'Translation unavailable offline', tier: 3, label: 'Basic offline', detailLabel: 'No offline translation', isFallback: false }
       }
     };
 

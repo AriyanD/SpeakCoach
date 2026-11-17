@@ -10,14 +10,15 @@ import * as ttsService from '../src/services/ttsService';
 const mockGlobalTierSummary: GlobalTierSummary = {
   isOnlineNetwork: true,
   onlineSlotsCount: 0,
-  totalSlotsCount: 5,
+  totalSlotsCount: 6,
   label: 'Basic offline',
   slots: {
     voice_tts: { slotId: 'voice_tts', providerId: 'native_tts', providerName: 'Native Android TTS', tier: 3, label: 'Basic offline', detailLabel: 'Native offline', isFallback: false },
     ielts_stt: { slotId: 'ielts_stt', providerId: 'native_stt', providerName: 'Native Android STT', tier: 3, label: 'Basic offline', detailLabel: 'Native offline', isFallback: false },
     pronunciation_scoring: { slotId: 'pronunciation_scoring', providerId: 'offline_rule_based', providerName: 'Rule-based scorer', tier: 3, label: 'Basic offline', detailLabel: 'Offline', isFallback: false },
     llm_evaluator: { slotId: 'llm_evaluator', providerId: 'offline_ielts_heuristics', providerName: 'Offline IELTS Heuristics', tier: 3, label: 'Basic offline', detailLabel: 'Offline heuristics', isFallback: false },
-    llm_generator: { slotId: 'llm_generator', providerId: 'offline_static_bank', providerName: 'Built-in Bank', tier: 3, label: 'Basic offline', detailLabel: 'Offline bank', isFallback: false }
+    llm_generator: { slotId: 'llm_generator', providerId: 'offline_static_bank', providerName: 'Built-in Bank', tier: 3, label: 'Basic offline', detailLabel: 'Offline bank', isFallback: false },
+    llm_translation: { slotId: 'llm_translation', providerId: 'offline_translation', providerName: 'Translation unavailable offline', tier: 3, label: 'Basic offline', detailLabel: 'No offline translation', isFallback: false }
   }
 };
 
@@ -317,7 +318,7 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     const onlineSummary: GlobalTierSummary = {
       isOnlineNetwork: true,
       onlineSlotsCount: 1,
-      totalSlotsCount: 5,
+      totalSlotsCount: 6,
       label: 'Online AI',
       slots: {
         ...mockGlobalTierSummary.slots,

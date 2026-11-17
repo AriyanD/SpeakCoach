@@ -15,7 +15,8 @@ import {
 } from '../services/shadowingScorer';
 import { recordLastShadowingAttempt } from '../services/shadowingTelemetry';
 import type { GlobalTierSummary } from '../services/tierManager';
-import { playAudioDataUrl, speakSentenceWithTierFallback } from '../services/ttsService';
+import { playAudioDataUrl, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
+import { translateShadowingText } from '../services/translationService';
 import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavVadAnalyzer';
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
 import { getCachedModelWordTimings } from '../services/modelTimingService';
@@ -43,6 +44,13 @@ interface ShadowingState {
   lastReport: ShadowingScoreReport | null;
   statusMessage: string;
   activeModelPlayback: 'normal' | 'slow' | null;
+  translationText: string;
+  translationSourceText: string | null;
+  translationTargetLanguage: string;
+  translationResult: string;
+  translationStatus: string | null;
+  translationStatusType: 'info' | 'pass' | 'fail';
+  isTranslating: boolean;
 }
 
 const state: ShadowingState = {
@@ -64,19 +72,49 @@ const state: ShadowingState = {
   lastReport: null,
   statusMessage: 'Tap "Play Model 1.0x" to listen, then "Record Repetition" to repeat aloud.',
   activeModelPlayback: null,
+  translationText: '',
+  translationSourceText: null,
+  translationTargetLanguage: 'fa',
+  translationResult: '',
+  translationStatus: null,
+  translationStatusType: 'info',
+  isTranslating: false,
 };
 
 const SHADOWING_RANDOM_TOPICS = ['Everyday communication', 'Travel and culture', 'Work and careers', 'Learning and education', 'Sustainable living', 'Technology in daily life', 'Friendship and relationships', 'Health and routines', 'Cities and communities', 'Nature and the environment'];
 
+const TRANSLATION_LANGUAGES = [
+  { code: 'fa', label: 'Persian (فارسی)' },
+  { code: 'ar', label: 'Arabic (العربية)' },
+  { code: 'de', label: 'German (Deutsch)' },
+  { code: 'es', label: 'Spanish (Español)' },
+  { code: 'fr', label: 'French (Français)' },
+  { code: 'it', label: 'Italian (Italiano)' },
+  { code: 'nl', label: 'Dutch (Nederlands)' },
+  { code: 'pt', label: 'Portuguese (Português)' },
+  { code: 'ru', label: 'Russian (Русский)' },
+  { code: 'sv', label: 'Swedish (Svenska)' },
+  { code: 'tr', label: 'Turkish (Türkçe)' },
+  { code: 'zh', label: 'Chinese (简体中文)' },
+  { code: 'ja', label: 'Japanese (日本語)' },
+  { code: 'ko', label: 'Korean (한국어)' }
+];
+
+function renderTranslationLanguageOptions(selected: string): string {
+  return TRANSLATION_LANGUAGES.map(language =>
+    `<option value="${language.code}" ${language.code === selected ? 'selected' : ''}>${escapeHtml(language.label)}</option>`
+  ).join('');
+}
+
 function loadSavedAiSentenceQueue(): GeneratedShadowingSentence[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(SHADOWING_ACTIVE_SET_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.text === 'string' && typeof item.topic === 'string').slice(0, 8) : [];
+    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.text === 'string' && typeof item.topic === 'string').slice(0, 20) : [];
   } catch { return []; }
 }
 
 function saveAiSentenceQueue(queue: GeneratedShadowingSentence[]): void {
-  try { localStorage.setItem(SHADOWING_ACTIVE_SET_KEY, JSON.stringify(queue.slice(0, 8))); } catch { /* best effort */ }
+  try { localStorage.setItem(SHADOWING_ACTIVE_SET_KEY, JSON.stringify(queue.slice(0, 20))); } catch { /* best effort */ }
 }
 
 let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -176,13 +214,14 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
           : w.status === 'extra'
             ? `extra${durationText}`
             : `${w.accuracyScore}%${durationText}`;
+      const replayText = (w.referenceWord ?? w.spokenWord ?? '').trim();
       return `
-        <span class="word-chip ${w.status}" data-word-status="${w.status}">
+        <button type="button" class="word-chip ${w.status}" data-word-status="${w.status}" data-word-replay="${escapeHtml(replayText)}" aria-label="Play pronunciation of ${escapeHtml(replayText)}" ${replayText ? '' : 'disabled'}>
           <span class="word-chip-status" aria-hidden="true">${statusMark}</span>
           <span>${escapeHtml(text)}</span>
           ${speedBadge}
           <span class="word-chip-meta">${meta}</span>
-        </span>
+        </button>
       `;
     })
     .join('');
@@ -318,6 +357,14 @@ export function renderShadowingView(
   const list = getShadowingSentencesByDifficulty(state.difficulty);
   const hasSentence = !!sentence;
   const targetText = state.customDrillText ?? sentence?.text ?? 'Generate an AI sentence to begin shadowing.';
+  const translationSource = state.customDrillText ?? sentence?.text ?? '';
+  if (state.translationSourceText !== translationSource) {
+    state.translationSourceText = translationSource;
+    state.translationText = translationSource;
+    state.translationResult = '';
+    state.translationStatus = null;
+    state.translationStatusType = 'info';
+  }
   const targetExpectedDurationMs = state.customDrillText
     ? Math.max(1200, state.customDrillText.split(/\s+/).length * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
@@ -375,7 +422,7 @@ export function renderShadowingView(
         <div class="ai-sentence-panel">
           <div class="ai-sentence-panel-copy">
             <strong>Generate a new sentence set</strong>
-            <span>Each request creates five sentences. Next and Previous move through this set without extra API calls.</span>
+            <span>Each request creates 20 sentences. Next and Previous move through this set without extra API calls.</span>
           </div>
           <div class="form-field sh-topic-field">
             <label class="form-label" for="sh-topic-input">Optional topic</label>
@@ -457,7 +504,98 @@ export function renderShadowingView(
     </section>
 
     ${state.lastReport ? renderReportHtml(state.lastReport, Boolean(state.lastRecording?.wavBase64)) : ''}
+    <section class="card sh-translation-card" id="sh-translation-card">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title">Translation</h2>
+          <p class="card-subtitle">Edit the sentence or enter a single word, choose a language, then translate.</p>
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="sh-translation-input">Text to translate</label>
+        <textarea class="form-input sh-translation-input" id="sh-translation-input" rows="3" maxlength="4000" placeholder="Your sentence or word will appear here." ${state.isTranslating ? 'disabled' : ''}>${escapeHtml(state.translationText)}</textarea>
+      </div>
+      <div class="sh-translation-controls">
+        <div class="form-field sh-translation-language-field">
+          <label class="form-label" for="sh-translation-language">Translate into</label>
+          <select class="form-select" id="sh-translation-language" ${state.isTranslating ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
+        </div>
+        <button type="button" class="btn btn-primary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>
+          ${state.isTranslating ? 'Translating…' : 'Translate'}
+        </button>
+      </div>
+      ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
+      ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
+    </section>
   `;
+
+  container.querySelector<HTMLTextAreaElement>('#sh-translation-input')?.addEventListener('input', event => {
+    state.translationText = (event.target as HTMLTextAreaElement).value;
+    state.translationResult = '';
+    state.translationStatus = null;
+    container.querySelector('#sh-translation-result')?.remove();
+    container.querySelector('#sh-translation-status')?.remove();
+  });
+  container.querySelector<HTMLSelectElement>('#sh-translation-language')?.addEventListener('change', event => {
+    state.translationTargetLanguage = (event.target as HTMLSelectElement).value;
+    state.translationResult = '';
+    state.translationStatus = null;
+    container.querySelector('#sh-translation-result')?.remove();
+    container.querySelector('#sh-translation-status')?.remove();
+  });
+  container.querySelector<HTMLButtonElement>('#sh-translate-btn')?.addEventListener('click', async () => {
+    if (state.isTranslating) return;
+    const textToTranslate = state.translationText.trim();
+    const requestTargetLanguage = state.translationTargetLanguage;
+    if (!textToTranslate) {
+      state.translationStatus = 'Enter a word or sentence to translate.';
+      state.translationStatusType = 'fail';
+      renderShadowingView(container, summary);
+      return;
+    }
+    state.isTranslating = true;
+    state.translationResult = '';
+    state.translationStatus = 'Translating with the configured Translation API…';
+    state.translationStatusType = 'info';
+    renderShadowingView(container, summary);
+    try {
+      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === requestTargetLanguage)?.label ?? requestTargetLanguage;
+      const result = await translateShadowingText(textToTranslate, targetLanguage);
+      if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
+        state.translationResult = result.text;
+        state.translationStatus = `Translation complete via ${result.providerName} (${result.account === 'secondary' ? 'API 2' : 'API 1'}).`;
+        state.translationStatusType = 'pass';
+      }
+    } catch (error) {
+      if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
+        state.translationStatus = `Translation failed: ${error instanceof Error ? error.message : String(error)}`;
+        state.translationStatusType = 'fail';
+      }
+    } finally {
+      state.isTranslating = false;
+      renderShadowingView(container, summary);
+    }
+  });
+
+  container.querySelectorAll<HTMLButtonElement>('[data-word-replay]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const word = button.dataset.wordReplay?.trim();
+      if (!word || button.disabled) return;
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      shadowingModelPlaybackToken++;
+      state.activeModelPlayback = null;
+      stopAllTts();
+      try {
+        const result = await speakSentenceWithTierFallback(word);
+        state.statusMessage = `Played “${word}” via ${result.activeTier.detailLabel}.`;
+      } catch (error) {
+        state.statusMessage = `Could not play “${word}”: ${error instanceof Error ? error.message : String(error)}`;
+      } finally {
+        renderShadowingView(container, summary);
+      }
+    });
+  });
 
   container.querySelectorAll<HTMLButtonElement>('[data-source]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -497,10 +635,10 @@ export function renderShadowingView(
     if (state.isGeneratingAi) return;
     state.isGeneratingAi = true;
     state.aiGenerationError = null;
-    state.statusMessage = 'Generating five new practice sentences...';
+    state.statusMessage = 'Generating 20 new practice sentences...';
     renderShadowingView(container, summary);
     try {
-      const generated = await generateAiShadowingSentenceBatch(state.difficulty, 5, state.topicInput.trim());
+      const generated = await generateAiShadowingSentenceBatch(state.difficulty, 20, state.topicInput.trim());
       state.aiSentenceQueue = generated;
       state.aiSentence = generated[0] ?? null;
       state.index = 0;
@@ -753,5 +891,10 @@ export function resetShadowingViewState(): void {
   state.index = 0;
   state.topicInput = '';
   state.customDrillText = null;
+  state.translationSourceText = null;
+  state.translationText = '';
+  state.translationResult = '';
+  state.translationStatus = null;
+  state.isTranslating = false;
   clearAttemptState();
 }

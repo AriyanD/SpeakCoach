@@ -16,6 +16,11 @@ const SHADOWING_MEMORY_KEY = 'speakcoach_shadowing_recent_sentences_v1';
 const MAX_SHADOWING_MEMORY = 16;
 
 /** Canonical form used only to detect exact duplicates across generated sentences. */
+export function clampShadowingSentenceBatchCount(count: number): number {
+  const safeCount = Number.isFinite(count) ? Math.floor(count) : 20;
+  return Math.max(2, Math.min(20, safeCount));
+}
+
 export function normalizeShadowingSentenceForDuplicateCheck(sentence: string): string {
   return sentence.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
@@ -190,10 +195,10 @@ export async function generateAiShadowingSentence(
 /** One efficient API request returns the complete replacement set for a Shadowing practice session. */
 export async function generateAiShadowingSentenceBatch(
   difficulty: ShadowingDifficulty,
-  count = 5,
+  count = 20,
   requestedTopic = '',
   transport?: (opts: any) => Promise<any>
 ): Promise<GeneratedShadowingSentence[]> {
-  const target = Math.max(2, Math.min(8, Math.floor(count)));
+  const target = clampShadowingSentenceBatchCount(count);
   return generateAiShadowingSentences(difficulty, target, requestedTopic, transport);
 }
