@@ -3541,3 +3541,39 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ielts-progress-fill { transition: none; }
 }
+
+
+/* Reusable toast for brief confirmations; detailed warnings stay inline. */
+.app-toast {
+  position: fixed;
+  z-index: 1300;
+  left: 50%;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  width: min(560px, calc(100vw - 28px));
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+  font-size: .88rem;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
+}
+.app-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.app-toast-success { border-inline-start-color: var(--success); }
+.app-toast-info { border-inline-start-color: var(--accent); }
+.app-toast-error { border-inline-start-color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toast { transition: none; }
+}
