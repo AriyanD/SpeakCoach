@@ -18,7 +18,6 @@ import { generateIeltsQuestionSets } from '../services/ieltsQuestionGenerator';
 import { compareIeltsAttempts } from '../services/ieltsLlmEvaluator';
 import { getIeltsQuestionSets, markIeltsQuestionSetCompleted, getPreviousIeltsQuestionSetGenerationCount, restorePreviousIeltsQuestionSets } from '../services/ieltsQuestionSetStore';
 import { confirmInApp } from './confirmDialog';
-import { loadAppSettings } from '../storage/appSettings';
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
