@@ -291,9 +291,11 @@ describe('IeltsHistoryView Component & Tab Integration (Stage 4.4)', () => {
       }]
     });
 
+    const onRetryEvaluation = vi.fn().mockResolvedValue(undefined);
     await renderIeltsHistoryView(container, {
       onSelectResult: () => {},
-      onBackToTest: () => {}
+      onBackToTest: () => {},
+      onRetryEvaluation
     });
 
     expect(container.querySelector('img')).toBeNull();
@@ -301,6 +303,8 @@ describe('IeltsHistoryView Component & Tab Integration (Stage 4.4)', () => {
     const record = container.querySelector<HTMLElement>('.ielts-history-record');
     expect(record?.getAttribute('data-record-id')).toBe(hostileId);
     expect(container.querySelector<HTMLButtonElement>('.history-view-btn')?.dataset.id).toBe(hostileId);
+    container.querySelector<HTMLButtonElement>('.history-retry-btn')?.click();
+    await vi.waitFor(() => expect(onRetryEvaluation).toHaveBeenCalledOnce());
   });
 
 });
