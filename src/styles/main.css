@@ -3611,6 +3611,20 @@ body {
   list-style: none;
 }
 .ielts-question-text-disclosure > summary::-webkit-details-marker { display: none; }
+.ielts-question-text-disclosure > summary::after {
+  content: "+";
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--accent-strong);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.ielts-question-text-disclosure[open] > summary::after { content: "−"; }
 .ielts-question-text-disclosure[open] > summary {
   margin-bottom: 10px;
   border-bottom: 1px solid var(--border);
