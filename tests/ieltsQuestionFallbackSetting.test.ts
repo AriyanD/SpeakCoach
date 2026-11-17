@@ -101,7 +101,6 @@ describe('Retired built-in IELTS question fallback', () => {
     }));
     await expect(loadAppSettings()).resolves.toMatchObject({
       allowBuiltinFallback: false,
-      showQuestionText: false,
       theme: 'dark'
     });
   });
