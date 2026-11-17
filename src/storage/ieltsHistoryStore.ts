@@ -85,6 +85,7 @@ export interface IeltsSessionDraft {
 }
 
 const HISTORY_KEY = 'speakcoach_ielts_history_v1';
+const MAX_HISTORY_RECORDS = 500;
 const DRAFT_KEY = 'speakcoach_ielts_draft_v1';
 const RECOVERY_PREFIX = 'speakcoach.ielts_history_recovery.v1.';
 const historyRecoveryNotices: string[] = [];
@@ -311,8 +312,9 @@ export async function saveIeltsTestResult(
   // Deduplicate in case of duplicate content
   const deduped = deduplicateTestRecords(history);
 
-  // Keep up to 50 historical tests
-  const trimmed = deduped.slice(0, 50);
+  // Keep the same limit used by backup import so a later save cannot silently
+  // truncate records that were just restored from a valid backup.
+  const trimmed = deduped.slice(0, MAX_HISTORY_RECORDS);
   await setStorageItem(HISTORY_KEY, JSON.stringify(trimmed));
 
   // Clear the active draft only for a newly completed session. Updating an older
@@ -427,7 +429,7 @@ export async function importIeltsHistorySnapshot(snapshot: {
       record && typeof record.id === 'string' && typeof record.timestamp === 'number' &&
       Array.isArray(record.answers) && ['full', 'part1', 'part2', 'part3'].includes(record.mode)
     );
-    await setStorageItem(HISTORY_KEY, JSON.stringify(deduplicateTestRecords(valid).slice(0, 500)));
+    await setStorageItem(HISTORY_KEY, JSON.stringify(deduplicateTestRecords(valid).slice(0, MAX_HISTORY_RECORDS)));
   }
   if (snapshot.draft === null) {
     await removeStorageItem(DRAFT_KEY);
