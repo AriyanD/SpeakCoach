@@ -54,27 +54,24 @@ export function renderIeltsView(
   let viewIsActive = true;
   let lastRenderedViewKey: string | null = null;
 
-  /** Render a small inline chip showing the actual question source. */
+  /** Keep source provenance visible without exposing provider configuration during the exam. */
   function renderSourceChip(state: IeltsSessionStateSnapshot): string {
     if (state.questionSource === 'AI') {
-      const provider = state.questionSourceDetails?.providerName ?? 'AI';
-      const model = state.questionSourceDetails?.modelName;
-      const title = model ? `${provider} · ${model}` : provider;
       return `<span
         id="ielts-question-source-label"
         class="ielts-source-chip ielts-source-ai"
-        title="${escapeHtml(title)}"
-        aria-label="Question source: AI · ${escapeHtml(provider)}">
+        title="AI-generated IELTS question"
+        aria-label="Question source: AI-generated">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="5"/></svg>
-        <span>AI · ${escapeHtml(provider)}</span>
+        <span>AI question</span>
       </span>`;
     }
     return `<span
       id="ielts-question-source-label"
       class="ielts-source-chip ielts-source-bank"
-      title="Saved offline question set from an earlier version"
-      aria-label="Question source: saved offline set">
-      <span>Saved offline set</span>
+      title="Saved question set"
+      aria-label="Question source: saved question">
+      <span>Saved question</span>
     </span>`;
   }
 
@@ -651,7 +648,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         <div class="ielts-question-area">
 ${!isPart2
             ? `<details class="ielts-question-text-disclosure">
-                <summary>Need to check the question? Show text</summary>
+                <summary>Show question text</summary>
                 <div class="ielts-question-text">
                   ${escapeHtml(String(currentStep?.canonicalQuestion?.text || currentStep?.questionText || ''))}
                 </div>
