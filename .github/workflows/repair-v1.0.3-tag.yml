@@ -5,12 +5,13 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
-  retag:
+  retag-and-build:
     runs-on: ubuntu-latest
     steps:
-      - name: Move v1.0.3 tag to the current main commit
+      - name: Ensure v1.0.3 points to the current main commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -23,3 +24,16 @@ jobs:
           git push origin --delete v1.0.3 || true
           git tag -f v1.0.3 HEAD
           git push origin refs/tags/v1.0.3
+
+      - name: Dispatch the APK build on the v1.0.3 tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/build-apk.yml/dispatches" \
+            -d '{"ref":"v1.0.3"}'
