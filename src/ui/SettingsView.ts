@@ -88,7 +88,8 @@ export async function renderSettingsView(
     pronunciation_scoring: await readKeyForSettings('pronunciation_scoring', configs.pronunciation_scoring.providerId),
     ielts_stt: await readKeyForSettings('ielts_stt', configs.ielts_stt.providerId),
     llm_evaluator: await readKeyForSettings('llm_evaluator', configs.llm_evaluator.providerId),
-    llm_generator: await readKeyForSettings('llm_generator', configs.llm_generator.providerId)
+    llm_generator: await readKeyForSettings('llm_generator', configs.llm_generator.providerId),
+    llm_translation: await readKeyForSettings('llm_translation', configs.llm_translation.providerId)
   };
 
   const secondaryKeysBySlot: Record<SlotId, string> = {
@@ -96,7 +97,8 @@ export async function renderSettingsView(
     pronunciation_scoring: configs.pronunciation_scoring.secondary ? await readKeyForSettings('pronunciation_scoring', configs.pronunciation_scoring.secondary.providerId, 'secondary') : '',
     ielts_stt: configs.ielts_stt.secondary ? await readKeyForSettings('ielts_stt', configs.ielts_stt.secondary.providerId, 'secondary') : '',
     llm_evaluator: configs.llm_evaluator.secondary ? await readKeyForSettings('llm_evaluator', configs.llm_evaluator.secondary.providerId, 'secondary') : '',
-    llm_generator: configs.llm_generator.secondary ? await readKeyForSettings('llm_generator', configs.llm_generator.secondary.providerId, 'secondary') : ''
+    llm_generator: configs.llm_generator.secondary ? await readKeyForSettings('llm_generator', configs.llm_generator.secondary.providerId, 'secondary') : '',
+    llm_translation: configs.llm_translation.secondary ? await readKeyForSettings('llm_translation', configs.llm_translation.secondary.providerId, 'secondary') : ''
   };
 
   const unreadableApiKeyWarnings = Array.from(keyStorageReadErrors).map((entry) => {

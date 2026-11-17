@@ -5,7 +5,8 @@ export const SLOT_ORDER: SlotId[] = [
   'pronunciation_scoring',
   'ielts_stt',
   'llm_evaluator',
-  'llm_generator'
+  'llm_generator',
+  'llm_translation'
 ];
 
 export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
@@ -348,6 +349,67 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       }
     ]
   }
+,
+  llm_translation: {
+    id: 'llm_translation',
+    number: 6,
+    title: '6. LLM Translator (Shadowing Translation)',
+    subtitle: 'A separate AI connection used only to translate Shadowing text.',
+    providers: [
+      {
+        id: 'openai_compat_translation',
+        name: 'OpenAI-Compatible Translator (Tier 1)',
+        slotId: 'llm_translation',
+        tier: 1,
+        requiresKey: true,
+        defaultBaseUrl: 'https://api.openai.com/v1',
+        defaultModelOrVoice: 'gpt-4o-mini',
+        modelSuggestions: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1'],
+        modelFieldLabel: 'Model Name',
+        baseUrlPlaceholder: 'https://api.openai.com/v1 (or compatible gateway)',
+        description: 'Independent OpenAI-compatible translation API for Shadowing.'
+      },
+      {
+        id: 'custom_openai_translation',
+        name: 'Custom (OpenAI-compatible) Translator (Tier 1)',
+        slotId: 'llm_translation',
+        tier: 1,
+        requiresKey: true,
+        defaultBaseUrl: 'https://api.openai.com/v1',
+        defaultModelOrVoice: 'gpt-4o-mini',
+        modelSuggestions: ['gpt-4o-mini', 'gpt-4o', 'qwen-2.5-72b-instruct', 'deepseek-chat', 'mistral-large-latest'],
+        modelFieldLabel: 'Free-text Model Name',
+        baseUrlPlaceholder: 'https://your-translation-gateway.example.com/v1',
+        description: 'Custom OpenAI-compatible /chat/completions endpoint with selectable authentication.'
+      },
+      {
+        id: 'gemini_translation',
+        name: 'Google Gemini Translator (Tier 1)',
+        slotId: 'llm_translation',
+        tier: 1,
+        requiresKey: true,
+        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        defaultModelOrVoice: 'gemini-2.5-flash',
+        modelSuggestions: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview'],
+        modelFieldLabel: 'Gemini Model',
+        baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
+        description: 'Google Gemini translation API with plain-text responses.'
+      },
+      {
+        id: 'offline_translation',
+        name: 'Translation unavailable offline (Tier 3)',
+        slotId: 'llm_translation',
+        tier: 3,
+        requiresKey: false,
+        defaultBaseUrl: 'offline://translation-unavailable',
+        defaultModelOrVoice: 'none',
+        modelSuggestions: ['none'],
+        modelFieldLabel: 'Offline translation',
+        baseUrlPlaceholder: 'offline://translation-unavailable',
+        description: 'No offline translation engine is bundled. Configure and verify an online translation API.'
+      }
+    ]
+  }
 };
 
 export function normalizeBaseUrl(url: string): string {
@@ -386,6 +448,7 @@ export function createDefaultAllSlotsConfig(): AllSlotsConfig {
     pronunciation_scoring: createDefaultSlotConfig('pronunciation_scoring'),
     ielts_stt: createDefaultSlotConfig('ielts_stt'),
     llm_evaluator: createDefaultSlotConfig('llm_evaluator'),
-    llm_generator: createDefaultSlotConfig('llm_generator')
+    llm_generator: createDefaultSlotConfig('llm_generator'),
+    llm_translation: createDefaultSlotConfig('llm_translation')
   };
 }

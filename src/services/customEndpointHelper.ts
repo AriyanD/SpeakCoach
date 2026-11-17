@@ -13,7 +13,8 @@ const CUSTOM_PROVIDER_BY_SLOT: Record<SlotId, string> = {
   pronunciation_scoring: 'custom_openai_pronunciation',
   ielts_stt: 'custom_openai_stt',
   llm_evaluator: 'custom_openai_eval',
-  llm_generator: 'custom_openai_gen'
+  llm_generator: 'custom_openai_gen',
+  llm_translation: 'custom_openai_translation'
 };
 
 export function getCustomProviderIdForSlot(slotId: SlotId): string {
