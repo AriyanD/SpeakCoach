@@ -50,6 +50,13 @@ describe('Provider Slots Configuration & Storage', () => {
     expect(loaded.llm_evaluator.modelOrVoice).toBe('gemini-2.5-pro');
   });
 
+  it('does not advertise a Vosk model that is not bundled with the app', () => {
+    const offline = getPreset('pronunciation_scoring', 'offline_pronunciation');
+    expect(offline.defaultModelOrVoice).toBe('android-offline');
+    expect(offline.modelSuggestions).toEqual(['android-offline']);
+    expect(offline.defaultBaseUrl).toBe('offline://android-speech-recognizer');
+  });
+
   it('migrates previous official Gemini Translator defaults to Gemini 3.1 Flash Lite', async () => {
     localStorage.setItem('speakcoach.slots.config.v1', JSON.stringify({
       llm_translation: {
