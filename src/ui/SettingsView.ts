@@ -515,6 +515,28 @@ export async function renderSettingsView(
     ${recoveryNoticeHtml}
     ${apiKeyRecoveryNoticeHtml}
     ${browserKeyStorageNoticeHtml}
+    <section class="card quick-setup-card" aria-labelledby="quick-setup-title">
+      <div class="card-header"><h2 class="card-title" id="quick-setup-title">Quick setup</h2></div>
+      <p class="card-subtitle">Set up the recommended providers for all six AI features. Enter a Gemini key and, optionally, a Groq key. Saved keys for the recommended providers can be reused when a field is left blank.</p>
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label" for="quick-setup-gemini-key">Gemini API key</label>
+          <input type="password" class="form-input" id="quick-setup-gemini-key" autocomplete="off" placeholder="Paste Gemini key (optional if already saved)" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="quick-setup-groq-key">Groq API key (optional)</label>
+          <input type="password" class="form-input" id="quick-setup-groq-key" autocomplete="off" placeholder="Paste Groq key (optional)" />
+        </div>
+      </div>
+      <p class="card-subtitle">Recommended: Gemini for TTS, IELTS transcription, evaluation, question generation and translation; Groq Whisper for Shadowing alignment and IELTS transcription when a Groq key is available. Existing API 2 settings are preserved.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="quick-setup-run-btn">Set up recommended providers</button>
+      </div>
+      <ul class="quick-setup-checklist" id="quick-setup-checklist">
+        ${SLOT_ORDER.map((slotId) => `<li data-quick-setup-slot="${slotId}"><span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\\d+\\.\\s*/, ''))}</span><span class="card-subtitle">Not checked</span></li>`).join('')}
+      </ul>
+      <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick setup changes API 1 provider choices only after you confirm. Each configured provider is tested in sequence.</div>
+    </section>
     ${cardsHtml}
     <section class="card settings-preference-card">
       <div class="card-header"><h2 class="card-title">IELTS Test Preferences</h2></div>
@@ -630,6 +652,125 @@ export async function renderSettingsView(
     </details>
   `;
 
+
+  const quickSetupButton = container.querySelector<HTMLButtonElement>('#quick-setup-run-btn');
+  const quickSetupStatus = container.querySelector<HTMLElement>('#quick-setup-status');
+  quickSetupButton?.addEventListener('click', async () => {
+    const confirmed = await confirmInApp({
+      title: 'Set up the recommended AI providers?',
+      message: 'This changes API 1 provider choices for the six AI features and sends test requests to the selected services. Tests may consume API credits or quota. Existing API 2 settings are preserved.',
+      confirmLabel: 'Run quick setup',
+      cancelLabel: 'Keep current settings',
+      tone: 'warning'
+    });
+    if (!confirmed || !quickSetupButton) return;
+
+    const geminiInput = container.querySelector<HTMLInputElement>('#quick-setup-gemini-key');
+    const groqInput = container.querySelector<HTMLInputElement>('#quick-setup-groq-key');
+    const suppliedKeys = {
+      gemini: geminiInput?.value.trim() ?? '',
+      groq: groqInput?.value.trim() ?? ''
+    };
+    const plan: Array<{ slotId: SlotId; candidates: Array<{ providerId: string; source: 'gemini' | 'groq' }> }> = [
+      { slotId: 'voice_tts', candidates: [{ providerId: 'gemini_tts', source: 'gemini' }] },
+      { slotId: 'pronunciation_scoring', candidates: [
+        { providerId: 'whisper_alignment', source: 'groq' },
+        { providerId: 'gemini_pronunciation', source: 'gemini' }
+      ] },
+      { slotId: 'ielts_stt', candidates: [
+        { providerId: 'whisper_stt', source: 'groq' },
+        { providerId: 'gemini_stt', source: 'gemini' }
+      ] },
+      { slotId: 'llm_evaluator', candidates: [{ providerId: 'gemini_eval', source: 'gemini' }] },
+      { slotId: 'llm_generator', candidates: [{ providerId: 'gemini_gen', source: 'gemini' }] },
+      { slotId: 'llm_translation', candidates: [{ providerId: 'gemini_translation', source: 'gemini' }] }
+    ];
+
+    quickSetupButton.disabled = true;
+    quickSetupButton.textContent = 'Setting up…';
+    if (quickSetupStatus) {
+      quickSetupStatus.className = 'status-box info';
+      quickSetupStatus.textContent = 'Testing providers one by one. Keep the app open until the checklist is complete.';
+    }
+    let attempted = 0;
+    let passed = 0;
+    let skipped = 0;
+
+    try {
+      for (const item of plan) {
+        const row = container.querySelector<HTMLElement>(`[data-quick-setup-slot="${item.slotId}"]`);
+        const rowStatus = row?.querySelector<HTMLElement>('span:last-child');
+        if (rowStatus) rowStatus.textContent = 'Checking…';
+
+        try {
+          let selected: { providerId: string; key: string } | null = null;
+          for (const candidate of item.candidates) {
+            let key = suppliedKeys[candidate.source];
+            if (!key) {
+              try { key = await loadApiKeyStrict(item.slotId, candidate.providerId, 'primary'); }
+              catch { key = ''; }
+            }
+            if (key.trim()) {
+              selected = { providerId: candidate.providerId, key: key.trim() };
+              break;
+            }
+          }
+
+          if (!selected) {
+            skipped += 1;
+            if (rowStatus) rowStatus.textContent = 'Skipped — no matching key';
+            continue;
+          }
+
+          const preset = getPreset(item.slotId, selected.providerId);
+          const previous = configs[item.slotId];
+          const sameProvider = previous.providerId === preset.id;
+          const cfg: SlotConfig = {
+            slotId: item.slotId,
+            providerId: preset.id,
+            baseUrl: sameProvider ? previous.baseUrl : preset.defaultBaseUrl,
+            modelOrVoice: sameProvider ? previous.modelOrVoice : preset.defaultModelOrVoice,
+            authStyle: sameProvider ? previous.authStyle : 'bearer',
+            customHeaderName: sameProvider ? previous.customHeaderName : undefined,
+            customQueryParamName: sameProvider ? previous.customQueryParamName : undefined,
+            endpointPathOverride: sameProvider ? previous.endpointPathOverride : undefined,
+            customTtsVoice: sameProvider ? previous.customTtsVoice : undefined,
+            speechRate: previous.speechRate,
+            secondary: previous.secondary
+          };
+
+          await saveApiKey(item.slotId, preset.id, selected.key, 'primary');
+          await saveSlotConfig(cfg);
+          configs[item.slotId] = cfg;
+          const result = await testSlotConnection(cfg, { apiKeyOverride: selected.key });
+          const persisted = await saveSlotConnectionTestResult(item.slotId, result);
+          lastTestResults.set(item.slotId, persisted);
+          attempted += 1;
+          const ok = result.ok && result.tier !== 3;
+          if (ok) passed += 1;
+          if (rowStatus) rowStatus.textContent = ok
+            ? `Ready — ${preset.name}`
+            : `Saved, but test failed — ${result.message}`;
+        } catch (error) {
+          attempted += 1;
+          const detail = error instanceof Error ? error.message : String(error);
+          if (rowStatus) rowStatus.textContent = `Failed — ${detail}`;
+        }
+      }
+
+      if (geminiInput) geminiInput.value = '';
+      if (groqInput) groqInput.value = '';
+      if (quickSetupStatus) {
+        const failed = attempted - passed;
+        quickSetupStatus.className = failed > 0 ? 'status-box info' : 'status-box pass';
+        quickSetupStatus.textContent = `Quick setup finished: ${passed} of ${attempted} tested providers passed; ${skipped} slot(s) skipped because no matching key was available. Review any failed rows below.`;
+      }
+      await _onSettingsUpdated();
+    } finally {
+      quickSetupButton.disabled = false;
+      quickSetupButton.textContent = 'Set up recommended providers';
+    }
+  });
 
   const updateStatus = container.querySelector<HTMLElement>('#speakcoach-update-status');
   const checkUpdateButton = container.querySelector<HTMLButtonElement>('#check-speakcoach-update');
