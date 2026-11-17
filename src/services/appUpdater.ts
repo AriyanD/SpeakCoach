@@ -96,14 +96,44 @@ export async function checkForSpeakCoachUpdate(): Promise<SpeakCoachUpdate | nul
 }
 
 export async function downloadSpeakCoachUpdate(asset: SpeakCoachReleaseAsset): Promise<string> {
-  const result = await Filesystem.downloadFile({
-    url: asset.browser_download_url,
-    path: `SpeakCoach/updates/${asset.name}`,
+  const directoryPath = 'SpeakCoach/updates';
+  const filePath = `${directoryPath}/${asset.name}`;
+
+  // Android's Filesystem.downloadFile does not reliably create missing parent
+  // directories on every Capacitor 6 device. Create the destination explicitly
+  // before opening the output stream (the previous implementation could fail
+  // with ENOENT on a fresh install).
+  await Filesystem.mkdir({
+    path: directoryPath,
     directory: Directory.Data,
     recursive: true
   });
-  if (!result.path) throw new Error('The APK download completed without a local file path.');
-  return result.path;
+
+  try {
+    const result = await Filesystem.downloadFile({
+      url: asset.browser_download_url,
+      path: filePath,
+      directory: Directory.Data,
+      recursive: true
+    });
+    if (!result.path) throw new Error('The APK download completed without a local file path.');
+
+    // Never offer a truncated download to the package installer.
+    const downloaded = await Filesystem.stat({ path: filePath, directory: Directory.Data });
+    if (asset.size > 0 && downloaded.size !== asset.size) {
+      throw new Error(`The downloaded APK is incomplete (${downloaded.size} of ${asset.size} bytes). Please try again.`);
+    }
+    return result.path;
+  } catch (error) {
+    // A failed transfer may leave a partial file at the final destination.
+    // Remove it so a later attempt always starts cleanly.
+    try {
+      await Filesystem.deleteFile({ path: filePath, directory: Directory.Data });
+    } catch {
+      // The file may not have been created.
+    }
+    throw error;
+  }
 }
 
 export async function installSpeakCoachUpdate(path: string, sha256: string): Promise<boolean> {
