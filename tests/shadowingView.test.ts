@@ -90,6 +90,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-recognizer-meta')?.textContent).toContain('87%');
 
     expect(root.querySelector('#sh-score-card')).not.toBeNull();
+    expect(root.querySelector('#sh-word-replay-help')?.textContent).toContain('Tap any word below');
     expect(root.querySelector<HTMLButtonElement>('#sh-word-chips [data-word-replay]')).not.toBeNull();
     expect(root.querySelector<HTMLButtonElement>('#sh-word-chips [data-word-replay]')?.getAttribute('aria-label')).toContain('Play pronunciation of');
     // In offline SpeechRecognizer mode, no raw WAV is kept and word timing / replay are disabled with a clear notice
