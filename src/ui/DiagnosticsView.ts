@@ -394,7 +394,7 @@ export async function renderDiagnosticsView(
       message: 'This sends test requests to your configured providers and may consume API credits or quota across up to six slots.',
       confirmLabel: 'Run checks',
       cancelLabel: 'Cancel',
-      tone: 'warning'
+      tone: 'danger'
     });
     if (!confirmed) return;
     runAllBtn.disabled = true;
