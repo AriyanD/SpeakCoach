@@ -77,6 +77,13 @@ describe('Functional Deep Connection Tester', () => {
       apiKeyOverride: 'sk-gen-key',
       transport: async (opts) => {
         expect(opts.url).toBe('https://api.openai.com/v1/chat/completions');
+        const request = opts.data as { messages: Array<{ content: string }>; response_format: { type: string } };
+        expect(request.messages[0].content).toContain('Create a compact but valid IELTS Speaking test plan');
+        expect(request.messages[0].content).toContain('part1Questions');
+        expect(request.messages[0].content).toContain('part2CueCard');
+        expect(request.messages[0].content).toContain('part3Questions');
+        expect(request.messages[0].content).not.toContain('"status":"ok"');
+        expect(request.response_format).toEqual({ type: 'json_object' });
         return {
           url: opts.url,
           status: 200,
@@ -89,6 +96,31 @@ describe('Functional Deep Connection Tester', () => {
     });
     expect(passRes.ok).toBe(true);
     expect(passRes.message).toMatch(/^PASS — .+ test passed \(capability probe, /);
+
+    // Gemini must receive the same IELTS plan probe, with only its transport envelope differing.
+    const geminiRes = await testSlotConnection({
+      slotId: 'llm_generator',
+      providerId: 'gemini_gen',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-2.5-flash'
+    }, {
+      apiKeyOverride: 'gemini-gen-key',
+      transport: async opts => {
+        expect(opts.url).toContain('gemini-2.5-flash:generateContent');
+        const request = opts.data as { contents: Array<{ parts: Array<{ text: string }> }>; generationConfig: Record<string, unknown> };
+        const prompt = request.contents[0].parts[0].text;
+        expect(prompt).toContain('Create a compact but valid IELTS Speaking test plan');
+        expect(prompt).toContain('part1Questions');
+        expect(prompt).toContain('part2CueCard');
+        expect(prompt).toContain('part3Questions');
+        expect(request.generationConfig.responseMimeType).toBe('application/json');
+        return {
+          url: opts.url, status: 200, headers: {},
+          data: { candidates: [{ content: { parts: [{ text: JSON.stringify(validGeneratorProbe) }] } }] }
+        };
+      }
+    });
+    expect(geminiRes.ok).toBe(true);
 
     // 2. Invalid shape failure
     const badShapeRes = await testSlotConnection(genCfg, {

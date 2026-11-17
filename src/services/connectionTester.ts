@@ -81,6 +81,17 @@ export const BUNDLED_PROBE_WAV_BASE64 =
  */
 export const STT_PROBE_EXPECTED_WORDS = ['hello', 'speak', 'test'];
 
+/** Same capability probe is sent to every generator wire format. */
+const GENERATOR_PROBE_PROMPT = [
+  'Create a compact but valid IELTS Speaking test plan to verify question-generation capability.',
+  'Return ONLY one JSON object with exactly these top-level fields: part1Questions, part2CueCard, part3Questions.',
+  'part1Questions: 6 questions distributed across exactly 2 topics; every item must have non-empty topic and question strings.',
+  'part2CueCard: an object with non-empty topic, title and prompt strings, plus exactly 4 non-empty string bullets.',
+  'part3Questions: 4 questions; every item must have non-empty topic and question strings.',
+  'Use natural, distinct, IELTS-appropriate questions. Do not add markdown or explanatory text.',
+  'Example shape: {"part1Questions":[{"topic":"Daily routines","question":"How do you usually plan your day?"},{"topic":"Daily routines","question":"What part of the day do you enjoy most?"},{"topic":"Daily routines","question":"Has your daily routine changed recently?"},{"topic":"Public places","question":"Which public place do you visit most?"},{"topic":"Public places","question":"What makes a public place comfortable?"},{"topic":"Public places","question":"Should cities create more public spaces?"}],"part2CueCard":{"topic":"A useful object","title":"An object you use often","prompt":"Describe an object you use frequently.","bullets":["What it is","When you got it","How you use it","Why it is useful"]},"part3Questions":[{"topic":"Objects and daily life","question":"Why do people become attached to certain objects?"},{"topic":"Objects and daily life","question":"How have everyday objects changed in recent decades?"},{"topic":"Objects and daily life","question":"Should products be designed to last longer?"},{"topic":"Objects and daily life","question":"How does advertising influence what people buy?"}]}'
+].join(' ');
+
 function formatHttpFailure(err: unknown, defaultStep: string, slotId?: SlotConfig['slotId']): { step: string; status?: number; errorMsg: string } {
   if (err instanceof SpeakCoachHttpError) {
     let errorMsg = err.humanMessage;
@@ -224,7 +235,7 @@ export async function testSlotConnection(
                   role: 'user',
                   parts: [
                     {
-                      text: 'Create a compact IELTS Speaking test probe. Return ONLY JSON with exactly this shape: {"part1Questions":[{"topic":"Daily routines","question":"How do you usually plan your day?"},{"topic":"Daily routines","question":"What part of the day do you enjoy most?"},{"topic":"Daily routines","question":"Has your daily routine changed recently?"},{"topic":"Public places","question":"Which public place do you visit most?"},{"topic":"Public places","question":"What makes a public place comfortable?"},{"topic":"Public places","question":"Should cities create more public spaces?"}],"part2CueCard":{"topic":"A useful object","title":"An object you use often","prompt":"Describe an object you use frequently.","bullets":["What it is","When you got it","How you use it","Why it is useful"]},"part3Questions":[{"topic":"Objects and daily life","question":"Why do people become attached to certain objects?"},{"topic":"Objects and daily life","question":"How have everyday objects changed in recent decades?"},{"topic":"Objects and daily life","question":"Should products be designed to last longer?"},{"topic":"Objects and daily life","question":"How does advertising influence what people buy?"}]}. Keep questions natural and IELTS-appropriate.'
+                      text: GENERATOR_PROBE_PROMPT
                     }
                   ]
                 }
@@ -266,7 +277,7 @@ export async function testSlotConnection(
               messages: [
                 {
                   role: 'user',
-                  content: 'Respond ONLY with JSON: {"status":"ok","echo":"test"}'
+                  content: GENERATOR_PROBE_PROMPT
                 }
               ],
               temperature: 0.0,
