@@ -559,20 +559,6 @@ export async function renderSettingsView(
         ${cardsHtml}
       </div>
     </section>
-    <section class="card settings-preference-card">
-      <div class="card-header"><h2 class="card-title">IELTS Test Preferences</h2></div>
-      <div class="appearance-setting ielts-question-text-setting">
-        <div class="appearance-setting-copy">
-          <label class="form-label" for="show-ielts-question-text">Show examiner questions as text</label>
-          <p class="card-subtitle">When off, questions are presented by voice only. The Part 2 cue card remains visible, as in the real IELTS test.</p>
-        </div>
-        <label class="settings-switch" for="show-ielts-question-text">
-          <input type="checkbox" id="show-ielts-question-text" aria-describedby="ielts-question-text-status" ${appSettings.showQuestionText ? 'checked' : ''} />
-          <span>Show text</span>
-        </label>
-        <div id="ielts-question-text-status" class="appearance-status" role="status" aria-live="polite">${appSettings.showQuestionText ? 'Examiner questions will also appear as text.' : 'Examiner questions will be voice-only; the Part 2 cue card stays visible.'}</div>
-      </div>
-    </section>
     <section class="card backup-card">
       <div class="card-header"><h2 class="card-title">Backup &amp; Restore</h2></div>
       <p class="card-subtitle">Choose which information to export or restore.</p>
@@ -935,31 +921,6 @@ export async function renderSettingsView(
       if (themeStatus) themeStatus.textContent = 'Could not save the appearance setting. Please try again.';
     } finally {
       themeSelect.disabled = false;
-    }
-  });
-
-  const questionTextToggle = container.querySelector<HTMLInputElement>('#show-ielts-question-text');
-  const questionTextStatus = container.querySelector<HTMLElement>('#ielts-question-text-status');
-  questionTextToggle?.addEventListener('change', async () => {
-    if (!questionTextToggle) return;
-    questionTextToggle.disabled = true;
-    const requestedValue = questionTextToggle.checked;
-    try {
-      await saveAppSettings({ showQuestionText: requestedValue });
-      if (questionTextStatus) {
-        questionTextStatus.textContent = requestedValue
-          ? 'Examiner questions will also appear as text.'
-          : 'Examiner questions will be voice-only; the Part 2 cue card stays visible.';
-        questionTextStatus.style.color = 'var(--success)';
-      }
-    } catch {
-      questionTextToggle.checked = !requestedValue;
-      if (questionTextStatus) {
-        questionTextStatus.textContent = 'Could not save this setting. Please try again.';
-        questionTextStatus.style.color = 'var(--danger, #ef4444)';
-      }
-    } finally {
-      questionTextToggle.disabled = false;
     }
   });
 
