@@ -546,6 +546,7 @@ export function renderShadowingView(
   container.querySelector<HTMLButtonElement>('#sh-translate-btn')?.addEventListener('click', async () => {
     if (state.isTranslating) return;
     const textToTranslate = state.translationText.trim();
+    const requestTargetLanguage = state.translationTargetLanguage;
     if (!textToTranslate) {
       state.translationStatus = 'Enter a word or sentence to translate.';
       state.translationStatusType = 'fail';
@@ -558,14 +559,18 @@ export function renderShadowingView(
     state.translationStatusType = 'info';
     renderShadowingView(container, summary);
     try {
-      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === state.translationTargetLanguage)?.label ?? state.translationTargetLanguage;
+      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === requestTargetLanguage)?.label ?? requestTargetLanguage;
       const result = await translateShadowingText(textToTranslate, targetLanguage);
-      state.translationResult = result.text;
-      state.translationStatus = `Translation complete via ${result.providerName} (${result.account === 'secondary' ? 'API 2' : 'API 1'}).`;
-      state.translationStatusType = 'pass';
+      if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
+        state.translationResult = result.text;
+        state.translationStatus = `Translation complete via ${result.providerName} (${result.account === 'secondary' ? 'API 2' : 'API 1'}).`;
+        state.translationStatusType = 'pass';
+      }
     } catch (error) {
-      state.translationStatus = `Translation failed: ${error instanceof Error ? error.message : String(error)}`;
-      state.translationStatusType = 'fail';
+      if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
+        state.translationStatus = `Translation failed: ${error instanceof Error ? error.message : String(error)}`;
+        state.translationStatusType = 'fail';
+      }
     } finally {
       state.isTranslating = false;
       renderShadowingView(container, summary);
@@ -587,12 +592,7 @@ export function renderShadowingView(
       } catch (error) {
         state.statusMessage = `Could not play “${word}”: ${error instanceof Error ? error.message : String(error)}`;
       } finally {
-        if (button.isConnected) {
-          button.disabled = false;
-          button.removeAttribute('aria-busy');
-        }
-        const status = container.querySelector<HTMLElement>('#sh-status-msg');
-        if (status) status.textContent = state.statusMessage;
+        renderShadowingView(container, summary);
       }
     });
   });

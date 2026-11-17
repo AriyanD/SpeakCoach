@@ -40,7 +40,7 @@ describe('Diagnostics Service & UI', () => {
     expect(root.querySelector('#diagnostics-panel')).not.toBeNull();
     expect(root.querySelector('#diag-version-text')?.textContent).toMatch(/v\d+\.\d+\.\d+/);
     expect(root.querySelector('#diag-keystore-detail')?.textContent).toContain('PASS');
-    expect(root.querySelectorAll('[data-diag-slot]')).toHaveLength(5);
+    expect(root.querySelectorAll('[data-diag-slot]')).toHaveLength(6);
     expect(root.querySelector('#diag-ielts-logs-card')).not.toBeNull();
   });
 });

@@ -451,15 +451,15 @@ describe('Functional Deep Connection Tester', () => {
     expect(emptyRes.message).toContain('Step: Audio Synthesis Validation');
   });
 
-  it('renders all 5 configurable provider slots in SettingsView with Deep test button', async () => {
+  it('renders all 6 configurable provider slots in SettingsView with Deep test button', async () => {
     const root = document.createElement('div');
     await bootstrapApp(root, 'settings');
 
     const slotCards = root.querySelectorAll('[data-slot-card]');
-    expect(slotCards).toHaveLength(5);
+    expect(slotCards).toHaveLength(6);
 
     const testButtons = root.querySelectorAll('[data-test-slot]');
-    expect(testButtons).toHaveLength(5);
+    expect(testButtons).toHaveLength(6);
     expect(testButtons[0].textContent).toContain('Test API 1');
   });
 
