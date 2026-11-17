@@ -245,6 +245,10 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     expect(container.querySelector('.ielts-source-ai')).not.toBeNull();
     expect(container.querySelector('.ielts-builtin-warning')).toBeNull();
     expect(container.querySelector('.ielts-cue-card')).not.toBeNull();
+    const progress = container.querySelector<HTMLElement>('.ielts-progress-track[role="progressbar"]');
+    expect(progress).not.toBeNull();
+    expect(Number(progress?.getAttribute('aria-valuenow'))).toBeGreaterThan(0);
+    expect(Number(progress?.getAttribute('aria-valuemax'))).toBeGreaterThan(0);
     expect(container.querySelector('.ielts-question-text')).toBeNull();
     expect(container.querySelector('[aria-label="Offline evaluation quality notice"]')).toBeNull();
     expect(container.querySelector('[aria-label="Offline transcription accuracy notice"]')).toBeNull();
