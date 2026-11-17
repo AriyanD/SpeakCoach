@@ -501,10 +501,16 @@ export async function renderSettingsView(
   }).join('');
 
   const requiredCoreSlots: SlotId[] = ['llm_generator', 'llm_evaluator'];
-  const hasMissingRequiredApi = (): boolean => requiredCoreSlots.some((slotId) => {
-    const preset = getPreset(slotId, configs[slotId].providerId);
-    return preset.tier === 3 || (preset.requiresKey && !(keysBySlot[slotId] ?? '').trim());
-  });
+  const isRequiredCoreSlotReady = (slotId: SlotId): boolean => {
+    const config = configs[slotId];
+    const savedTest = lastTestResults.get(slotId);
+    const currentPrimaryTest = savedTest?.providerId === config.providerId ? savedTest : undefined;
+    // A key being present is not proof that the capability works. Require a
+    // successful online test for the active primary or verified API 2 account.
+    return isOnlineProviderVerified(currentPrimaryTest, config.secondary);
+  };
+  const hasMissingRequiredApi = (): boolean =>
+    requiredCoreSlots.some((slotId) => !isRequiredCoreSlotReady(slotId));
 
   container.innerHTML = `
     <section class="card settings-intro-card" aria-labelledby="ai-provider-settings-title">
@@ -553,7 +559,7 @@ export async function renderSettingsView(
           <h2 class="card-title">API Settings</h2>
           <span class="settings-api-required-label">Required</span>
         </div>
-        <span id="required-api-status" class="settings-required-badge ${hasMissingRequiredApi() ? 'missing' : 'configured'}" role="status" aria-live="polite">${hasMissingRequiredApi() ? 'Core API setup needed' : 'Core APIs configured'}</span>
+        <span id="required-api-status" class="settings-required-badge ${hasMissingRequiredApi() ? 'missing' : 'configured'}" role="status" aria-live="polite">${hasMissingRequiredApi() ? 'Core APIs need setup / test' : 'Core APIs configured'}</span>
       </div>
       <div class="settings-provider-cards">
         ${cardsHtml}
@@ -1843,7 +1849,7 @@ export async function renderSettingsView(
           slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
           slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
         }
-      } finally { secondaryTestBtn.disabled = false; }
+      } finally { secondaryTestBtn.disabled = false; refreshRequiredApiStatus(); }
     });
 
     saveBtn?.addEventListener('click', async () => {
