@@ -2151,7 +2151,6 @@ dialog.sc-dialog::backdrop { background: rgba(12,20,16,.56); backdrop-filter: bl
 }
 .offline-quality-notice p { margin:9px 0 0; color:var(--text-secondary); font-size:.82rem; }
 .shadowing-offline-notice { margin:0 0 12px; }
-.ielts-question-text-setting { margin-top:16px; align-items:flex-start; }
 .settings-switch { display:flex; align-items:center; gap:8px; min-height:48px; white-space:nowrap; }
 .settings-switch input { width:20px; height:20px; accent-color:var(--accent); }
 .appearance-setting {
@@ -2571,8 +2570,6 @@ html[data-theme="dark"] .settings-accordion .status-box.fail { color:#FFD0CB; ba
 .settings-copy-key { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .settings-copy-key .provider-picker-trigger { min-width: 0; font-size: .76rem; }
 .settings-copy-key .settings-copy-key-btn { flex: 0 0 auto; }
-.ielts-question-text-setting { margin-top: 24px; }
-.ielts-question-text-setting + * { margin-top: 20px; }
 .ielts-library-empty p { max-width: 42ch; margin: 7px auto 12px; line-height: 1.5; }
 .ielts-empty-settings-btn { margin: 4px auto 0; }
 .ielts-set-start { background: var(--accent-strong); color: #fff; }
@@ -2711,9 +2708,6 @@ dialog.sc-dialog { margin: auto; }
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.settings-preference-card .ielts-question-text-setting {
-  margin-top: 4px;
 }
 .settings-accordion-heading .card-title {
   font-size: 1.08rem;
