@@ -163,4 +163,19 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector<HTMLButtonElement>('#sh-replay-my-audio-btn')?.disabled).toBe(true);
     expect(root.querySelectorAll('.speed-tag').length).toBe(0);
   });
+  it('stops an active Shadowing recording when navigating to another tab', async () => {
+    const root = document.createElement('div');
+    await bootstrapApp(root, 'shadowing');
+
+    root.querySelector<HTMLButtonElement>('#sh-record-btn')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(audioRecorder.isRecording()).toBe(true);
+
+    root.querySelector<HTMLButtonElement>('#nav-ielts')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(audioRecorder.isRecording()).toBe(false);
+    expect(root.querySelector('.ielts-library-card')).not.toBeNull();
+  });
+
 });

@@ -256,6 +256,36 @@ describe('IELTS History & Draft Storage (Stage 4.1)', () => {
     expect(checkDeleted).toBeNull();
   });
 
+  it('preserves an active session draft when updating an existing historical result', async () => {
+    const original = await saveIeltsTestResult({
+      id: 'historical-result-update-with-active-draft',
+      mode: 'part1',
+      overallBand: 6.5,
+      evaluation: mockEvaluation,
+      answers: []
+    });
+    const plan = generateIeltsSessionPlan();
+    const draft: IeltsSessionDraft = {
+      mode: 'part2',
+      plan,
+      currentStepIndex: 2,
+      candidateNotes: 'Keep this active session intact',
+      completedAnswers: [],
+      updatedAt: Date.now()
+    };
+    await saveIeltsDraft(draft);
+
+    await saveIeltsTestResult(
+      { ...original, comparisonError: 'Comparison is pending' },
+      { clearDraft: false }
+    );
+
+    await expect(loadIeltsDraft()).resolves.toMatchObject({
+      candidateNotes: 'Keep this active session intact',
+      currentStepIndex: 2
+    });
+  });
+
   it('saves, loads, and clears session drafts for interruption recovery', async () => {
     expect(await loadIeltsDraft()).toBeNull();
 
