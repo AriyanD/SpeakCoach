@@ -3287,3 +3287,76 @@ body {
 .sh-translation-controls > * {
   min-width: 0;
 }
+
+
+/* AI provider settings: keep setup guidance and provider controls in one visible parent card. */
+.settings-intro-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-intro-card > .card-header { margin-bottom: 0; }
+.settings-intro-card > .settings-provider-intro { margin: 0; max-width: 72ch; line-height: 1.55; }
+.quick-setup-disclosure { display: flex; flex-direction: column; gap: 10px; }
+.quick-setup-toggle { width: 100%; min-height: 48px; justify-content: space-between; text-align: left; }
+.quick-setup-toggle-icon { font-size: 1.15rem; line-height: 1; }
+.quick-setup-panel {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.quick-setup-panel[hidden] { display: none !important; }
+.quick-setup-panel > .card-subtitle { margin: 0; line-height: 1.55; }
+.quick-setup-links { margin: -2px 0 0; padding-left: 20px; display: grid; gap: 7px; }
+.quick-setup-links a { color: var(--accent); font-weight: 650; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.quick-setup-panel .form-grid { margin-top: 0; }
+.settings-api-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.settings-api-group-title { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.settings-api-group-title .card-title { margin: 0; font-size: 1.05rem; }
+.settings-api-required-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: .7rem;
+  font-weight: 750;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+.settings-required-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  font-size: .72rem;
+  font-weight: 700;
+}
+.settings-required-badge.missing {
+  color: var(--danger, #dc2626);
+  border-color: var(--danger, #dc2626);
+  background: color-mix(in srgb, var(--danger, #dc2626) 9%, var(--bg-surface));
+}
+.settings-provider-cards { display: grid; gap: 12px; }
+.settings-provider-cards > .settings-accordion { margin: 0; }
+@media(max-width: 420px) {
+  .quick-setup-panel { padding: 12px; }
+  .settings-api-group-heading { align-items: flex-start; }
+}
