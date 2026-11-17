@@ -5,7 +5,8 @@ import { clearAllRuntimeFailures } from '../src/services/tierManager';
 import {
   playAudioDataUrl,
   speakOfflineNativeTts,
-  speakSentenceWithTierFallback
+  speakSentenceWithTierFallback,
+  synthesizeOnlineNeuralAudio
 } from '../src/services/ttsService';
 import { IeltsSessionController } from '../src/services/ieltsSessionEngine';
 import { generateIeltsSessionPlan } from './fixtures/legacyIeltsQuestionBank';
@@ -72,6 +73,68 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     expect(second.activeTier.tier).toBe(1);
     expect(second.fromCache).toBe(true);
     expect(networkCalls).toBe(1); // Zero extra network calls!
+  });
+
+  it('uses the selected custom voice in the request and keeps different voices out of the same cache entry', async () => {
+    const requests: any[] = [];
+    const transport = async (opts: any) => {
+      requests.push(opts.data);
+      return {
+        url: opts.url, status: 200, headers: {},
+        data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA'
+      };
+    };
+    const baseConfig = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1'
+    };
+
+    await synthesizeOnlineNeuralAudio('A different voice should be cached separately.', baseConfig, 'key', 1, transport);
+    await synthesizeOnlineNeuralAudio('A different voice should be cached separately.', {
+      ...baseConfig, customTtsVoice: 'shimmer'
+    }, 'key', 1, transport);
+
+    expect(requests.map((request) => request.voice)).toEqual(['alloy', 'shimmer']);
+  });
+
+  it('uses the selected API 2 Azure voice override in SSML', async () => {
+    let requestBody = '';
+    await synthesizeOnlineNeuralAudio('Hello from API 2.', {
+      slotId: 'voice_tts',
+      providerId: 'azure_tts',
+      baseUrl: 'https://eastus.tts.speech.microsoft.com',
+      modelOrVoice: 'en-US-JennyNeural',
+      customTtsVoice: 'en-US-AriaNeural'
+    }, 'azure-key', 1, async (opts: any) => {
+      requestBody = String(opts.data);
+      return {
+        url: opts.url, status: 200, headers: {},
+        data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA'
+      };
+    });
+
+    expect(requestBody).toContain('<voice name=\'en-US-AriaNeural\'>');
+  });
+
+  it('uses the selected API 2 ElevenLabs voice ID override', async () => {
+    let requestedUrl = '';
+    await synthesizeOnlineNeuralAudio('Hello from API 2.', {
+      slotId: 'voice_tts',
+      providerId: 'elevenlabs_tts',
+      baseUrl: 'https://api.elevenlabs.io/v1',
+      modelOrVoice: 'old-voice-id:eleven_multilingual_v2',
+      customTtsVoice: 'selected-voice-id'
+    }, 'eleven-key', 1, async (opts: any) => {
+      requestedUrl = opts.url;
+      return {
+        url: opts.url, status: 200, headers: {},
+        data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA'
+      };
+    });
+
+    expect(requestedUrl).toContain('/text-to-speech/selected-voice-id');
   });
 
   it('automatically falls back to Tier 3 Native TTS if the online TTS endpoint fails', async () => {

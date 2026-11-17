@@ -523,7 +523,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
           <div class="ielts-state-icon is-animated"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg></div>
           <h2 class="ielts-state-title">Evaluating your test…</h2>
           <p class="ielts-state-copy">
-            Analyzing fluency, pauses, grammar accuracy, vocabulary complexity, and acoustic pronunciation against official IELTS band descriptors.
+            Analyzing fluency, pauses, grammar accuracy, and vocabulary complexity against IELTS speaking criteria. Pronunciation is reported separately when a supported pronunciation assessment is available.
           </p>
         </div>
       `;

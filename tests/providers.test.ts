@@ -35,7 +35,7 @@ describe('Provider Slots Configuration & Storage', () => {
     const defaults = createDefaultAllSlotsConfig();
     expect(defaults.llm_evaluator.providerId).toBe('openai_compat_eval');
     expect(defaults.llm_translation.providerId).toBe('openai_compat_translation');
-    expect(getPreset('llm_translation', 'gemini_translation').defaultModelOrVoice).toBe('gemini-flash-latest');
+    expect(getPreset('llm_translation', 'gemini_translation').defaultModelOrVoice).toBe('gemini-3.1-flash-lite');
 
     await saveSlotConfig({
       slotId: 'llm_evaluator',
@@ -50,19 +50,40 @@ describe('Provider Slots Configuration & Storage', () => {
     expect(loaded.llm_evaluator.modelOrVoice).toBe('gemini-2.5-pro');
   });
 
-  it('migrates only the previous official Gemini Translator default to the current Flash alias', async () => {
+  it('does not advertise a Vosk model that is not bundled with the app', () => {
+    const offline = getPreset('pronunciation_scoring', 'offline_pronunciation');
+    expect(offline.defaultModelOrVoice).toBe('android-offline');
+    expect(offline.modelSuggestions).toEqual(['android-offline']);
+    expect(offline.defaultBaseUrl).toBe('offline://android-speech-recognizer');
+  });
+
+  it('migrates previous official Gemini Translator defaults to Gemini 3.1 Flash Lite', async () => {
     localStorage.setItem('speakcoach.slots.config.v1', JSON.stringify({
       llm_translation: {
         providerId: 'gemini_translation',
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-        modelOrVoice: 'gemini-2.5-flash'
+        modelOrVoice: 'gemini-flash-latest'
       }
     }));
 
     const loaded = await loadAllSlotsConfig();
-    expect(loaded.llm_translation.modelOrVoice).toBe('gemini-flash-latest');
+    expect(loaded.llm_translation.modelOrVoice).toBe('gemini-3.1-flash-lite');
     const persisted = JSON.parse(localStorage.getItem('speakcoach.slots.config.v1') || '{}');
-    expect(persisted.llm_translation.modelOrVoice).toBe('gemini-flash-latest');
+    expect(persisted.llm_translation.modelOrVoice).toBe('gemini-3.1-flash-lite');
+  });
+
+
+  it('preserves a user-selected Gemini translation model instead of migrating it', async () => {
+    localStorage.setItem('speakcoach.slots.config.v1', JSON.stringify({
+      llm_translation: {
+        providerId: 'gemini_translation',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        modelOrVoice: 'gemini-3-flash-preview'
+      }
+    }));
+
+    const loaded = await loadAllSlotsConfig();
+    expect(loaded.llm_translation.modelOrVoice).toBe('gemini-3-flash-preview');
   });
 
   it('stores and retrieves API keys per slot and provider in keyStore', async () => {

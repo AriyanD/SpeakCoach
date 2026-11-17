@@ -2,6 +2,8 @@ package com.ariyand.speakcoach.plugins;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.Context;
+import android.media.AudioManager;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
@@ -48,6 +50,10 @@ public class SpeakCoachSpeechPlugin extends Plugin {
     private Thread recordingThread;
     private ByteArrayOutputStream pcmBuffer;
     private long startTimeMs = 0L;
+    private volatile String recorderError = "";
+    private AudioManager audioManager;
+    private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
+    private boolean hasAudioFocus = false;
 
     private SpeechRecognizer speechRecognizer;
     private CountDownLatch recognitionDoneLatch;
@@ -126,6 +132,7 @@ public class SpeakCoachSpeechPlugin extends Plugin {
         }
         recognizedConfidence = -1.0f;
         recognizerError = "";
+        recorderError = "";
         noSpeechRestartAttempts = 0;
         busyRestartAttempts = 0;
         recognizerRestartScheduled = false;
@@ -152,13 +159,16 @@ public class SpeakCoachSpeechPlugin extends Plugin {
     }
 
     private void startRawPcmRecorder(PluginCall call) {
-        int minBuf = AudioRecord.getMinBufferSize(
-                SAMPLE_RATE,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT
-        );
-        final int bufferSize = Math.max(minBuf * 2, 4096);
         try {
+            int minBuf = AudioRecord.getMinBufferSize(
+                    SAMPLE_RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT
+            );
+            if (minBuf <= 0) {
+                throw new IllegalStateException("AudioRecord does not support 16 kHz mono PCM on this device (buffer size " + minBuf + ").");
+            }
+            final int bufferSize = Math.max(minBuf * 2, 4096);
             audioRecord = new AudioRecord(
                     MediaRecorder.AudioSource.MIC,
                     SAMPLE_RATE,
@@ -166,7 +176,18 @@ public class SpeakCoachSpeechPlugin extends Plugin {
                     AudioFormat.ENCODING_PCM_16BIT,
                     bufferSize
             );
+            if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
+                audioRecord.release();
+                audioRecord = null;
+                throw new IllegalStateException("Android could not initialize the microphone recorder.");
+            }
+
+            requestCaptureAudioFocus();
             audioRecord.startRecording();
+            if (audioRecord.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) {
+                throw new IllegalStateException("Android did not enter the recording state.");
+            }
+
             final AudioRecord recorder = audioRecord;
             final ByteArrayOutputStream captureBuffer = pcmBuffer;
             recordingThread = new Thread(() -> {
@@ -177,15 +198,79 @@ public class SpeakCoachSpeechPlugin extends Plugin {
                         synchronized (captureBuffer) {
                             captureBuffer.write(readBuf, 0, read);
                         }
+                    } else if (read < 0) {
+                        recorderError = mapAudioRecordReadError(read);
+                        isRecording = false;
+                        break;
                     }
                 }
             }, "SpeakCoachPCMThread");
             recordingThread.start();
             call.resolve(new JSObject().put("started", true));
         } catch (Exception e) {
+            recorderError = "Failed to start PCM recorder: " + e.getMessage();
             isRecording = false;
-            call.reject("Failed to start PCM recorder: " + e.getMessage(), e);
+            releaseAudioRecord();
+            abandonCaptureAudioFocus();
+            call.reject(recorderError, e);
         }
+    }
+
+    private void requestCaptureAudioFocus() {
+        audioManager = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager == null) return;
+
+        audioFocusChangeListener = focusChange -> {
+            if ((focusChange == AudioManager.AUDIOFOCUS_LOSS ||
+                    focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) && isRecording) {
+                recorderError = "Audio focus was interrupted while recording. Please try again.";
+                isRecording = false;
+            }
+        };
+
+        try {
+            // The legacy focus API remains available on the app's minimum SDK (22).
+            hasAudioFocus = audioManager.requestAudioFocus(
+                    audioFocusChangeListener,
+                    AudioManager.STREAM_VOICE_CALL,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+        } catch (Exception e) {
+            // Audio focus is best-effort; a denied request must not block microphone capture.
+            hasAudioFocus = false;
+        }
+    }
+
+    private void abandonCaptureAudioFocus() {
+        if (audioManager != null && hasAudioFocus) {
+            try {
+                if (audioFocusChangeListener != null) {
+                    audioManager.abandonAudioFocus(audioFocusChangeListener);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        hasAudioFocus = false;
+        audioFocusChangeListener = null;
+        audioManager = null;
+    }
+
+    private void releaseAudioRecord() {
+        if (audioRecord == null) return;
+        try {
+            if (audioRecord.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) audioRecord.stop();
+        } catch (Exception ignored) {
+        }
+        try { audioRecord.release(); } catch (Exception ignored) {}
+        audioRecord = null;
+    }
+
+    private String mapAudioRecordReadError(int code) {
+        if (code == AudioRecord.ERROR_DEAD_OBJECT) return "The microphone recorder stopped unexpectedly (dead object).";
+        if (code == AudioRecord.ERROR_INVALID_OPERATION) return "The microphone recorder returned an invalid operation.";
+        if (code == AudioRecord.ERROR_BAD_VALUE) return "The microphone recorder rejected the audio buffer.";
+        if (code == AudioRecord.ERROR) return "The microphone recorder reported an audio capture error.";
+        return "The microphone recorder failed with error " + code + ".";
     }
 
     private void startNativeSpeechRecognizer(String locale, boolean preferOfflineOnly, PluginCall call) {
@@ -356,14 +441,8 @@ public class SpeakCoachSpeechPlugin extends Plugin {
             } catch (InterruptedException ignored) {
             }
 
-            try {
-                if (audioRecord != null) {
-                    audioRecord.stop();
-                    audioRecord.release();
-                    audioRecord = null;
-                }
-            } catch (Exception ignored) {
-            }
+            releaseAudioRecord();
+            abandonCaptureAudioFocus();
 
             if (speechRecognizer != null) {
                 new Handler(Looper.getMainLooper()).post(() -> {
@@ -425,7 +504,7 @@ public class SpeakCoachSpeechPlugin extends Plugin {
             ret.put("offlineTranscript", recognizedTranscript);
             ret.put("offlineConfidence", recognizedConfidence);
             ret.put("offlineAlternatives", altArray);
-            ret.put("recognizerError", recognizerError);
+            ret.put("recognizerError", recorderError.isEmpty() ? recognizerError : recorderError);
             call.resolve(ret);
         }, "SpeakCoachStopThread").start();
     }

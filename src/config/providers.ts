@@ -160,12 +160,12 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         slotId: 'pronunciation_scoring',
         tier: 3,
         requiresKey: false,
-        defaultBaseUrl: 'offline://vosk-en-us',
-        defaultModelOrVoice: 'vosk-model-small-en-us',
-        modelSuggestions: ['vosk-model-small-en-us', 'android-offline'],
-        modelFieldLabel: 'Offline Engine (vosk-model-small-en-us / android-offline)',
-        baseUrlPlaceholder: 'offline://vosk-en-us',
-        description: 'Approximate word alignment & timing heuristics (cannot judge individual phonemes).'
+        defaultBaseUrl: 'offline://android-speech-recognizer',
+        defaultModelOrVoice: 'android-offline',
+        modelSuggestions: ['android-offline'],
+        modelFieldLabel: 'Offline recognizer (android-offline)',
+        baseUrlPlaceholder: 'offline://android-speech-recognizer',
+        description: 'Android system speech recognition with approximate word alignment; no Vosk model is bundled and individual phonemes are not assessed.'
       }
     ]
   },
@@ -388,8 +388,8 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         tier: 1,
         requiresKey: true,
         defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-        defaultModelOrVoice: 'gemini-flash-latest',
-        modelSuggestions: ['gemini-flash-latest', 'gemini-pro-latest', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite'],
+        defaultModelOrVoice: 'gemini-3.1-flash-lite',
+        modelSuggestions: ['gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-pro-latest'],
         modelFieldLabel: 'Gemini Model',
         baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
         description: 'Google Gemini translation API with plain-text responses.'

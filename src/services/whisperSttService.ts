@@ -285,9 +285,13 @@ export async function requestGeminiAudioTranscription(params: {
         }],
         generationConfig: {
           temperature: 0,
-          ...(params.slotConfig.slotId === 'pronunciation_scoring'
-            ? { audioTranscriptionConfig: { wordTimestamp: true, mode: 'VERBATIM' } }
-            : { audioTranscriptionConfig: { mode: 'VERBATIM' } })
+          // audioTranscriptionConfig is the dedicated transcription-model
+          // configuration. General Gemini audio models should not receive it.
+          ...( /(?:^|-)transcribe(?:-|$)/i.test(model)
+            ? (params.slotConfig.slotId === 'pronunciation_scoring'
+              ? { audioTranscriptionConfig: { wordTimestamp: true, mode: 'VERBATIM' } }
+              : { audioTranscriptionConfig: { mode: 'VERBATIM' } })
+            : {})
         }
       },
       timeoutMs: 60000,

@@ -1,8 +1,10 @@
 import { Capacitor } from '@capacitor/core';
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
 
 const AUDIO_CACHE_PREFIX = 'speakcoach.tts.cache.v1.';
 const AUDIO_CACHE_INDEX_KEY = `${AUDIO_CACHE_PREFIX}__index__`;
+const AUDIO_CACHE_DIRECTORY = 'SpeakCoach/audio-cache';
 const MAX_CACHE_ENTRIES = 30;
 const MAX_CACHE_ITEM_CHARS = 2_000_000;
 const MAX_PERSISTED_CACHE_CHARS = 12_000_000;
@@ -13,6 +15,10 @@ interface AudioCacheIndexEntry {
   hash: string;
   chars: number;
   lastAccess: number;
+}
+
+function cacheFilePath(hash: string): string {
+  return `${AUDIO_CACHE_DIRECTORY}/${hash}.txt`;
 }
 
 function rememberInMemory(hash: string, value: string): void {
@@ -42,7 +48,7 @@ async function readCacheIndex(): Promise<AudioCacheIndexEntry[]> {
       }
     }
   } catch {
-    // Try the browser cache index or reconstruct from existing cache keys.
+    // Try the browser cache index or reconstruct from legacy cache keys.
   }
 
   if (!Capacitor.isNativePlatform() && typeof localStorage !== 'undefined') {
@@ -96,9 +102,32 @@ async function writeCacheIndex(index: AudioCacheIndexEntry[]): Promise<void> {
   }
 }
 
+async function writeNativeAudioFile(hash: string, value: string): Promise<void> {
+  await Filesystem.mkdir({
+    path: AUDIO_CACHE_DIRECTORY,
+    directory: Directory.Cache,
+    recursive: true
+  });
+  await Filesystem.writeFile({
+    path: cacheFilePath(hash),
+    data: value,
+    directory: Directory.Cache,
+    encoding: Encoding.UTF8,
+    recursive: true
+  });
+}
+
 async function removePersistentAudio(hash: string): Promise<void> {
   const key = `${AUDIO_CACHE_PREFIX}${hash}`;
-  try { await Preferences.remove({ key }); } catch { /* best-effort cache eviction */ }
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await Filesystem.deleteFile({ path: cacheFilePath(hash), directory: Directory.Cache });
+    } catch {
+      // The file may already have been evicted by Android.
+    }
+  }
+  // Also remove any old Preferences copy left by the previous cache format.
+  try { await Preferences.remove({ key }); } catch { /* best-effort legacy cleanup */ }
   if (!Capacitor.isNativePlatform() && typeof localStorage !== 'undefined') {
     try { localStorage.removeItem(key); } catch { /* best-effort cache eviction */ }
   }
@@ -155,10 +184,36 @@ export async function getCachedTtsAudio(hash: string): Promise<string | null> {
     await touchCacheEntry(hash, value.length);
     return value || null;
   }
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const file = await Filesystem.readFile({
+        path: cacheFilePath(hash),
+        directory: Directory.Cache,
+        encoding: Encoding.UTF8
+      });
+      if (typeof file.data === 'string' && file.data.length > 0) {
+        rememberInMemory(hash, file.data);
+        await touchCacheEntry(hash, file.data.length);
+        return file.data;
+      }
+    } catch {
+      // Check for a legacy Preferences value and migrate it lazily below.
+    }
+  }
+
   const key = `${AUDIO_CACHE_PREFIX}${hash}`;
   try {
     const res = await Preferences.get({ key });
     if (res && typeof res.value === 'string' && res.value.length > 0) {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await writeNativeAudioFile(hash, res.value);
+          await Preferences.remove({ key });
+        } catch {
+          // Preserve and continue serving the old Preferences entry if migration fails.
+        }
+      }
       rememberInMemory(hash, res.value);
       await touchCacheEntry(hash, res.value.length);
       return res.value;
@@ -166,6 +221,7 @@ export async function getCachedTtsAudio(hash: string): Promise<string | null> {
   } catch {
     // Browser fallback.
   }
+
   if (!Capacitor.isNativePlatform() && typeof localStorage !== 'undefined') {
     const val = localStorage.getItem(key);
     if (val) {
@@ -182,13 +238,15 @@ export async function setCachedTtsAudio(hash: string, base64OrDataUrl: string): 
   rememberInMemory(hash, base64OrDataUrl);
   const key = `${AUDIO_CACHE_PREFIX}${hash}`;
   let persisted = false;
-  try {
-    await Preferences.set({ key, value: base64OrDataUrl });
-    persisted = true;
-  } catch {
-    // Browser fallback below. Native cache failure must not affect TTS playback.
-  }
-  if (!Capacitor.isNativePlatform() && typeof localStorage !== 'undefined') {
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await writeNativeAudioFile(hash, base64OrDataUrl);
+      persisted = true;
+    } catch {
+      // Native cache failure must not affect TTS playback; keep memory-only.
+    }
+  } else if (typeof localStorage !== 'undefined') {
     try {
       localStorage.setItem(key, base64OrDataUrl);
       persisted = true;

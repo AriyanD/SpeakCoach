@@ -78,7 +78,7 @@ export async function synthesizeOnlineNeuralAudio(
 ): Promise<{ dataUrl: string; fromCache: boolean }> {
   const hash = computeAudioCacheHash({
     providerId: slotCfg.providerId,
-    voiceOrModel: slotCfg.modelOrVoice,
+    voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}`,
     rate,
     text
   });
@@ -140,19 +140,13 @@ export async function synthesizeOnlineNeuralAudio(
     const model = rawModel.startsWith('models/') ? rawModel.slice('models/'.length) : rawModel;
     const voice = slotCfg.customTtsVoice?.trim() || 'Puck';
 
-    // All Gemini TTS models (3.8-flash-tts, 3.8-flash-lite-tts, and legacy 3.1/2.5 preview)
-    // use the generateContent REST API with responseModalities: ['AUDIO'].
-    // Audio is returned as candidates[0].content.parts[N].inlineData.data (N may not be 0).
-    const supportedModels = [
-      'gemini-3.8-flash-tts',
-      'gemini-3.8-flash-lite-tts',
-      'gemini-3.1-flash-tts-preview',
-      'gemini-2.5-flash-preview-tts',
-      'gemini-2.5-pro-preview-tts'
-    ];
-    if (!supportedModels.includes(model)) {
+    // Gemini TTS model IDs evolve frequently. Do not maintain a closed
+    // allow-list here: the provider's live model catalogue is the source of
+    // truth. Keep a lightweight guard so a text-only model is not sent to the
+    // audio-generation endpoint by mistake.
+    if (!/(?:^|-)tts(?:-|$)/i.test(model)) {
       throw new Error(
-        `Unsupported Gemini TTS model "${model}". Choose ${supportedModels.join(', ')}.`
+        `Model "${model}" does not look like a Gemini TTS model. Use Fetch models and choose a model whose ID contains "tts".`
       );
     }
 
@@ -225,7 +219,7 @@ export async function synthesizeOnlineNeuralAudio(
   }
 
   if (slotCfg.providerId === 'azure_tts') {
-    const voiceName = (slotCfg.modelOrVoice || 'en-US-JennyNeural').trim();
+    const voiceName = (slotCfg.customTtsVoice?.trim() || slotCfg.modelOrVoice || 'en-US-JennyNeural').trim();
     const langMatch = voiceName.match(/^([a-z]{2}-[A-Z]{2})/);
     const xmlLang = langMatch ? langMatch[1] : 'en-US';
     const prosodyRatePct = `${Math.round((rate - 1) * 100)}%`;
@@ -256,7 +250,7 @@ export async function synthesizeOnlineNeuralAudio(
 
   if (slotCfg.providerId === 'elevenlabs_tts') {
     const [voiceIdPart, modelIdPart] = (slotCfg.modelOrVoice || '21m00Tcm4TlvDq8ikWAM').split(':');
-    const voiceId = voiceIdPart?.trim() || '21m00Tcm4TlvDq8ikWAM';
+    const voiceId = slotCfg.customTtsVoice?.trim() || voiceIdPart?.trim() || '21m00Tcm4TlvDq8ikWAM';
     const modelId = modelIdPart?.trim() || 'eleven_multilingual_v2';
 
     const res = await nativeHttpRequest<string>(

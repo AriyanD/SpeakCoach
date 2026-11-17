@@ -1,3 +1,4 @@
+import { confirmInApp } from './confirmDialog';
 import { SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { runFullDiagnostics, type DiagnosticsReport } from '../services/diagnostics';
 import { getLastIeltsEvaluation, getIeltsSessionLogs } from '../services/ieltsTelemetry';
@@ -358,7 +359,7 @@ export async function renderDiagnosticsView(
           <svg class="diag-action-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3m-4 0h8"/></svg> Request Mic Permission
         </button>
         <button type="button" class="btn btn-primary" id="diag-run-all-btn">
-          <svg class="diag-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 9a7 7 0 0 1 12-2l2 5M4 12l2 5a7 7 0 0 0 12-2"/></svg> Run Live Check (All 5 Slots)
+          <svg class="diag-action-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 9a7 7 0 0 1 12-2l2 5M4 12l2 5a7 7 0 0 0 12-2"/></svg> Run Live Check (All 6 Slots)
         </button>
       </div>
     </section>
@@ -388,8 +389,16 @@ export async function renderDiagnosticsView(
   });
 
   runAllBtn?.addEventListener('click', async () => {
+    const confirmed = await confirmInApp({
+      title: 'Run live provider checks?',
+      message: 'This sends test requests to your configured providers and may consume API credits or quota across up to six slots.',
+      confirmLabel: 'Run checks',
+      cancelLabel: 'Cancel',
+      tone: 'danger'
+    });
+    if (!confirmed) return;
     runAllBtn.disabled = true;
-    runAllBtn.textContent = 'Probing 5 Slots...';
+    runAllBtn.textContent = 'Probing 6 Slots...';
     cachedReport = await runFullDiagnostics({
       appVersion,
       probeNetworkSlots: true
