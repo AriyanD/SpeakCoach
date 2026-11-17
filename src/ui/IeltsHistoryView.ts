@@ -251,7 +251,8 @@ export async function renderIeltsHistoryView(
         const id = btn.dataset.id;
         const rec = history.find((h) => h.id === id);
         if (!rec) return;
-        const providerChoice = (container.querySelector<HTMLSelectElement>(`.history-api-choice[data-id="${id}"]`)?.value || 'auto') as 'auto' | 'primary' | 'secondary';
+        const recordCard = btn.closest<HTMLElement>('.ielts-history-record');
+        const providerChoice = (recordCard?.querySelector<HTMLSelectElement>('.history-api-choice')?.value || 'auto') as 'auto' | 'primary' | 'secondary';
         btn.disabled = true;
         btn.textContent = 'Re-evaluating…';
         try {
@@ -264,8 +265,7 @@ export async function renderIeltsHistoryView(
         } catch (error) {
           btn.disabled = false;
           btn.textContent = 'Re-evaluate';
-          const card = btn.closest<HTMLElement>('.ielts-history-record');
-          const notice = card?.querySelector<HTMLElement>('.ielts-history-no-score');
+          const notice = recordCard?.querySelector<HTMLElement>('.ielts-history-no-score');
           if (notice) notice.textContent = error instanceof Error ? error.message : String(error);
         }
       });
