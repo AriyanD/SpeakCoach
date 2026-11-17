@@ -513,12 +513,12 @@ export function renderShadowingView(
       </div>
       <div class="form-field">
         <label class="form-label" for="sh-translation-input">Text to translate</label>
-        <textarea class="form-input sh-translation-input" id="sh-translation-input" rows="3" maxlength="4000" placeholder="Your sentence or word will appear here.">${escapeHtml(state.translationText)}</textarea>
+        <textarea class="form-input sh-translation-input" id="sh-translation-input" rows="3" maxlength="4000" placeholder="Your sentence or word will appear here." ${state.isTranslating ? 'disabled' : ''}>${escapeHtml(state.translationText)}</textarea>
       </div>
       <div class="sh-translation-controls">
         <div class="form-field sh-translation-language-field">
           <label class="form-label" for="sh-translation-language">Translate into</label>
-          <select class="form-select" id="sh-translation-language">${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
+          <select class="form-select" id="sh-translation-language" ${state.isTranslating ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
         </div>
         <button type="button" class="btn btn-primary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>
           ${state.isTranslating ? 'Translating…' : 'Translate'}
@@ -533,11 +533,15 @@ export function renderShadowingView(
     state.translationText = (event.target as HTMLTextAreaElement).value;
     state.translationResult = '';
     state.translationStatus = null;
+    container.querySelector('#sh-translation-result')?.remove();
+    container.querySelector('#sh-translation-status')?.remove();
   });
   container.querySelector<HTMLSelectElement>('#sh-translation-language')?.addEventListener('change', event => {
     state.translationTargetLanguage = (event.target as HTMLSelectElement).value;
     state.translationResult = '';
     state.translationStatus = null;
+    container.querySelector('#sh-translation-result')?.remove();
+    container.querySelector('#sh-translation-status')?.remove();
   });
   container.querySelector<HTMLButtonElement>('#sh-translate-btn')?.addEventListener('click', async () => {
     if (state.isTranslating) return;
@@ -554,7 +558,8 @@ export function renderShadowingView(
     state.translationStatusType = 'info';
     renderShadowingView(container, summary);
     try {
-      const result = await translateShadowingText(textToTranslate, state.translationTargetLanguage);
+      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === state.translationTargetLanguage)?.label ?? state.translationTargetLanguage;
+      const result = await translateShadowingText(textToTranslate, targetLanguage);
       state.translationResult = result.text;
       state.translationStatus = `Translation complete via ${result.providerName} (${result.account === 'secondary' ? 'API 2' : 'API 1'}).`;
       state.translationStatusType = 'pass';
@@ -573,6 +578,8 @@ export function renderShadowingView(
       if (!word || button.disabled) return;
       button.disabled = true;
       button.setAttribute('aria-busy', 'true');
+      shadowingModelPlaybackToken++;
+      state.activeModelPlayback = null;
       stopAllTts();
       try {
         const result = await speakSentenceWithTierFallback(word);

@@ -18,6 +18,8 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     const root = document.createElement('div');
     await bootstrapApp(root, 'shadowing');
 
+    const initialShadowingText = root.querySelector('#sh-target-text')?.textContent ?? '';
+    expect(root.querySelector<HTMLTextAreaElement>('#sh-translation-input')?.value).toBe(initialShadowingText);
     const pronunciationNotice = root.querySelector<HTMLDetailsElement>('[aria-label="Offline pronunciation accuracy notice"]');
     expect(pronunciationNotice).not.toBeNull();
     expect(pronunciationNotice?.open).toBe(false);
