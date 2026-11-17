@@ -557,6 +557,18 @@ export async function renderSettingsView(
       <div class="settings-provider-cards">
         ${cardsHtml}
       </div>
+    </section>
+    <section class="card settings-diagnostics-card" aria-labelledby="settings-diagnostics-title">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title" id="settings-diagnostics-title">System Diagnostics</h2>
+          <p class="card-subtitle">Connection checks, permissions and session logs</p>
+        </div>
+      </div>
+      <p class="card-subtitle">Open the detailed diagnostics screen.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="settings-open-diagnostics-btn">Open Diagnostics</button>
+      </div>
     </section>`;
 
 
