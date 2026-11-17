@@ -3325,10 +3325,17 @@ body {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
+  min-height: 48px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
-.settings-api-group-title { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.settings-api-group-title {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  min-height: 32px;
+}
 .settings-api-group-title .card-title { margin: 0; font-size: 1.05rem; }
 .settings-api-required-label {
   display: inline-flex;
@@ -3343,16 +3350,22 @@ body {
   text-transform: uppercase;
 }
 .settings-required-badge {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  min-height: 27px;
-  padding: 4px 9px;
+  align-self: center;
+  flex: 0 0 auto;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   background: var(--bg-primary);
   font-size: .72rem;
   font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
 }
 .settings-required-badge.missing {
   color: var(--danger, #dc2626);
@@ -3363,7 +3376,7 @@ body {
 .settings-provider-cards > .settings-accordion { margin: 0; }
 @media(max-width: 420px) {
   .quick-setup-panel { padding: 12px; }
-  .settings-api-group-heading { align-items: flex-start; }
+  .settings-api-group-heading { align-items: center; }
 }
 
 
