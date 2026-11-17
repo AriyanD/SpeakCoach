@@ -119,7 +119,7 @@ describe('Stage 2 Part 2A — Tier 2 Whisper STT Adapter & Word Timestamps', () 
       apiKey: 'gemini-test-key',
       wavBase64: generateProbeWavBase64(),
       transport: async (opts: HttpOptions): Promise<HttpResponse> => {
-        capturedBody = opts.data;
+        capturedBody = typeof opts.data === 'string' ? JSON.parse(opts.data) : opts.data;
         return {
           status: 200,
           headers: {},
@@ -141,7 +141,7 @@ describe('Stage 2 Part 2A — Tier 2 Whisper STT Adapter & Word Timestamps', () 
 
   it('omits transcription-only config when a general Gemini audio model is selected', async () => {
     let capturedBody: any;
-    await requestWhisperWordTimestamps({
+    await requestGeminiAudioTranscription({
       slotConfig: {
         slotId: 'ielts_stt',
         providerId: 'gemini_stt',
@@ -151,7 +151,7 @@ describe('Stage 2 Part 2A — Tier 2 Whisper STT Adapter & Word Timestamps', () 
       apiKey: 'gemini-test-key',
       wavBase64: generateProbeWavBase64(),
       transport: async (opts: HttpOptions): Promise<HttpResponse> => {
-        capturedBody = opts.data;
+        capturedBody = typeof opts.data === 'string' ? JSON.parse(opts.data) : opts.data;
         return {
           status: 200,
           headers: {},
