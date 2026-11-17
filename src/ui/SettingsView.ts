@@ -1124,7 +1124,7 @@ export async function renderSettingsView(
       message: HTMLElement | null,
       voiceInput: HTMLInputElement | null,
       buildConfig: () => SlotConfig,
-      getKey: () => string
+      getKey: () => string | Promise<string>
     ): void => {
       button?.addEventListener('click', async () => {
         if (!button || !list || !message || !voiceInput) return;
@@ -1133,7 +1133,7 @@ export async function renderSettingsView(
         message.className = 'settings-fetch-models-message';
         message.textContent = 'Loading voices…';
         try {
-          const result = await fetchAvailableTtsVoices(buildConfig(), getKey());
+          const result = await fetchAvailableTtsVoices(buildConfig(), await getKey());
           list.innerHTML = result.voices.map((voice) =>
             `<button type="button" class="model-option" data-tts-voice="${escapeHtml(voice.value)}">${escapeHtml(voice.label)}</button>`
           ).join('');
@@ -1173,7 +1173,10 @@ export async function renderSettingsView(
             customTtsVoice: customVoiceInput?.value.trim() || undefined
           };
         },
-        () => keyInput?.value ?? ''
+        () => {
+          const providerId = providerSelect?.value ?? configs.voice_tts.providerId;
+          return keyInput?.value.trim() || readKeyForSettings('voice_tts', providerId);
+        }
       );
       bindVoicePicker(
         fetchSecondaryVoicesBtn, secondaryVoicesList, fetchSecondaryVoicesMsg, secondaryCustomVoiceInput,
@@ -1193,7 +1196,10 @@ export async function renderSettingsView(
             customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
           };
         },
-        () => secondaryKeyInput?.value ?? ''
+        () => {
+          const providerId = secondaryProviderSelect?.value ?? '';
+          return providerId ? (secondaryKeyInput?.value.trim() || readKeyForSettings('voice_tts', providerId, 'secondary')) : '';
+        }
       );
     }
 
@@ -1310,7 +1316,8 @@ export async function renderSettingsView(
       const customPreset = getPreset(slotId, customProviderId);
       const currentBaseUrl = baseUrlInput?.value.trim() || customPreset.defaultBaseUrl;
       const currentModel = modelInput?.value.trim() || customPreset.defaultModelOrVoice;
-      const currentKey = keyInput?.value ?? '';
+      const currentProviderId = providerSelect?.value ?? configs[slotId].providerId;
+      const currentKey = keyInput?.value.trim() || await readKeyForSettings(slotId, currentProviderId);
 
       if (providerSelect) {
         providerSelect.value = customPreset.id;
@@ -1403,7 +1410,7 @@ export async function renderSettingsView(
         customQueryParamName: customQueryInput?.value.trim() || undefined,
         endpointPathOverride: endpointPathInput?.value.trim() || undefined
       };
-      const currentKey = keyInput?.value.trim() || '';
+      const currentKey = keyInput?.value.trim() || await readKeyForSettings(slotId, preset.id);
 
       const res = await fetchAvailableModels(currentCfg, currentKey);
       fetchModelsBtn.disabled = false;
@@ -1633,7 +1640,7 @@ export async function renderSettingsView(
         endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined,
         customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
       };
-      const apiKey = secondaryKeyInput?.value ?? '';
+      const apiKey = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, secondaryPreset.id, 'secondary');
       secondaryTestBtn.disabled = true;
       secondaryStatus.className = 'status-box info';
       secondaryStatus.textContent = 'API 2: Testing…';
@@ -1648,6 +1655,10 @@ export async function renderSettingsView(
         if (testResult.ok) {
           await saveApiKey(slotId, secondaryPreset.id, apiKey, 'secondary');
           secondaryKeysBySlot[slotId] = apiKey;
+          if (secondaryKeyInput) {
+            secondaryKeyInput.value = '';
+            secondaryKeyInput.placeholder = 'API 2 key saved securely. Leave blank to keep it, or type a replacement.';
+          }
         }
         const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
         await saveSecondarySlotConfig(slotId, verifiedConfig);
