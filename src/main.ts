@@ -267,7 +267,7 @@ export async function bootstrapApp(
     navSettingsBtn?.classList.toggle('active', currentTab === 'settings' || currentTab === 'diagnostics');
 
     if (currentTab === 'shadowing') {
-      renderShadowingView(viewContainer, summary);
+      activeCleanup = renderShadowingView(viewContainer, summary);
     } else if (currentTab === 'ielts') {
       activeCleanup = renderIeltsView(viewContainer, summary, {
         onComplete: (record) => {
