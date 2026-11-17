@@ -10,6 +10,7 @@ import {
   getCustomProviderIdForSlot
 } from '../services/customEndpointHelper';
 import { fetchAvailableModels } from '../services/modelFetchService';
+import { fetchAvailableTtsVoices } from '../services/ttsVoiceService';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { loadApiKeyStrict, saveApiKey } from '../storage/keyStore';
 import { getAppSettingsRecoveryNotices, loadAppSettings, saveAppSettings } from '../storage/appSettings';
@@ -146,8 +147,7 @@ export async function renderSettingsView(
       ? `${escapeHtml(secondaryTestResult.message)} · <span class="settings-tested-time">Tested: ${new Date(secondaryTestResult.testedAt).toLocaleTimeString()}</span>`
       : (slotCfg.secondary?.verified ? 'PASS — Verified (test details unavailable)' : 'Not tested');
     const secondaryStatusHtml = `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
-    const isGeminiTts = preset.id === 'gemini_tts';
-    const showVoiceInput = isCustom || isGeminiTts;
+    const showVoiceInput = slotId === 'voice_tts' && preset.id !== 'android_native_tts';
     const mismatchInfo = detectProviderUrlMismatch(slotCfg);
 
     const optionsHtml = def.providers
@@ -350,14 +350,13 @@ export async function renderSettingsView(
           ${
             slotId === 'voice_tts'
               ? `<div class="form-field" id="tts-voice-container-${slotId}" style="${showVoiceInput ? '' : 'display: none;'}">
-                  <label class="form-label" for="custom-voice-${slotId}">Free-Text Voice Name (e.g. Puck, Charon, Kore, Fenrir, Aoede / alloy)</label>
-                  <input
-                    type="text"
-                    class="form-input"
-                    id="custom-voice-${slotId}"
-                    value="${escapeHtml(slotCfg.customTtsVoice ?? '')}"
-                    placeholder="e.g. Puck, Kore, alloy"
-                  />
+                  <label class="form-label" for="custom-voice-${slotId}">Voice (choose from the available list or enter a custom name)</label>
+                  <input type="text" class="form-input" id="custom-voice-${slotId}" value="${escapeHtml(slotCfg.customTtsVoice ?? '')}" placeholder="Choose or enter a voice name" autocomplete="off" />
+                  <div class="voice-picker-dropdown">
+                    <button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-voices-btn-${slotId}">Load available voices</button>
+                    <div class="model-picker-options" id="voices-list-${slotId}" hidden></div>
+                    <div id="fetch-voices-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
+                  </div>
                 </div>`
               : ''
           }
@@ -434,6 +433,15 @@ export async function renderSettingsView(
               <input type="url" class="form-input" id="secondary-baseurl-${slotId}" value="${escapeHtml(slotCfg.secondary?.baseUrl || secondaryPreset?.defaultBaseUrl || '')}" placeholder="https://api.example.com/v1" /></div>
             <div class="form-field"><label class="form-label" for="secondary-model-${slotId}">Secondary model / voice</label>
               <input type="text" class="form-input" id="secondary-model-${slotId}" value="${escapeHtml(slotCfg.secondary?.modelOrVoice ?? '')}" placeholder="Model name" /></div>
+            ${slotId === 'voice_tts' ? `<div class="form-field" id="secondary-tts-voice-container-${slotId}" style="${secondaryPreset && secondaryPreset.id !== 'android_native_tts' ? '' : 'display:none;'}">
+              <label class="form-label" for="secondary-custom-voice-${slotId}">API 2 voice (choose from the available list or enter a custom name)</label>
+              <input type="text" class="form-input" id="secondary-custom-voice-${slotId}" value="${escapeHtml(slotCfg.secondary?.customTtsVoice ?? '')}" placeholder="Choose or enter a voice name" autocomplete="off" />
+              <div class="voice-picker-dropdown">
+                <button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-voices-btn-${slotId}">Load API 2 voices</button>
+                <div class="model-picker-options" id="secondary-voices-list-${slotId}" hidden></div>
+                <div id="fetch-secondary-voices-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
+              </div>
+            </div>` : ''}
             <div class="form-field"><label class="form-label" for="secondary-key-${slotId}">API Key (${keyStorageLabel}) — API 2</label>
               <input type="password" class="form-input" id="secondary-key-${slotId}" value="${escapeHtml(secondaryKeysBySlot[slotId])}" autocomplete="off" placeholder="Enter second API key" /></div>
             ${secondaryCopyKeyOptionsHtml ? `
@@ -1065,6 +1073,8 @@ export async function renderSettingsView(
     const secondaryProviderOptions = container.querySelector<HTMLElement>(`#secondary-provider-options-${slotId}`);
     const secondaryBaseUrlInput = container.querySelector<HTMLInputElement>(`#secondary-baseurl-${slotId}`);
     const secondaryModelInput = container.querySelector<HTMLInputElement>(`#secondary-model-${slotId}`);
+    const secondaryCustomVoiceInput = container.querySelector<HTMLInputElement>(`#secondary-custom-voice-${slotId}`);
+    const secondaryCustomVoiceContainer = container.querySelector<HTMLElement>(`#secondary-tts-voice-container-${slotId}`);
     const secondaryKeyInput = container.querySelector<HTMLInputElement>(`#secondary-key-${slotId}`);
     const secondaryCopyKeySelect = container.querySelector<HTMLSelectElement>(`#secondary-copy-key-source-${slotId}`);
     const secondaryCopyKeyBtn = container.querySelector<HTMLButtonElement>(`#secondary-copy-key-btn-${slotId}`);
@@ -1075,6 +1085,12 @@ export async function renderSettingsView(
     const secondaryHeaderInput = container.querySelector<HTMLInputElement>(`#secondary-custom-header-${slotId}`);
     const secondaryQueryInput = container.querySelector<HTMLInputElement>(`#secondary-custom-query-${slotId}`);
     const secondaryEndpointInput = container.querySelector<HTMLInputElement>(`#secondary-endpoint-${slotId}`);
+    const fetchVoicesBtn = container.querySelector<HTMLButtonElement>(`#fetch-voices-btn-${slotId}`);
+    const voicesList = container.querySelector<HTMLElement>(`#voices-list-${slotId}`);
+    const fetchVoicesMsg = container.querySelector<HTMLElement>(`#fetch-voices-msg-${slotId}`);
+    const fetchSecondaryVoicesBtn = container.querySelector<HTMLButtonElement>(`#fetch-secondary-voices-btn-${slotId}`);
+    const secondaryVoicesList = container.querySelector<HTMLElement>(`#secondary-voices-list-${slotId}`);
+    const fetchSecondaryVoicesMsg = container.querySelector<HTMLElement>(`#fetch-secondary-voices-msg-${slotId}`);
     const secondaryTestBtn = container.querySelector<HTMLButtonElement>(`#test-secondary-${slotId}`);
     const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
     const saveStatus = container.querySelector<HTMLElement>(`#save-status-${slotId}`);
@@ -1101,6 +1117,85 @@ export async function renderSettingsView(
         statusBox.textContent = message;
       }
     };
+
+    const bindVoicePicker = (
+      button: HTMLButtonElement | null,
+      list: HTMLElement | null,
+      message: HTMLElement | null,
+      voiceInput: HTMLInputElement | null,
+      buildConfig: () => SlotConfig,
+      getKey: () => string
+    ): void => {
+      button?.addEventListener('click', async () => {
+        if (!button || !list || !message || !voiceInput) return;
+        button.disabled = true;
+        message.hidden = false;
+        message.className = 'settings-fetch-models-message';
+        message.textContent = 'Loading voices…';
+        try {
+          const result = await fetchAvailableTtsVoices(buildConfig(), getKey());
+          list.innerHTML = result.voices.map((voice) =>
+            `<button type="button" class="model-option" data-tts-voice="${escapeHtml(voice.value)}">${escapeHtml(voice.label)}</button>`
+          ).join('');
+          list.hidden = result.voices.length === 0;
+          message.textContent = result.message;
+        } catch (error) {
+          list.hidden = true;
+          message.textContent = error instanceof Error ? error.message : String(error);
+          message.className = 'settings-fetch-models-message error';
+        } finally {
+          button.disabled = false;
+        }
+      });
+      list?.addEventListener('click', (event) => {
+        const option = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-tts-voice]');
+        if (!option || !voiceInput) return;
+        voiceInput.value = option.dataset.ttsVoice ?? '';
+        voiceInput.dispatchEvent(new Event('input', { bubbles: true }));
+        if (list) list.hidden = true;
+      });
+    };
+
+    if (slotId === 'voice_tts') {
+      bindVoicePicker(
+        fetchVoicesBtn, voicesList, fetchVoicesMsg, customVoiceInput,
+        () => {
+          const selected = getPreset('voice_tts', providerSelect?.value ?? configs.voice_tts.providerId);
+          return {
+            slotId: 'voice_tts',
+            providerId: selected.id,
+            baseUrl: baseUrlInput?.value.trim() || selected.defaultBaseUrl,
+            modelOrVoice: modelInput?.value.trim() || selected.defaultModelOrVoice,
+            authStyle: (authStyleSelect?.value as AuthStyle) || 'bearer',
+            customHeaderName: customHeaderInput?.value.trim() || undefined,
+            customQueryParamName: customQueryInput?.value.trim() || undefined,
+            endpointPathOverride: endpointPathInput?.value.trim() || undefined,
+            customTtsVoice: customVoiceInput?.value.trim() || undefined
+          };
+        },
+        () => keyInput?.value ?? ''
+      );
+      bindVoicePicker(
+        fetchSecondaryVoicesBtn, secondaryVoicesList, fetchSecondaryVoicesMsg, secondaryCustomVoiceInput,
+        () => {
+          const providerId = secondaryProviderSelect?.value ?? '';
+          if (!providerId) throw new Error('Choose an API 2 provider first.');
+          const selected = getPreset('voice_tts', providerId);
+          return {
+            slotId: 'voice_tts',
+            providerId: selected.id,
+            baseUrl: secondaryBaseUrlInput?.value.trim() || selected.defaultBaseUrl,
+            modelOrVoice: secondaryModelInput?.value.trim() || selected.defaultModelOrVoice,
+            authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
+            customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
+            customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
+            endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined,
+            customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
+          };
+        },
+        () => secondaryKeyInput?.value ?? ''
+      );
+    }
 
     // Any edit invalidates the visible verified state immediately. The saved
     // configuration remains unchanged until Save Slot is pressed.
@@ -1155,6 +1250,8 @@ export async function renderSettingsView(
         if (customAuth) customAuth.style.display = 'none';
         if (secondaryBaseUrlInput) secondaryBaseUrlInput.value = '';
         if (secondaryModelInput) secondaryModelInput.value = '';
+        if (secondaryCustomVoiceInput) secondaryCustomVoiceInput.value = '';
+        if (secondaryCustomVoiceContainer) secondaryCustomVoiceContainer.style.display = 'none';
         if (secondaryKeyInput) secondaryKeyInput.value = '';
         if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Not configured'; }
         return;
@@ -1165,9 +1262,11 @@ export async function renderSettingsView(
       if (secondaryProviderSelect.value !== configs[slotId].secondary?.providerId && secondaryKeyInput) secondaryKeyInput.value = '';
       if (secondaryBaseUrlInput) secondaryBaseUrlInput.value = selectedPreset.defaultBaseUrl;
       if (secondaryModelInput) secondaryModelInput.value = selectedPreset.defaultModelOrVoice;
-      if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Changes not tested'; }
+      if (secondaryCustomVoiceInput) secondaryCustomVoiceInput.value = '';
+      if (secondaryCustomVoiceContainer) secondaryCustomVoiceContainer.style.display = selectedPreset.id === 'android_native_tts' ? 'none' : '';
+      if (secondaryStatus { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Changes not tested'; }
     });
-    [secondaryProviderSelect, secondaryBaseUrlInput, secondaryModelInput, secondaryKeyInput, secondaryAuthSelect, secondaryHeaderInput, secondaryQueryInput, secondaryEndpointInput].forEach((field) => {
+    [secondaryProviderSelect, secondaryBaseUrlInput, secondaryModelInput, secondaryCustomVoiceInput, secondaryKeyInput, secondaryAuthSelect, secondaryHeaderInput, secondaryQueryInput, secondaryEndpointInput].forEach((field) => {
       field?.addEventListener('input', () => { if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Changes not tested'; } });
       field?.addEventListener('change', () => { if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Changes not tested'; } });
     });
@@ -1327,12 +1426,12 @@ export async function renderSettingsView(
       const nextProviderId = providerSelect.value;
       const nextPreset = getPreset(slotId, nextProviderId);
       const isCustomNext = nextPreset.id.startsWith('custom_openai_');
-      const isGeminiTtsNext = nextPreset.id === 'gemini_tts';
+      const showVoiceForNext = nextPreset.id !== 'android_native_tts';
 
       if (customAuthContainer) customAuthContainer.style.display = isCustomNext ? '' : 'none';
       if (advancedAuthDetails) advancedAuthDetails.style.display = isCustomNext ? '' : 'none';
       if (customEndpointContainer) customEndpointContainer.style.display = isCustomNext ? '' : 'none';
-      if (customVoiceContainer) customVoiceContainer.style.display = (isCustomNext || isGeminiTtsNext) ? '' : 'none';
+      if (customVoiceContainer) customVoiceContainer.style.display = showVoiceForNext ? '' : 'none';
 
       // Update datalist suggestions
       const nextSuggestions = nextPreset.modelSuggestions || [nextPreset.defaultModelOrVoice];
@@ -1381,7 +1480,8 @@ export async function renderSettingsView(
         authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
         customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
         customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
-        endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined
+        endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined,
+        customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
       } : undefined;
       const secondaryUnchanged = !!previousSecondary && !!secondaryDraft &&
         previousSecondary.providerId === secondaryDraft.providerId &&
@@ -1391,6 +1491,7 @@ export async function renderSettingsView(
         previousSecondary.customHeaderName === secondaryDraft.customHeaderName &&
         previousSecondary.customQueryParamName === secondaryDraft.customQueryParamName &&
         previousSecondary.endpointPathOverride === secondaryDraft.endpointPathOverride &&
+        previousSecondary.customTtsVoice === secondaryDraft.customTtsVoice &&
         (secondaryKeyInput?.value ?? '') === secondaryKeysBySlot[slotId];
       const secondaryStillVerified = secondaryUnchanged && previousSecondary?.verified === true;
       cfg.secondary = secondaryDraft
@@ -1499,7 +1600,8 @@ export async function renderSettingsView(
         authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
         customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
         customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
-        endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined
+        endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined,
+        customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
       };
       const apiKey = secondaryKeyInput?.value ?? '';
       secondaryTestBtn.disabled = true;
