@@ -1398,7 +1398,7 @@ export async function renderSettingsView(
       secondaryProviderSelect.value = option.dataset.secondaryProviderId ?? '';
       secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    secondaryProviderSelect?.addEventListener('change', async () => {
+    secondaryProviderSelect?.addEventListener('change', () => {
       const selected = secondaryProviderSelect.value;
       if (secondaryProviderTrigger) secondaryProviderTrigger.querySelector('span')!.textContent = selected ? getPreset(slotId, selected).name : 'Not configured';
       secondaryProviderOptions?.querySelectorAll<HTMLButtonElement>('[data-secondary-provider-id]').forEach((option) => option.classList.toggle('active', option.dataset.secondaryProviderId === selected));
@@ -1418,11 +1418,14 @@ export async function renderSettingsView(
       const secondaryCustomAuthContainer = container.querySelector<HTMLElement>(`#secondary-custom-auth-container-${slotId}`);
       if (secondaryCustomAuthContainer) secondaryCustomAuthContainer.style.display = selectedPreset.id.startsWith('custom_openai_') ? '' : 'none';
       if (secondaryProviderSelect.value !== configs[slotId].secondary?.providerId && secondaryKeyInput) {
-        const storedKey = await readKeyForSettings(slotId, selectedPreset.id, 'secondary');
         secondaryKeyInput.value = '';
-        secondaryKeyInput.placeholder = storedKey
-          ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.'
-          : 'Enter second API key';
+        secondaryKeyInput.placeholder = 'Enter second API key';
+        void readKeyForSettings(slotId, selectedPreset.id, 'secondary').then((storedKey) => {
+          if (!secondaryKeyInput) return;
+          secondaryKeyInput.placeholder = storedKey
+            ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.'
+            : 'Enter second API key';
+        });
       }
       if (secondaryBaseUrlInput) secondaryBaseUrlInput.value = selectedPreset.defaultBaseUrl;
       if (secondaryModelInput) secondaryModelInput.value = selectedPreset.defaultModelOrVoice;
