@@ -537,7 +537,18 @@ export async function renderSettingsView(
       </ul>
       <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick setup changes API 1 provider choices only after you confirm. Each configured provider is tested in sequence.</div>
     </section>
-    ${cardsHtml}
+    <details class="card settings-advanced-settings">
+      <summary class="settings-accordion-summary">
+        <span class="settings-accordion-heading">
+          <span class="card-title">Advanced settings</span>
+          <span class="card-subtitle">Provider URLs, models, API keys, API 2 and connection tests</span>
+        </span>
+        <span class="settings-chevron" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="settings-accordion-content">
+        ${cardsHtml}
+      </div>
+    </details>
     <section class="card settings-preference-card">
       <div class="card-header"><h2 class="card-title">IELTS Test Preferences</h2></div>
       <div class="appearance-setting ielts-question-text-setting">
