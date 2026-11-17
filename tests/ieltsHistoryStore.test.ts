@@ -341,7 +341,7 @@ describe('IELTS History & Draft Storage (Stage 4.1)', () => {
     expect(history.filter((h) => h.id === fixedId)).toHaveLength(1);
   });
 
-  it('deduplicates duplicate records created within close timestamp windows', async () => {
+  it('preserves distinct attempts even when answers are identical and timestamps are close', async () => {
     const now = Date.now();
     const records: IeltsTestRecord[] = [
       {
@@ -387,9 +387,10 @@ describe('IELTS History & Draft Storage (Stage 4.1)', () => {
     ];
 
     const deduped = deduplicateTestRecords(records);
-    expect(deduped).toHaveLength(2);
+    expect(deduped).toHaveLength(3);
     expect(deduped[0].id).toBe('rec_1');
-    expect(deduped[1].id).toBe('rec_3_different');
+    expect(deduped[1].id).toBe('rec_2_dup');
+    expect(deduped[2].id).toBe('rec_3_different');
   });
 
   it('does not truncate imported history after the next completed test is saved', async () => {
