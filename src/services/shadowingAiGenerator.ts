@@ -137,7 +137,7 @@ The sentences array must contain exactly ${count} items.`;
       }, transport);
       const body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
       const parts = body?.candidates?.[0]?.content?.parts;
-      raw = Array.isArray(parts) ? parts.map((part: any) => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\\n') : '';
+      raw = Array.isArray(parts) ? parts.map((part: any) => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\n') : '';
     } else {
       const model = (attemptConfig.modelOrVoice || attemptPreset.defaultModelOrVoice).trim();
       const prepared = buildCustomEndpointRequest({
@@ -165,7 +165,7 @@ The sentences array must contain exactly ${count} items.`;
       }, transport);
       const body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
       const content = body?.choices?.[0]?.message?.content ?? body?.output_text ?? body?.text ?? '';
-      raw = typeof content === 'string' ? content : Array.isArray(content) ? content.map((part: any) => part?.text ?? '').filter(Boolean).join('\\n') : '';
+      raw = typeof content === 'string' ? content : Array.isArray(content) ? content.map((part: any) => part?.text ?? '').filter(Boolean).join('\n') : '';
     }
 
     const parsed = JSON.parse(cleanJsonPayload(raw)) as Record<string, unknown>;

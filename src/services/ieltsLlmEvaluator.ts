@@ -744,7 +744,7 @@ Return this JSON shape:
         maxRetries: 1
       }, transport);
       const body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
-      raw = body?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text ?? '').join('\\n') ?? '';
+      raw = body?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text ?? '').join('\n') ?? '';
     } else {
       const model = (apiConfig.modelOrVoice || 'gpt-4o-mini').trim();
       const prepared = buildCustomEndpointRequest({ baseUrl, defaultPath: '/chat/completions', apiKey, slotConfig: apiConfig, defaultHeaders: { 'Content-Type': 'application/json' } });

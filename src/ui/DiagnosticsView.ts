@@ -309,11 +309,11 @@ export async function renderDiagnosticsView(
       <div class="card-header">
         <div>
           <h1 class="card-title"><svg class="diag-heading-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v5c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg> System Diagnostics</h1>
-          <p class="card-subtitle">Screenshot-ready status of permissions, storage, TTS &amp; 5 slots</p>
+          <p class="card-subtitle">Screenshot-ready status of permissions, storage, TTS &amp; 6 slots</p>
         </div>
         <span class="tier-badge ${report.tierSummary.label === 'Online AI' ? 'online' : 'offline'}">
           <span class="tier-dot"></span>
-          ${report.tierSummary.label}
+          ${escapeHtml(report.tierSummary.label)}
         </span>
       </div>
 

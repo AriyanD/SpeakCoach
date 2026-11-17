@@ -5,7 +5,7 @@ import { SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import type { ConnectionTestResult, SlotId } from '../config/types';
 import { loadApiKeyStrict, saveApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig } from '../storage/localStore';
-import { requestNativeMicPermission } from './audioRecorder';
+import { checkNativeMicPermission, requestNativeMicPermission } from './audioRecorder';
 import { testSlotConnection } from './connectionTester';
 import { networkMonitor } from './networkMonitor';
 import { getLastShadowingAttempt, type LastShadowingAttempt } from './shadowingTelemetry';
@@ -33,12 +33,23 @@ export async function checkMicPermission(requestIfPrompt = false): Promise<{
 }> {
   if (Capacitor.isNativePlatform()) {
     try {
-      const granted = await requestNativeMicPermission();
-      return granted
-        ? { status: 'granted', detail: 'Android RECORD_AUDIO permission granted' }
-        : { status: 'denied', detail: 'Android RECORD_AUDIO permission denied' };
+      if (requestIfPrompt) {
+        const granted = await requestNativeMicPermission();
+        return granted
+          ? { status: 'granted', detail: 'Android RECORD_AUDIO permission granted' }
+          : { status: 'denied', detail: 'Android RECORD_AUDIO permission denied' };
+      }
+      const status = await checkNativeMicPermission();
+      return {
+        status,
+        detail: status === 'granted'
+          ? 'Android RECORD_AUDIO permission granted'
+          : status === 'denied'
+            ? 'Android RECORD_AUDIO permission denied in app settings'
+            : 'Android RECORD_AUDIO permission has not been requested'
+      };
     } catch {
-      // Fallback to navigator check
+      // Fall back to the browser permission API if the native status check fails.
     }
   }
 
