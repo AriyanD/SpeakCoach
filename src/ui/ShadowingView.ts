@@ -749,15 +749,23 @@ export function renderShadowingView(
         ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score Repetition".'
         : 'Listening via Android system speech recognition (no raw audio retained by SpeakCoach in this mode)... Speak clearly, then tap "Stop & Score Repetition".';
     } catch (err) {
+      if (viewGeneration !== shadowingViewGeneration) return;
       state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
     }
+    if (viewGeneration !== shadowingViewGeneration) return;
     renderShadowingView(container, summary);
   });
 
   container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.addEventListener('click', async () => {
     clearShadowingRecordingTimer();
-    const rec = await audioRecorder.stop();
-    if (viewGeneration !== shadowingViewGeneration) return;
+    const rec = await audioRecorder.stop().catch((error) => {
+      if (viewGeneration === shadowingViewGeneration) {
+        state.statusMessage = `Could not stop recording: ${error instanceof Error ? error.message : String(error)}`;
+        renderShadowingView(container, summary);
+      }
+      return null;
+    });
+    if (!rec || viewGeneration !== shadowingViewGeneration) return;
     state.lastRecording = rec;
 
     // Resolve the configured online speech provider (Azure, Whisper or Gemini), with API 2 and offline fallbacks.
@@ -770,8 +778,14 @@ export function renderShadowingView(
       offlineTranscript: rec.offlineTranscript,
       offlineConfidence: rec.offlineConfidence,
       referenceText: targetText
+    }).catch((error) => {
+      if (viewGeneration === shadowingViewGeneration) {
+        state.statusMessage = `Speech transcription failed: ${error instanceof Error ? error.message : String(error)}`;
+        renderShadowingView(container, summary);
+      }
+      return null;
     });
-    if (viewGeneration !== shadowingViewGeneration) return;
+    if (!sttOutcome || viewGeneration !== shadowingViewGeneration) return;
 
     const rawRecognized = sttOutcome.transcript.trim();
 
