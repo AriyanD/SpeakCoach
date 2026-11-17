@@ -592,7 +592,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
       const examinerVoiceNoticeHtml = state.activeVoiceTier
         ? state.activeVoiceTier.tier >= 3
           ? `<div class="status-box info ielts-voice-tier-notice" role="status">Using the basic Android voice. Online TTS was unavailable for this question.${state.activeVoiceTier.reason ? `<p class="card-subtitle">Reason: ${escapeHtml(state.activeVoiceTier.reason)}</p>` : ''}</div>`
-          : `<div class="tier-badge online ielts-voice-tier-notice" role="status">Online AI examiner voice · ${escapeHtml(state.activeVoiceTier.providerName)}</div>`
+          : `<div class="tier-badge online ielts-voice-tier-notice" role="status">Examiner voice ready</div>`
         : '';
 
       let actionAreaHtml = '';
@@ -646,6 +646,9 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         <div class="ielts-question-meta">
           <span class="ielts-badge-part">${partLabel}</span>
           <span class="ielts-question-count">Question ${currentQNum} of ${totalQ}</span>
+        </div>
+        <div class="ielts-progress-track" role="progressbar" aria-label="Test progress" aria-valuemin="0" aria-valuemax="${totalQ}" aria-valuenow="${currentQNum}">
+          <span class="ielts-progress-fill" style="width: ${Math.min(100, Math.max(0, Math.round((currentQNum / totalQ) * 100)))}%"></span>
         </div>
         <div class="ielts-question-area">
 ${showQuestionText && !isPart2 ? `<div class="ielts-question-text">
