@@ -42,7 +42,7 @@ describe('SpeakCoach update downloads', () => {
       directory: Directory.Data,
       recursive: true
     });
-    expect(Filesystem.mkdir.mock.invocationCallOrder[0]).toBeLessThan(Filesystem.downloadFile.mock.invocationCallOrder[0]);
+    expect(vi.mocked(Filesystem.mkdir).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(Filesystem.downloadFile).mock.invocationCallOrder[0]);
     expect(Filesystem.stat).toHaveBeenCalled();
     expect(Filesystem.deleteFile).not.toHaveBeenCalled();
   });
