@@ -105,7 +105,7 @@ export async function renderIeltsHistoryView(
         const tierClass = hasScore && evalRes?.activeTier?.tier === 1 ? 'online' : 'offline';
 
         return `
-          <div class="card ielts-history-record" data-record-id="${item.id}">
+          <div class="card ielts-history-record" data-record-id="${escapeHtml(item.id)}">
             <div class="ielts-history-record-header">
               <div>
                 <span class="ielts-badge-part ielts-history-mode">${modeBadge}</span>${item.attemptNumber ? `<span class="card-subtitle ielts-history-attempt">Attempt ${item.attemptNumber}</span>` : ''}
@@ -160,7 +160,7 @@ export async function renderIeltsHistoryView(
 
             <div class="btn-row ielts-history-actions">
               ${item.plan ? `
-              <button type="button" class="btn btn-secondary history-repeat-btn" data-id="${item.id}">
+              <button type="button" class="btn btn-secondary history-repeat-btn" data-id="${escapeHtml(item.id)}">
                 Repeat same test
               </button>
               ` : ''}
