@@ -1607,10 +1607,18 @@ dialog.sc-dialog::backdrop { background: rgba(12,20,16,.56); backdrop-filter: bl
   line-height: 1.25;
 }
 .shadowing-main-card #sh-record-btn {
-  flex: 1.05 1 0;
+  flex: 1 1 100%;
+  min-height: 58px;
+  font-size: .94rem;
+  font-weight: 750;
 }
-.shadowing-main-card #sh-stop-score-btn {
-  flex: .95 1 0;
+.shadowing-main-card #sh-record-btn[aria-pressed="true"] {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.shadowing-main-card #sh-record-btn[aria-pressed="true"]:active {
+  transform: scale(.99);
 }
 .shadowing-main-card #sh-status-msg,
 .shadowing-main-card #sh-empty-error {
