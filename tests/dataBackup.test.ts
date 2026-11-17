@@ -90,6 +90,7 @@ describe('backup file compatibility', () => {
     await saveApiKey('llm_generator', 'gemini_gen', 'generator-secret-key');
 
     const backup = await createBackup('ai-settings');
+    (backup.appSettings as Record<string, unknown>).showQuestionText = true; // legacy field from older exports
     expect(backup.apiKeys).toMatchObject({
       voice_tts: { primary: 'voice-secret-key', secondary: 'voice-secondary-secret' },
       llm_generator: { primary: 'generator-secret-key' }
