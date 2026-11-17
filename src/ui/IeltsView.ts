@@ -150,25 +150,26 @@ export function renderIeltsView(
       };
       const persistCompletedResult = async (): Promise<void> => {
         try {
-          let record = await saveIeltsTestResult(completedRecordData);
-          // Comparison is supplementary: a comparison failure must never block
-          // access to the already-saved IELTS result.
+          const record = await saveIeltsTestResult(completedRecordData);
+          // The primary result must never wait for the optional comparison API.
+          ieltsSessionEngine.reset();
+          callbacks.onComplete(record);
+
           if (record.previousAttemptId) {
-            try {
-              const previous = await getIeltsTestResult(record.previousAttemptId);
-              if (previous) {
+            void (async () => {
+              try {
+                const previous = await getIeltsTestResult(record.previousAttemptId!);
+                if (!previous) return;
                 const comparison = await compareIeltsAttempts(previous, record);
-                record = await saveIeltsTestResult(
+                await saveIeltsTestResult(
                   { ...record, comparison, comparisonError: null },
                   { clearDraft: false }
                 );
+              } catch (error) {
+                console.warn('[SpeakCoach] IELTS attempt comparison could not be saved.', error);
               }
-            } catch (error) {
-              console.warn('[SpeakCoach] IELTS attempt comparison could not be saved.', error);
-            }
+            })();
           }
-          ieltsSessionEngine.reset();
-          callbacks.onComplete(record);
         } catch (error) {
           container.innerHTML = `<section class="card ielts-saving-state" role="alert" aria-live="assertive">
             <h2 class="card-title ielts-state-title">Your result could not be saved yet</h2>
