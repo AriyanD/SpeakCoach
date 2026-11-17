@@ -392,6 +392,50 @@ describe('IELTS History & Draft Storage (Stage 4.1)', () => {
     expect(deduped[1].id).toBe('rec_3_different');
   });
 
+  it('does not truncate imported history after the next completed test is saved', async () => {
+    const base = await saveIeltsTestResult({
+      id: 'history-retention-seed',
+      mode: 'part1',
+      overallBand: 6.0,
+      evaluation: mockEvaluation,
+      answers: [{
+        questionId: 'p1_1',
+        part: 'part1',
+        questionText: 'Seed question',
+        transcript: 'Seed answer',
+        durationSec: 15,
+        wpm: 120
+      }]
+    });
+    const importedHistory = Array.from({ length: 60 }, (_, index) => ({
+      ...base,
+      id: `backup-record-${index}`,
+      timestamp: Date.now() - index * 1000,
+      answers: base.answers.map((answer) => ({
+        ...answer,
+        questionText: `Question ${index}`,
+        transcript: `Unique answer ${index}`
+      }))
+    }));
+
+    await importIeltsHistorySnapshot({ history: importedHistory });
+    await saveIeltsTestResult({
+      ...base,
+      id: 'after-import-save',
+      timestamp: Date.now() + 1000,
+      answers: [{
+        questionId: 'p1_new',
+        part: 'part1',
+        questionText: 'A new question after restore',
+        transcript: 'A new answer after restore',
+        durationSec: 20,
+        wpm: 125
+      }]
+    });
+
+    expect(await getIeltsTestHistory()).toHaveLength(61);
+  });
+
   it('clears all test history when clearIeltsTestHistory is called', async () => {
     await saveIeltsTestResult({
       mode: 'part1',
