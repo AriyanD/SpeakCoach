@@ -1,4 +1,3 @@
-import { isOnlineIeltsSttTier } from '../src/services/tierManager';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createDefaultSlotConfig } from '../src/config/providers';
 import { nativeHttpRequest, SpeakCoachHttpError } from '../src/services/httpClient';
@@ -6,6 +5,7 @@ import { networkMonitor } from '../src/services/networkMonitor';
 import {
   clearAllRuntimeFailures,
   executeWithTierFallback,
+  isOnlineIeltsSttTier,
   markSlotRuntimeFailure,
   resolveGlobalTierSummary,
   resolveSlotTier,
