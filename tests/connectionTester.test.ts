@@ -251,6 +251,29 @@ describe('Functional Deep Connection Tester', () => {
     expect(res.message).toContain('Offline IELTS evaluation is not available');
   });
 
+  it('deep tests the independent Translation API slot with a plain-text translation probe', async () => {
+    const translationCfg = createDefaultSlotConfig('llm_translation');
+    const result = await testSlotConnection(translationCfg, {
+      apiKeyOverride: 'translation-key',
+      transport: async opts => {
+        expect(opts.url).toBe('https://api.openai.com/v1/chat/completions');
+        const request = opts.data as { messages: Array<{ content: string }>; model: string };
+        expect(request.messages[0].content).toContain('precise translator');
+        expect(request.messages[1].content).toContain('Translate the English word');
+        return { url: opts.url, status: 200, headers: {}, data: { choices: [{ message: { content: 'سلام' } }] } };
+      }
+    });
+    expect(result.ok).toBe(true);
+    expect(result.slotId).toBe('llm_translation');
+    expect(result.message).toContain('capability probe');
+  });
+
+  it('does not report offline translation as ready', async () => {
+    const result = await testSlotConnection({ slotId: 'llm_translation', providerId: 'offline_translation', baseUrl: 'offline://translation-unavailable', modelOrVoice: 'none' }, { isOnlineOverride: false });
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('No offline translation engine is available');
+  });
+
   it('deep tests STT slot with bundled WAV and validates transcription response', async () => {
     const sttCfg = {
       slotId: 'ielts_stt' as const,

@@ -15,8 +15,8 @@ describe('Provider Slots Configuration & Storage', () => {
     localStorage.clear();
   });
 
-  it('defines all 5 required provider slots with at least one online and one offline Tier 3 provider', () => {
-    expect(SLOT_ORDER).toHaveLength(5);
+  it('defines all 6 required provider slots with at least one online and one offline Tier 3 provider', () => {
+    expect(SLOT_ORDER).toHaveLength(6);
     for (const slotId of SLOT_ORDER) {
       const def = SLOT_DEFINITIONS[slotId];
       expect(def.providers.length).toBeGreaterThanOrEqual(2);
@@ -34,6 +34,7 @@ describe('Provider Slots Configuration & Storage', () => {
   it('persists and sanitizes per-slot configuration in localStore', async () => {
     const defaults = createDefaultAllSlotsConfig();
     expect(defaults.llm_evaluator.providerId).toBe('openai_compat_eval');
+    expect(defaults.llm_translation.providerId).toBe('openai_compat_translation');
 
     await saveSlotConfig({
       slotId: 'llm_evaluator',

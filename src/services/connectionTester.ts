@@ -136,7 +136,8 @@ export async function testSlotConnection(
 
   if (preset.tier === 3) {
     clearSlotRuntimeFailure(slotConfig.slotId);
-    if (slotConfig.slotId === 'llm_evaluator') {
+    if (slotConfig.slotId === 'llm_evaluator' || slotConfig.slotId === 'llm_translation') {
+      const isTranslation = slotConfig.slotId === 'llm_translation';
       return {
         ok: false,
         slotId: slotConfig.slotId,
@@ -144,7 +145,9 @@ export async function testSlotConnection(
         tier: 3,
         label: 'Basic offline',
         latencyMs: Math.max(1, Date.now() - startTime),
-        message: 'FAIL — IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available; connect and verify an online evaluator.'
+        message: isTranslation
+          ? 'FAIL — Translation requires an online AI API. No offline translation engine is available; connect and verify a translation provider.'
+          : 'FAIL — IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available; connect and verify an online evaluator.'
       };
     }
     return {
@@ -416,7 +419,39 @@ export async function testSlotConnection(
     }
 
     // -------------------------------------------------------------------------
-    // 3. STT Slot (ielts_stt)
+    // 3. Translation Slot (llm_translation)
+    // -------------------------------------------------------------------------
+    else if (slotConfig.slotId === 'llm_translation') {
+      currentStep = 'HTTP Request';
+      const probePrompt = 'Translate the English word "hello" into Persian. Return only the translation, without quotation marks or explanation.';
+      const wireFormat = resolveWireFormat({ ...slotConfig, baseUrl });
+      let translated = '';
+      if (wireFormat === 'gemini') {
+        const model = (slotConfig.modelOrVoice || preset.defaultModelOrVoice).trim();
+        const modelPath = model.startsWith('models/') ? model : 'models/' + model;
+        const prepared = buildGeminiEndpointRequest({ baseUrl, defaultPath: '/' + modelPath + ':generateContent', apiKey, slotConfig });
+        const res = await nativeHttpRequest({
+          url: prepared.url, method: 'POST', headers: prepared.headers,
+          data: { contents: [{ role: 'user', parts: [{ text: probePrompt }] }], generationConfig: { temperature: 0.1 } },
+          timeoutMs: 45000, maxRetries: 1
+        }, options?.transport);
+        translated = res.data?.candidates?.[0]?.content?.parts?.map((part: any) => typeof part.text === 'string' ? part.text : '').filter(Boolean).join('\n') ?? '';
+      } else {
+        const model = (slotConfig.modelOrVoice || preset.defaultModelOrVoice).trim();
+        const prepared = buildCustomEndpointRequest({ baseUrl, defaultPath: '/chat/completions', apiKey, slotConfig, defaultHeaders: { 'Content-Type': 'application/json' } });
+        const res = await nativeHttpRequest({
+          url: prepared.url, method: 'POST', headers: prepared.headers,
+          data: { model, messages: [{ role: 'system', content: 'You are a precise translator. Return only the translation, without explanations or labels.' }, { role: 'user', content: probePrompt }], temperature: 0.1 },
+          timeoutMs: 45000, maxRetries: 1
+        }, options?.transport);
+        const content = res.data?.choices?.[0]?.message?.content ?? '';
+        translated = typeof content === 'string' ? content : Array.isArray(content) ? content.map((part: any) => part.text ?? '').filter(Boolean).join('\n') : '';
+      }
+      currentStep = 'Translation Response Validation';
+      if (typeof translated !== 'string' || !translated.trim()) throw new Error('Translation provider returned an empty response to the translation probe.');
+    }
+    // -------------------------------------------------------------------------
+    // 4. STT Slot (ielts_stt)
     // -------------------------------------------------------------------------
     else if (slotConfig.slotId === 'ielts_stt') {
       currentStep = 'HTTP Request';
@@ -776,7 +811,9 @@ export async function testSlotConnection(
       latencyMs,
       message: slotConfig.slotId === 'llm_evaluator'
         ? `FAIL — ${failureMsg} (${latencyMs} ms). IELTS evaluation requires an online API; no offline evaluator is available. This connection test does not activate a fallback.`
-        : `FAIL — ${failureMsg} (${latencyMs} ms). This connection test does not itself activate an offline fallback.`
+        : slotConfig.slotId === 'llm_translation'
+          ? `FAIL — ${failureMsg} (${latencyMs} ms). Translation requires an online API; no offline translation engine is available. This connection test does not activate a fallback.`
+          : `FAIL — ${failureMsg} (${latencyMs} ms). This connection test does not itself activate an offline fallback.`
     };
   }
 }
