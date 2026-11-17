@@ -25,7 +25,7 @@ import { transcribeWithTier2WhisperOrFallback } from './whisperSttService';
 import { logIeltsSessionEvent } from './ieltsTelemetry';
 import { saveIeltsDraft } from '../storage/ieltsHistoryStore';
 import { loadAllSlotsConfig } from '../storage/localStore';
-import { resolveSlotTier } from './tierManager';
+import { isOnlineIeltsSttTier, resolveSlotTier } from './tierManager';
 
 
 type IeltsTransport = (opts: HttpOptions) => Promise<HttpResponse>;
@@ -536,7 +536,7 @@ export class IeltsSessionController {
 
       const configs = await loadAllSlotsConfig();
       const sttTier = await resolveSlotTier(configs.ielts_stt);
-      const isOnlineStt = sttTier.tier === 2 && sttTier.label === 'Online AI';
+      const isOnlineStt = isOnlineIeltsSttTier(sttTier.tier, sttTier.label);
 
       if (!this.isSessionActive || this.stepRunToken !== token) return;
 
