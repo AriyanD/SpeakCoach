@@ -27,7 +27,7 @@ export function buildShadowingTranslationPrompt(text: string, targetLanguage: st
     source
   ].join('\n');
   return [
-    'Translate the following text into ' + language + '.'
+    'Translate the following text into ' + language + '.',
     'Preserve the original meaning, tone, and punctuation. Return only the translated text, without labels, explanations, or quotation marks.',
     'If the input is a single word, give its most common natural translation. If it has several meanings, choose the most likely everyday meaning.',
     '',
