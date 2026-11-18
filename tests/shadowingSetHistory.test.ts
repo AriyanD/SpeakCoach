@@ -35,6 +35,22 @@ describe('Shadowing sentence-set history', () => {
     }
   });
 
+  it('migrates the previously saved AI batch into the unified history', async () => {
+    const legacy = BUILTIN_SHADOWING_SETS.easy[0].map((sentence, index) => ({
+      ...sentence,
+      id: `legacy-ai-${index}`,
+      text: `A previously generated sentence number ${index + 1} remains available.`,
+      providerName: 'Legacy provider',
+      modelName: 'legacy-model'
+    }));
+    localStorage.setItem('speakcoach_shadowing_active_set_v1', JSON.stringify(legacy));
+    const history = await loadShadowingSetHistory();
+    expect(history.easy.sets).toHaveLength(6);
+    expect(history.easy.sets.at(-1)?.source).toBe('ai');
+    expect(getActiveShadowingSet(history, 'easy').sentences[0].text).toContain('previously generated');
+    expect(localStorage.getItem('speakcoach_shadowing_active_set_v1')).toBeNull();
+  });
+
   it('seeds history once and restores the active sentence position after reload', async () => {
     let history = await loadShadowingSetHistory();
     expect(history.easy.sets).toHaveLength(5);
