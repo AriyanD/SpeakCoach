@@ -369,6 +369,7 @@ export function renderShadowingView(
     state.translationSourceText = translationSource;
     state.translationText = translationSource;
     state.translationResult = '';
+    state.grammarResult = '';
     state.translationStatus = null;
     state.translationStatusType = 'info';
   }
@@ -465,6 +466,13 @@ export function renderShadowingView(
         }
       </div>
 
+      <div class="btn-row sh-record-controls">
+        <button type="button" class="btn btn-primary sh-record-action ${isRec ? 'is-recording' : ''}" id="sh-record-btn" ${hasSentence ? '' : 'disabled'} aria-label="${isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
+          ${isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : 'Record Repetition'}
+        </button>
+        <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
+      </div>
+
       <details class="sh-transcript-details" ${state.recognizerError ? 'open' : ''}>
         <summary>Transcript &amp; recognition details</summary>
         <div class="form-field sh-transcript-field">
@@ -483,13 +491,6 @@ export function renderShadowingView(
           </div>
         </div>
       </details>
-
-      <div class="btn-row sh-record-controls">
-        <button type="button" class="btn btn-primary sh-record-action" id="sh-record-btn" ${hasSentence ? '' : 'disabled'} aria-label="${isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
-          ${isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score' : 'Record Repetition'}
-        </button>
-        <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
-      </div>
 
       ${
         state.emptyAttemptError
@@ -533,6 +534,7 @@ export function renderShadowingView(
     state.translationResult = '';
     state.translationStatus = null;
     container.querySelector('#sh-translation-result')?.remove();
+    container.querySelector('#sh-grammar-result')?.remove();
     container.querySelector('#sh-translation-status')?.remove();
   });
   container.querySelector<HTMLSelectElement>('#sh-translation-language')?.addEventListener('change', event => {
