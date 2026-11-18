@@ -629,44 +629,44 @@ export function renderShadowingView(
     }
   });
 
-  container.querySelector<HTMLButtonElement>('#sh-history-prev-btn')?.addEventListener('click', () => {
+  container.querySelector<HTMLButtonElement>('#sh-history-prev-btn')?.addEventListener('click', async () => {
     if (!sentenceSetHistory) return;
     sentenceSetHistory = moveShadowingSet(sentenceSetHistory, state.difficulty, -1);
     state.index = 0;
     state.customDrillText = null;
     state.aiGenerationError = null;
     clearAttemptState();
-    void saveShadowingSetHistory(sentenceSetHistory);
+    await saveShadowingSetHistory(sentenceSetHistory);
     renderShadowingView(container, summary);
   });
 
-  container.querySelector<HTMLButtonElement>('#sh-history-next-btn')?.addEventListener('click', () => {
+  container.querySelector<HTMLButtonElement>('#sh-history-next-btn')?.addEventListener('click', async () => {
     if (!sentenceSetHistory) return;
     sentenceSetHistory = moveShadowingSet(sentenceSetHistory, state.difficulty, 1);
     state.index = 0;
     state.customDrillText = null;
     state.aiGenerationError = null;
     clearAttemptState();
-    void saveShadowingSetHistory(sentenceSetHistory);
+    await saveShadowingSetHistory(sentenceSetHistory);
     renderShadowingView(container, summary);
   });
 
-  container.querySelector<HTMLButtonElement>('#sh-prev-btn')?.addEventListener('click', () => {
+  container.querySelector<HTMLButtonElement>('#sh-prev-btn')?.addEventListener('click', async () => {
     state.index = Math.max(0, state.index - 1);
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
-      void saveShadowingSetHistory(sentenceSetHistory);
+      await saveShadowingSetHistory(sentenceSetHistory);
     }
     state.customDrillText = null;
     clearAttemptState();
     renderShadowingView(container, summary);
   });
 
-  container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', () => {
+  container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', async () => {
     state.index = Math.min(19, state.index + 1);
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
-      void saveShadowingSetHistory(sentenceSetHistory);
+      await saveShadowingSetHistory(sentenceSetHistory);
     }
     state.customDrillText = null;
     clearAttemptState();
