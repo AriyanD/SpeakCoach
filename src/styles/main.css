@@ -3671,3 +3671,32 @@ body {
 .sh-history-arrow { min-width: 42px; min-height: 40px; padding: 7px 11px; }
 .shadowing-main-header { align-items: center; }
 .ielts-library-card > .card-header { align-items: center; }
+
+
+/* Recording feedback and compact media-style sentence navigation */
+.sh-record-controls .sh-record-action.is-recording,
+.ielts-timer-banner:has(.ielts-recording-label) {
+  border-color: var(--danger);
+  animation: recording-border-pulse 1.35s ease-in-out infinite;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 22%, transparent);
+}
+@keyframes recording-border-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 18%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--danger) 9%, transparent); }
+}
+.recording-wave { display:inline-flex; align-items:center; gap:3px; height:18px; margin-left:8px; vertical-align:middle; }
+.recording-wave i { display:block; width:3px; height:5px; border-radius:3px; background:currentColor; animation: recording-wave 850ms ease-in-out infinite alternate; }
+.recording-wave i:nth-child(2) { animation-delay:120ms; }
+.recording-wave i:nth-child(3) { animation-delay:240ms; }
+.recording-wave i:nth-child(4) { animation-delay:360ms; }
+.recording-wave i:nth-child(5) { animation-delay:480ms; }
+@keyframes recording-wave { from { height:4px; opacity:.55; } to { height:17px; opacity:1; } }
+.sh-player-symbol { width:24px; height:24px; display:block; fill:currentColor; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.sh-translation-actions { display:flex; gap:8px; align-items:stretch; }
+.sh-translation-actions .btn { flex:1 1 0; min-width:0; }
+.sh-grammar-result { line-height:1.6; }
+@media (prefers-reduced-motion: reduce) {
+  .sh-record-controls .sh-record-action.is-recording,
+  .ielts-timer-banner:has(.ielts-recording-label),
+  .recording-wave i { animation:none; }
+}
