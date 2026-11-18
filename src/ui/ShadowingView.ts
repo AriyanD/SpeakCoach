@@ -517,11 +517,13 @@ export function renderShadowingView(
           <label class="form-label" for="sh-translation-language">Translate into</label>
           <select class="form-select" id="sh-translation-language" ${state.isTranslating ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
         </div>
-        <button type="button" class="btn btn-primary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>
-          ${state.isTranslating ? 'Translating…' : 'Translate'}
-        </button>
+        <div class="sh-translation-actions">
+          <button type="button" class="btn btn-primary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>Translate</button>
+          <button type="button" class="btn btn-secondary sh-grammar-btn" id="sh-grammar-btn" ${state.isTranslating ? 'disabled' : ''}>Explain Grammar</button>
+        </div>
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
+      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, '<br>')}</div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
   `;
