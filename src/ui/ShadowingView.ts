@@ -347,10 +347,12 @@ export function renderShadowingView(
       sentenceSetHistory = history;
       if (viewGeneration === shadowingViewGeneration) renderShadowingView(container, summary);
     }).catch(error => {
+      if (viewGeneration !== shadowingViewGeneration) return;
+      sentenceSetHistoryPromise = null;
       container.innerHTML = '<section class="card shadowing-main-card"><div class="status-box fail" role="alert">Could not load the sentence library. Please restart the app and try again.</div></section>';
       console.error('[SpeakCoach] Shadowing history initialization failed.', error);
     });
-    return () => { if (viewGeneration === shadowingViewGeneration) shadowingViewGeneration++; stopAllTts(); };
+    return () => { shadowingViewGeneration++; stopAllTts(); };
   }
   const activeHistory = sentenceSetHistory[state.difficulty];
   const activeSet = getActiveShadowingSet(sentenceSetHistory, state.difficulty);
