@@ -565,8 +565,9 @@ export function renderShadowingView(
       const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === requestTargetLanguage)?.label ?? requestTargetLanguage;
       const result = await translateShadowingText(textToTranslate, targetLanguage, undefined, mode);
       if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
-        state.translationResult = result.text;
-        state.translationStatus = `Translation complete via ${result.providerName} (${result.account === 'secondary' ? 'API 2' : 'API 1'}).`;
+        if (mode === 'grammar') state.grammarResult = result.text;
+        else state.translationResult = result.text;
+        state.translationStatus = `${mode === 'grammar' ? 'Grammar explanation' : 'Translation'} complete via ${result.providerName} (${result.account === 'secondary' ? 'API 2' : 'API 1'}).`;
         state.translationStatusType = 'pass';
       }
     } catch (error) {
