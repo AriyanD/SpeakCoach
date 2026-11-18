@@ -427,7 +427,7 @@ export function renderShadowingView(
         <div class="sh-history-controls" aria-label="Sentence set history">
           <span class="sh-history-caption">From history</span>
           <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
-          <span class="card-subtitle sh-history-position">Set ${activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1} of ${activeHistory.sets.length}</span>
+          <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1} of ${activeHistory.sets.length}</span>
           <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
         </div>
         <p class="card-subtitle sh-ai-sentence-count">Sentence ${state.index + 1} of 20</p>
