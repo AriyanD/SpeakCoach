@@ -1227,6 +1227,12 @@ export async function renderSettingsView(
     const secondaryModelInput = container.querySelector<HTMLInputElement>(`#secondary-model-${slotId}`);
     const fetchSecondaryModelsBtn = container.querySelector<HTMLButtonElement>(`#fetch-secondary-models-btn-${slotId}`);
     const secondaryModelsList = container.querySelector<HTMLElement>(`#secondary-models-list-${slotId}`);
+    const secondaryModelPickerTrigger = secondaryModelsList?.parentElement?.querySelector<HTMLButtonElement>('.model-picker-trigger');
+    secondaryModelPickerTrigger?.addEventListener('click', () => {
+      if (!secondaryModelsList) return;
+      secondaryModelsList.hidden = !secondaryModelsList.hidden;
+      secondaryModelPickerTrigger.setAttribute('aria-expanded', String(!secondaryModelsList.hidden));
+    });
     const fetchSecondaryModelsMsg = container.querySelector<HTMLElement>(`#fetch-secondary-models-msg-${slotId}`);
     secondaryModelsList?.addEventListener('click', (event) => {
       const option = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-model-value]');
