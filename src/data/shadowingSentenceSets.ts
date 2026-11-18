@@ -103,7 +103,7 @@ function buildSets(
       topic,
       text,
       phoneticFocus: FOCUS[(sentenceIndex + setIndex * 3) % FOCUS.length],
-      expectedTotalDurationMs: Math.max(2600, Math.round(text.split(/\\s+/).length * (difficulty === 'easy' ? 390 : difficulty === 'medium' ? 430 : 470)))
+      expectedTotalDurationMs: Math.max(2600, Math.round(text.split(/\s+/).length * (difficulty === 'easy' ? 390 : difficulty === 'medium' ? 430 : 470)))
     };
   }));
 }
