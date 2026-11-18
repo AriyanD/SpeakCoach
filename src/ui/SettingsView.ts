@@ -1225,6 +1225,46 @@ export async function renderSettingsView(
     const secondaryProviderOptions = container.querySelector<HTMLElement>(`#secondary-provider-options-${slotId}`);
     const secondaryBaseUrlInput = container.querySelector<HTMLInputElement>(`#secondary-baseurl-${slotId}`);
     const secondaryModelInput = container.querySelector<HTMLInputElement>(`#secondary-model-${slotId}`);
+    const fetchSecondaryModelsBtn = container.querySelector<HTMLButtonElement>(`#fetch-secondary-models-btn-${slotId}`);
+    const secondaryModelsList = container.querySelector<HTMLElement>(`#secondary-models-list-${slotId}`);
+    const fetchSecondaryModelsMsg = container.querySelector<HTMLElement>(`#fetch-secondary-models-msg-${slotId}`);
+    secondaryModelsList?.addEventListener('click', (event) => {
+      const option = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-model-value]');
+      if (!option || !secondaryModelInput) return;
+      secondaryModelInput.value = option.dataset.modelValue ?? '';
+      secondaryModelInput.dispatchEvent(new Event('input', { bubbles: true }));
+      secondaryModelsList.hidden = true;
+    });
+    fetchSecondaryModelsBtn?.addEventListener('click', async () => {
+      if (!fetchSecondaryModelsMsg || !secondaryProviderSelect?.value) return;
+      fetchSecondaryModelsBtn.disabled = true;
+      fetchSecondaryModelsMsg.hidden = false;
+      fetchSecondaryModelsMsg.textContent = 'Fetching API 2 models...';
+      try {
+        const preset = getPreset(slotId, secondaryProviderSelect.value);
+        const cfg: SlotConfig = {
+          slotId,
+          providerId: preset.id,
+          baseUrl: secondaryBaseUrlInput?.value.trim() || preset.defaultBaseUrl,
+          modelOrVoice: secondaryModelInput?.value.trim() || preset.defaultModelOrVoice,
+          authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
+          customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
+          customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
+          endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined
+        };
+        const key = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, preset.id, 'secondary');
+        const res = await fetchAvailableModels(cfg, key);
+        fetchSecondaryModelsMsg.textContent = res.message;
+        if (res.supported && res.models.length && secondaryModelsList) {
+          secondaryModelsList.innerHTML = res.models.map(model => `<button type="button" class="model-option" data-model-value="${escapeHtml(model)}">${escapeHtml(model)}</button>`).join('');
+          secondaryModelsList.hidden = false;
+        }
+      } catch (error) {
+        fetchSecondaryModelsMsg.textContent = error instanceof Error ? error.message : String(error);
+      } finally {
+        fetchSecondaryModelsBtn.disabled = false;
+      }
+    });
     const secondaryCustomVoiceInput = container.querySelector<HTMLInputElement>(`#secondary-custom-voice-${slotId}`);
     const secondaryCustomVoiceContainer = container.querySelector<HTMLElement>(`#secondary-tts-voice-container-${slotId}`);
     const secondaryKeyInput = container.querySelector<HTMLInputElement>(`#secondary-key-${slotId}`);
