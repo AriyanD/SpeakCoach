@@ -1,18 +1,18 @@
 import type { ShadowingDifficulty, ShadowingSentence } from './shadowingBank';
 
 const EASY_CONTEXTS = [
-  ['Daily life', 'a quiet morning at home'], ['Travel', 'a short trip by train'], ['Food', 'a simple meal with friends'],
-  ['Learning', 'a new skill after work'], ['Community', 'a friendly neighbourhood']
+  ['Daily routine', 'a daily exercise routine'], ['Food', 'cooking simple meals'], ['Learning', 'learning a new skill'],
+  ['Outdoor life', 'spending time outdoors'], ['Travel', 'planning a weekend trip']
 ] as const;
 const MEDIUM_CONTEXTS = [
-  ['Technology', 'the growing use of digital tools'], ['Education', 'practical learning beyond the classroom'],
-  ['Environment', 'local efforts to reduce waste'], ['Work', 'a flexible approach to modern careers'],
-  ['Cities', 'the changing character of urban neighbourhoods']
+  ['Transport', 'the use of public transport'], ['Education', 'learning beyond the classroom'],
+  ['Environment', 'reducing household waste'], ['Work', 'working in flexible teams'],
+  ['Public space', 'improving shared public spaces']
 ] as const;
 const HARD_CONTEXTS = [
-  ['Public policy', 'the long-term consequences of public investment'], ['Sustainability', 'the transition towards resource-conscious lifestyles'],
-  ['Culture', 'the preservation of shared cultural knowledge'], ['Economics', 'the distributional effects of technological change'],
-  ['Research', 'the relationship between evidence and institutional decision-making']
+  ['Public policy', 'long-term public investment decisions'], ['Sustainability', 'a transition towards resource-conscious consumption'],
+  ['Culture', 'the preservation of cultural knowledge'], ['Economics', 'the distribution of economic opportunity'],
+  ['Institutional reform', 'evidence-based institutional reform']
 ] as const;
 
 const EASY_PATTERNS: Array<(subject: string) => string> = [
