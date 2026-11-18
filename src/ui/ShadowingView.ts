@@ -441,7 +441,8 @@ export function renderShadowingView(
         ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
       </div>
       ${!state.customDrillText ? `<div class="card-subtitle shadowing-topic-label">Topic: <strong>${escapeHtml(sentence?.topic ?? 'Offline practice')}</strong></div>` : ''}
-      <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div><p class="card-subtitle sh-ai-sentence-count">Sentence ${state.index + 1} of 20</p>
+      <p class="card-subtitle sh-ai-sentence-count">Sentence ${state.index + 1} of 20</p>
+      <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div>
       <p class="card-subtitle sh-focus-copy">
         ${
           state.customDrillText
