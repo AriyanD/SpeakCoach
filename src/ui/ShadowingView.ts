@@ -357,7 +357,7 @@ export function renderShadowingView(
   state.index = activeHistory.activeSentenceIndex;
   const sentence: ShadowingSentence | undefined = activeSet.sentences[state.index];
   const hasSentence = !!sentence;
-  const targetText = state.customDrillText ?? sentence?.text ?? 'Generate an AI sentence to begin shadowing.';
+  const targetText = state.customDrillText ?? sentence?.text ?? 'No sentence is available in this set.';
   const translationSource = state.customDrillText ?? sentence?.text ?? '';
   if (state.translationSourceText !== translationSource) {
     state.translationSourceText = translationSource;
