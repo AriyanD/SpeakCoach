@@ -432,8 +432,14 @@ export async function renderSettingsView(
             </div>
             <div class="form-field"><label class="form-label" for="secondary-baseurl-${slotId}">Secondary Base URL</label>
               <input type="url" class="form-input" id="secondary-baseurl-${slotId}" value="${escapeHtml(slotCfg.secondary?.baseUrl || secondaryPreset?.defaultBaseUrl || '')}" placeholder="https://api.example.com/v1" /></div>
-            <div class="form-field"><label class="form-label" for="secondary-model-${slotId}">Secondary model / voice</label>
-              <input type="text" class="form-input" id="secondary-model-${slotId}" value="${escapeHtml(slotCfg.secondary?.modelOrVoice ?? '')}" placeholder="Model name" /></div>
+            <div class="form-field">
+              <div class="settings-field-heading">
+                <label class="form-label" for="secondary-model-${slotId}">Secondary model / voice</label>
+                ${slotId === 'voice_tts' ? '' : `<button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-models-btn-${slotId}">Fetch API 2 models</button>`}
+              </div>
+              <input type="text" class="form-input" id="secondary-model-${slotId}" value="${escapeHtml(slotCfg.secondary?.modelOrVoice ?? '')}" placeholder="${escapeHtml(secondaryPreset?.defaultModelOrVoice ?? 'Model name')}" />
+              ${slotId === 'voice_tts' ? '' : `<div class="model-picker-dropdown"><button type="button" class="model-picker-trigger" aria-expanded="false">Browse API 2 models</button><div class="model-picker-options" id="secondary-models-list-${slotId}" hidden></div></div><div id="fetch-secondary-models-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>`}
+            </div>
             ${slotId === 'voice_tts' ? `<div class="form-field" id="secondary-tts-voice-container-${slotId}" style="${secondaryPreset && secondaryPreset.id !== 'android_native_tts' ? '' : 'display:none;'}">
               <label class="form-label" for="secondary-custom-voice-${slotId}">API 2 voice (choose from the available list or enter a custom name)</label>
               <input type="text" class="form-input" id="secondary-custom-voice-${slotId}" value="${escapeHtml(slotCfg.secondary?.customTtsVoice ?? '')}" placeholder="Choose or enter a voice name" autocomplete="off" />
