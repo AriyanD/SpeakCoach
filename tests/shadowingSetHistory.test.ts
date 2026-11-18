@@ -19,7 +19,7 @@ vi.mock('@capacitor/preferences', () => ({
 }));
 
 describe('Shadowing sentence-set history', () => {
-  beforeEach(() => memory.clear());
+  beforeEach(() => { memory.clear(); localStorage.clear(); });
 
   it('provides five offline sets of twenty unique sentences for each difficulty', () => {
     const all = Object.values(BUILTIN_SHADOWING_SETS).flat(2);
