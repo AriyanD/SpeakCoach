@@ -25,7 +25,7 @@ import { translateShadowingText } from '../services/translationService';
 import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavVadAnalyzer';
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
 import { getCachedModelWordTimings } from '../services/modelTimingService';
-import { generateAiShadowingSentenceBatch, type GeneratedShadowingSentence } from '../services/shadowingAiGenerator';
+import { generateAiShadowingSentenceBatch } from '../services/shadowingAiGenerator';
 import { clearDiagnosticsCache } from './DiagnosticsView';
 
 interface ShadowingState {
@@ -77,8 +77,6 @@ const state: ShadowingState = {
   translationStatusType: 'info',
   isTranslating: false,
 };
-
-const SHADOWING_RANDOM_TOPICS = ['Everyday communication', 'Travel and culture', 'Work and careers', 'Learning and education', 'Sustainable living', 'Technology in daily life', 'Friendship and relationships', 'Health and routines', 'Cities and communities', 'Nature and the environment'];
 
 const TRANSLATION_LANGUAGES = [
   { code: 'fa', label: 'Persian (فارسی)' },
@@ -627,6 +625,28 @@ export function renderShadowingView(
       state.isGeneratingAi = false;
       renderShadowingView(container, summary);
     }
+  });
+
+  container.querySelector<HTMLButtonElement>('#sh-history-prev-btn')?.addEventListener('click', () => {
+    if (!sentenceSetHistory) return;
+    sentenceSetHistory = moveShadowingSet(sentenceSetHistory, state.difficulty, -1);
+    state.index = 0;
+    state.customDrillText = null;
+    state.aiGenerationError = null;
+    clearAttemptState();
+    void saveShadowingSetHistory(sentenceSetHistory);
+    renderShadowingView(container, summary);
+  });
+
+  container.querySelector<HTMLButtonElement>('#sh-history-next-btn')?.addEventListener('click', () => {
+    if (!sentenceSetHistory) return;
+    sentenceSetHistory = moveShadowingSet(sentenceSetHistory, state.difficulty, 1);
+    state.index = 0;
+    state.customDrillText = null;
+    state.aiGenerationError = null;
+    clearAttemptState();
+    void saveShadowingSetHistory(sentenceSetHistory);
+    renderShadowingView(container, summary);
   });
 
   container.querySelector<HTMLButtonElement>('#sh-prev-btn')?.addEventListener('click', () => {
