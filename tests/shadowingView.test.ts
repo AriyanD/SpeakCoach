@@ -14,32 +14,29 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     networkMonitor.setOnline(true);
   });
 
-  it('offers an AI Sentences tab and never substitutes a bank sentence when AI is unavailable', async () => {
+  it('starts with offline sentence sets, removes source choice, and reports missing AI configuration', async () => {
     const root = document.createElement('div');
     await bootstrapApp(root, 'shadowing');
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const initialShadowingText = root.querySelector('#sh-target-text')?.textContent ?? '';
+    expect(initialShadowingText).toBe('I usually start my morning with a cup of hot coffee.');
     expect(root.querySelector<HTMLTextAreaElement>('#sh-translation-input')?.value).toBe(initialShadowingText);
-    const pronunciationNotice = root.querySelector<HTMLDetailsElement>('[aria-label="Offline pronunciation accuracy notice"]');
-    expect(pronunciationNotice).not.toBeNull();
-    expect(pronunciationNotice?.open).toBe(false);
-    expect(pronunciationNotice?.querySelector('.offline-quality-learn-more')?.textContent).toBe('Learn more');
-    expect(root.querySelector('.sentence-source-card strong')?.textContent).toBe('Sentence Library');
-    root.querySelector<HTMLButtonElement>('[data-source="ai"]')?.click();
+    expect(root.querySelector('.sentence-source-switch')).toBeNull();
+    expect(root.querySelectorAll('.sentence-source-card')).toHaveLength(0);
     expect(root.querySelector('#sh-generate-ai-btn')).not.toBeNull();
-    expect(root.querySelectorAll('.sentence-source-card')).toHaveLength(2);
-    expect(root.querySelector('#sh-target-text')?.textContent).toContain('Generate an AI sentence');
+    expect(root.querySelector('#sh-history-prev-btn')).not.toBeNull();
+    expect(root.querySelector('#sh-history-next-btn')).not.toBeNull();
+    expect(root.querySelector('#sh-history-position')?.textContent).toContain('Set 1 of 5');
     expect(root.querySelector('#sh-translation-card')).not.toBeNull();
-    expect(root.querySelector<HTMLTextAreaElement>('#sh-translation-input')?.value).toBe('');
-    expect(root.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.disabled).toBe(true);
+    expect(root.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.disabled).toBe(false);
 
     root.querySelector<HTMLButtonElement>('#sh-generate-ai-btn')?.click();
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => setTimeout(resolve, 80));
 
     expect(root.querySelector('#sh-ai-generation-error')?.textContent).toContain('AI sentence set generation failed');
     expect(root.querySelector('#sh-ai-generation-error')?.classList.contains('fail')).toBe(true);
-    expect(root.querySelector('#sh-target-text')?.textContent).toContain('Generate an AI sentence');
-    expect(root.querySelector('#sh-target-text')?.textContent).not.toContain('I usually start my morning');
+    expect(root.querySelector('#sh-target-text')?.textContent).toBe(initialShadowingText);
   });
 
   it('starts the transcript box EMPTY and refuses to score when recognizer returns empty (silence)', async () => {

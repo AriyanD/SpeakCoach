@@ -3642,3 +3642,32 @@ body {
 .ielts-question-text-disclosure .ielts-question-text {
   margin: 0;
 }
+
+
+/* Shadowing sentence-set history: one source, consistent full-width generation controls. */
+.shadowing-main-card .sh-topic-field { width: 100%; min-width: 0; }
+.shadowing-main-card .sh-topic-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.shadowing-main-card .sh-generate-actions { display: block; width: 100%; }
+.shadowing-main-card .sh-generate-actions > #sh-generate-ai-btn {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.sh-history-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 10px;
+}
+.sh-history-caption { margin-right: auto; color: var(--text-secondary); font-size: .82rem; font-weight: 650; }
+.sh-history-position { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sh-history-arrow { min-width: 42px; min-height: 40px; padding: 7px 11px; }
+.shadowing-main-header { align-items: center; }
+.ielts-library-card > .card-header { align-items: center; }
