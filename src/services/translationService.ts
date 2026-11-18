@@ -12,14 +12,22 @@ export interface ShadowingTranslationResult {
   account: 'primary' | 'secondary';
 }
 
-export function buildShadowingTranslationPrompt(text: string, targetLanguage: string): string {
+export function buildShadowingTranslationPrompt(text: string, targetLanguage: string, mode: 'translate' | 'grammar' = 'translate'): string {
   const source = text.trim();
   const language = targetLanguage.trim();
   if (!source) throw new Error('Enter a word or sentence to translate.');
   if (!language) throw new Error('Choose a target language.');
   if (source.length > 4000) throw new Error('Text is too long to translate (maximum 4,000 characters).');
+  if (mode === 'grammar') return [
+    'Explain the English grammar of the following text in ' + language + '.',
+    'Give a learner-friendly explanation of sentence structure, tense and aspect, clauses, word order, and important grammatical patterns. Explain why they are used and include short examples only when useful.',
+    'For a single word or fragment, explain its grammatical role and common usage. Use concise headings and bullet points.',
+    '',
+    'Text:',
+    source
+  ].join('\n');
   return [
-    'Translate the following text into ' + language + '.',
+    'Translate the following text into ' + language + '.'
     'Preserve the original meaning, tone, and punctuation. Return only the translated text, without labels, explanations, or quotation marks.',
     'If the input is a single word, give its most common natural translation. If it has several meanings, choose the most likely everyday meaning.',
     '',
@@ -46,9 +54,10 @@ export function extractShadowingTranslationText(payload: any, wireFormat: 'gemin
 export async function translateShadowingText(
   text: string,
   targetLanguage: string,
-  transport?: (opts: any) => Promise<any>
+  transport?: (opts: any) => Promise<any>,
+  mode: 'translate' | 'grammar' = 'translate'
 ): Promise<ShadowingTranslationResult> {
-  const prompt = buildShadowingTranslationPrompt(text, targetLanguage);
+  const prompt = buildShadowingTranslationPrompt(text, targetLanguage, mode);
   const configs = await loadAllSlotsConfig();
   const config = configs.llm_translation;
   const resolved = await resolveSlotTier(config);
