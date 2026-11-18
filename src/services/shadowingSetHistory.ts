@@ -116,7 +116,7 @@ export function appendShadowingSet(
   const entry = history[difficulty];
   const nextSets: ShadowingSentenceSet[] = [
     ...entry.sets,
-    { id, source: 'ai', createdAt: Date.now(), sentences: sentences.map(sentence => ({ ...sentence })) }
+    { id, source: 'ai' as const, createdAt: Date.now(), sentences: sentences.map(sentence => ({ ...sentence })) }
   ].slice(-MAX_SHADOWING_SETS_PER_DIFFICULTY);
   const next = {
     ...history,
