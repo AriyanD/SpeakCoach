@@ -65,7 +65,27 @@ export async function loadShadowingSetHistory(): Promise<ShadowingSetHistory> {
     console.warn('[SpeakCoach] Could not load Shadowing history; starting with offline sets.', error);
   }
   const seeded = makeSeedHistory();
+  // Preserve the last AI batch created by the previous app version when upgrading.
+  try {
+    const legacy = JSON.parse(localStorage.getItem('speakcoach_shadowing_active_set_v1') || 'null') as unknown;
+    if (Array.isArray(legacy) && legacy.length === 20 && legacy.every(isSentence)) {
+      const difficulty = legacy[0].difficulty;
+      if (DIFFICULTIES.includes(difficulty) && legacy.every(sentence => sentence.difficulty === difficulty)) {
+        const entry = seeded[difficulty];
+        const migrated: ShadowingSentenceSet = {
+          id: `migrated-ai-${Date.now()}`,
+          source: 'ai',
+          createdAt: Date.now(),
+          sentences: legacy.map(sentence => ({ ...sentence }))
+        };
+        entry.sets.push(migrated);
+        entry.activeSetId = migrated.id;
+        entry.activeSentenceIndex = 0;
+      }
+    }
+  } catch { /* Ignore malformed legacy data and retain the offline starter sets. */ }
   await saveShadowingSetHistory(seeded);
+  try { localStorage.removeItem('speakcoach_shadowing_active_set_v1'); } catch { /* Preferences is the new source of truth. */ }
   return seeded;
 }
 
