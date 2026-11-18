@@ -1,8 +1,13 @@
+import type { ShadowingDifficulty, ShadowingSentence } from '../data/shadowingBank';
 import {
-  getShadowingSentencesByDifficulty,
-  type ShadowingDifficulty,
-  type ShadowingSentence
-} from '../data/shadowingBank';
+  appendShadowingSet,
+  getActiveShadowingSet,
+  loadShadowingSetHistory,
+  moveShadowingSet,
+  saveShadowingSetHistory,
+  selectShadowingSentence,
+  type ShadowingSetHistory
+} from '../services/shadowingSetHistory';
 import {
   audioRecorder,
   type RecognizerAlternative,
@@ -23,13 +28,8 @@ import { getCachedModelWordTimings } from '../services/modelTimingService';
 import { generateAiShadowingSentenceBatch, type GeneratedShadowingSentence } from '../services/shadowingAiGenerator';
 import { clearDiagnosticsCache } from './DiagnosticsView';
 
-const SHADOWING_ACTIVE_SET_KEY = 'speakcoach_shadowing_active_set_v1';
-
 interface ShadowingState {
   difficulty: ShadowingDifficulty;
-  sourceMode: 'bank' | 'ai';
-  aiSentence: GeneratedShadowingSentence | null;
-  aiSentenceQueue: GeneratedShadowingSentence[];
   topicInput: string;
   isGeneratingAi: boolean;
   aiGenerationError: string | null;
@@ -55,9 +55,6 @@ interface ShadowingState {
 
 const state: ShadowingState = {
   difficulty: 'easy',
-  sourceMode: 'bank',
-  aiSentence: null,
-  aiSentenceQueue: loadSavedAiSentenceQueue(),
   topicInput: '',
   isGeneratingAi: false,
   aiGenerationError: null,
@@ -106,15 +103,11 @@ function renderTranslationLanguageOptions(selected: string): string {
   ).join('');
 }
 
-function loadSavedAiSentenceQueue(): GeneratedShadowingSentence[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SHADOWING_ACTIVE_SET_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.text === 'string' && typeof item.topic === 'string').slice(0, 20) : [];
-  } catch { return []; }
-}
-
-function saveAiSentenceQueue(queue: GeneratedShadowingSentence[]): void {
-  try { localStorage.setItem(SHADOWING_ACTIVE_SET_KEY, JSON.stringify(queue.slice(0, 20))); } catch { /* best effort */ }
+let sentenceSetHistory: ShadowingSetHistory | null = null;
+let sentenceSetHistoryPromise: Promise<ShadowingSetHistory> | null = null;
+function ensureSentenceSetHistory(): Promise<ShadowingSetHistory> {
+  if (!sentenceSetHistoryPromise) sentenceSetHistoryPromise = loadShadowingSetHistory();
+  return sentenceSetHistoryPromise;
 }
 
 let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -135,12 +128,6 @@ function clearAttemptState(): void {
   state.emptyAttemptError = null;
   state.lastRecording = null;
   state.lastReport = null;
-}
-
-function getCurrentSentence(): ShadowingSentence {
-  const list = getShadowingSentencesByDifficulty(state.difficulty);
-  const safeIndex = ((state.index % list.length) + list.length) % list.length;
-  return list[safeIndex];
 }
 
 function escapeHtml(text: string): string {
@@ -356,8 +343,21 @@ export function renderShadowingView(
   summary: GlobalTierSummary
 ): () => void {
   const viewGeneration = ++shadowingViewGeneration;
-  const sentence = state.sourceMode === 'ai' ? (state.aiSentenceQueue[state.index] ?? state.aiSentence) : getCurrentSentence();
-  const list = getShadowingSentencesByDifficulty(state.difficulty);
+  if (!sentenceSetHistory) {
+    container.innerHTML = '<section class="card shadowing-main-card"><p class="card-subtitle" role="status">Preparing your offline sentence library…</p></section>';
+    void ensureSentenceSetHistory().then(history => {
+      sentenceSetHistory = history;
+      if (viewGeneration === shadowingViewGeneration) renderShadowingView(container, summary);
+    }).catch(error => {
+      container.innerHTML = '<section class="card shadowing-main-card"><div class="status-box fail" role="alert">Could not load the sentence library. Please restart the app and try again.</div></section>';
+      console.error('[SpeakCoach] Shadowing history initialization failed.', error);
+    });
+    return () => { if (viewGeneration === shadowingViewGeneration) shadowingViewGeneration++; stopAllTts(); };
+  }
+  const activeHistory = sentenceSetHistory[state.difficulty];
+  const activeSet = getActiveShadowingSet(sentenceSetHistory, state.difficulty);
+  state.index = activeHistory.activeSentenceIndex;
+  const sentence: ShadowingSentence | undefined = activeSet.sentences[state.index];
   const hasSentence = !!sentence;
   const targetText = state.customDrillText ?? sentence?.text ?? 'Generate an AI sentence to begin shadowing.';
   const translationSource = state.customDrillText ?? sentence?.text ?? '';
@@ -406,51 +406,42 @@ export function renderShadowingView(
         <summary><strong>Pronunciation accuracy notice</strong><span class="offline-quality-learn-more">Learn more</span></summary>
         <p>Offline feedback uses Android's system SpeechRecognizer and approximate word/timing checks. It is still useful for practising repetition, fluency and matching the target sentence, but it is not a precise pronunciation score. For more dependable transcription and word-level timing, connect and test an online speech-to-text provider in Slot 2 (for example, Groq Whisper when available for your account). This improves the information available to the practice feedback, but true phoneme-level pronunciation assessment requires a dedicated pronunciation-assessment service.</p>
       </details>` : ''}
-      <div class="sentence-source-switch" aria-label="Sentence source">
-        <button type="button" class="sentence-source-card ${state.sourceMode === 'bank' ? 'active' : ''}" data-source="bank">
-          <span class="source-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H20M8 7h8M8 10h6"/></svg></span><span class="source-copy"><strong>Sentence Library</strong><small>Preloaded practice sentences</small></span><span class="source-check">${state.sourceMode === 'bank' ? '✓' : ''}</span>
-        </button>
-        <button type="button" class="sentence-source-card ${state.sourceMode === 'ai' ? 'active' : ''}" data-source="ai">
-          <span class="source-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"/><path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z"/></svg></span><span class="source-copy"><strong>AI Sentences</strong><small>Generate a new sentence on demand</small></span><span class="source-check">${state.sourceMode === 'ai' ? '✓' : ''}</span>
-        </button>
-      </div>
-
       <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
         <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy">Easy</button>
         <button type="button" class="pill-btn ${state.difficulty === 'medium' ? 'active' : ''}" data-diff="medium">Medium</button>
         <button type="button" class="pill-btn ${state.difficulty === 'hard' ? 'active' : ''}" data-diff="hard">Hard</button>
       </div>
 
-      ${state.sourceMode === 'ai' ? `
-        <div class="ai-sentence-panel">
-          <div class="ai-sentence-panel-copy">
-            <strong>Generate a new sentence set</strong>
-            <span>Each request creates 20 sentences. Next and Previous move through this set without extra API calls.</span>
-          </div>
-          <div class="form-field sh-topic-field">
-            <label class="form-label" for="sh-topic-input">Optional topic</label>
-            <div class="btn-row sh-topic-input-row">
-              <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for fully random topics." value="${escapeHtml(state.topicInput)}" />
-              <button type="button" class="btn btn-secondary" id="sh-random-topic-btn">Random topic</button>
-            </div>
-          </div>
-          <div class="btn-row sh-generate-actions">
-            <button type="button" class="btn btn-primary" id="sh-generate-ai-btn" ${state.isGeneratingAi ? 'disabled' : ''}>
-              ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
-            </button>
-          </div>
-          ${state.aiSentenceQueue.length ? `<p class="card-subtitle sh-ai-sentence-count">Sentence ${Math.min(state.index + 1, state.aiSentenceQueue.length)} of ${state.aiSentenceQueue.length}</p>` : ''}
-          ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
+      <div class="ai-sentence-panel">
+        <div class="ai-sentence-panel-copy">
+          <strong>Get a new sentence set</strong>
+          <span>Each set contains 20 sentences.</span>
         </div>
-      ` : ''}
-
-      ${!state.customDrillText ? `<div class="card-subtitle shadowing-topic-label">Topic: <strong>${escapeHtml(sentence?.topic ?? 'AI sentence')}</strong></div>` : ''}
+        <div class="form-field sh-topic-field">
+          <label class="form-label" for="sh-topic-input">Optional topic</label>
+          <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
+        </div>
+        <div class="btn-row sh-generate-actions">
+          <button type="button" class="btn btn-primary" id="sh-generate-ai-btn" ${state.isGeneratingAi ? 'disabled' : ''}>
+            ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
+          </button>
+        </div>
+        <div class="sh-history-controls" aria-label="Sentence set history">
+          <span class="sh-history-caption">From history</span>
+          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
+          <span class="card-subtitle sh-history-position">Set ${activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1} of ${activeHistory.sets.length}</span>
+          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
+        </div>
+        <p class="card-subtitle sh-ai-sentence-count">Sentence ${state.index + 1} of 20</p>
+        ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
+      </div>
+      ${!state.customDrillText ? `<div class="card-subtitle shadowing-topic-label">Topic: <strong>${escapeHtml(sentence?.topic ?? 'Offline practice')}</strong></div>` : ''}
       <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div>
       <p class="card-subtitle sh-focus-copy">
         ${
           state.customDrillText
             ? 'Weak-word practice is active — choose Full Sentence to return.'
-            : `Focus: ${escapeHtml(sentence?.phoneticFocus ?? 'Generate a sentence to see its pronunciation focus')}${state.sourceMode === 'ai' ? '' : ` · ${(state.index % list.length) + 1}/${list.length}`}`
+            : `Focus: ${escapeHtml(sentence?.phoneticFocus ?? 'Generate a sentence to see its pronunciation focus')}`
         }
       </p>
 
@@ -599,23 +590,11 @@ export function renderShadowingView(
     });
   });
 
-  container.querySelectorAll<HTMLButtonElement>('[data-source]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.sourceMode = btn.dataset.source === 'ai' ? 'ai' : 'bank';
-      state.index = 0;
-      state.aiGenerationError = null;
-      state.customDrillText = null;
-      clearAttemptState();
-      renderShadowingView(container, summary);
-    });
-  });
-
-  container.querySelectorAll<HTMLButtonElement>('[data-diff]').forEach((btn) => {
+    container.querySelectorAll<HTMLButtonElement>('[data-diff]').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.difficulty = (btn.dataset.diff as ShadowingDifficulty) || 'easy';
-      state.index = 0;
+      state.index = sentenceSetHistory?.[state.difficulty].activeSentenceIndex ?? 0;
       state.customDrillText = null;
-      if (state.sourceMode === 'ai') { state.aiSentence = null; state.aiSentenceQueue = []; saveAiSentenceQueue([]); }
       state.aiGenerationError = null;
       clearAttemptState();
       renderShadowingView(container, summary);
@@ -626,13 +605,6 @@ export function renderShadowingView(
     state.topicInput = (event.target as HTMLInputElement).value;
   });
 
-  container.querySelector<HTMLButtonElement>('#sh-random-topic-btn')?.addEventListener('click', () => {
-    const choices = SHADOWING_RANDOM_TOPICS.filter(topic => topic !== state.topicInput);
-    state.topicInput = choices[Math.floor(Math.random() * choices.length)] ?? SHADOWING_RANDOM_TOPICS[0];
-    const input = container.querySelector<HTMLInputElement>('#sh-topic-input');
-    if (input) input.value = state.topicInput;
-  });
-
   container.querySelector<HTMLButtonElement>('#sh-generate-ai-btn')?.addEventListener('click', async () => {
     if (state.isGeneratingAi) return;
     state.isGeneratingAi = true;
@@ -641,13 +613,12 @@ export function renderShadowingView(
     renderShadowingView(container, summary);
     try {
       const generated = await generateAiShadowingSentenceBatch(state.difficulty, 20, state.topicInput.trim());
-      state.aiSentenceQueue = generated;
-      state.aiSentence = generated[0] ?? null;
+      sentenceSetHistory = appendShadowingSet(sentenceSetHistory!, state.difficulty, generated);
+      await saveShadowingSetHistory(sentenceSetHistory);
       state.index = 0;
-      saveAiSentenceQueue(generated);
       state.customDrillText = null;
       clearAttemptState();
-      state.statusMessage = `Generated ${generated.length} sentences by ${generated[0]?.providerName ?? 'AI'}. Practise each one with Next and Previous.`;
+      state.statusMessage = `Added a new set of 20 sentences by ${generated[0]?.providerName ?? 'AI'} to your history.`;
       state.aiGenerationError = null;
     } catch (error) {
       state.aiGenerationError = `AI sentence set generation failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -659,17 +630,21 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-prev-btn')?.addEventListener('click', () => {
-    state.index = state.sourceMode === 'ai' ? Math.max(0, state.index - 1) : Math.max(0, state.index - 1);
+    state.index = Math.max(0, state.index - 1);
+    if (sentenceSetHistory) {
+      sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
+      void saveShadowingSetHistory(sentenceSetHistory);
+    }
     state.customDrillText = null;
     clearAttemptState();
     renderShadowingView(container, summary);
   });
 
   container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', () => {
-    if (state.sourceMode === 'ai') {
-      state.index = Math.min(Math.max(0, state.aiSentenceQueue.length - 1), state.index + 1);
-    } else {
-      state.index++;
+    state.index = Math.min(19, state.index + 1);
+    if (sentenceSetHistory) {
+      sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
+      void saveShadowingSetHistory(sentenceSetHistory);
     }
     state.customDrillText = null;
     clearAttemptState();
@@ -925,13 +900,10 @@ export async function pauseShadowingRecordingForBackground(): Promise<void> {
 
 export function resetShadowingViewState(): void {
   state.difficulty = 'easy';
-  state.sourceMode = 'bank';
-  state.aiSentence = null;
-  state.aiSentenceQueue = loadSavedAiSentenceQueue();
   state.isGeneratingAi = false;
   state.aiGenerationError = null;
   clearShadowingRecordingTimer();
-  state.index = 0;
+  state.index = sentenceSetHistory?.[state.difficulty].activeSentenceIndex ?? 0;
   state.topicInput = '';
   state.customDrillText = null;
   state.translationSourceText = null;
