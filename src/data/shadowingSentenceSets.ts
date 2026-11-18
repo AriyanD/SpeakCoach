@@ -94,7 +94,9 @@ function buildSets(
   patterns: Array<(subject: string) => string>
 ): ShadowingSentence[][] {
   return contexts.map(([topic, subject], setIndex) => patterns.map((makeSentence, sentenceIndex) => {
-    const text = makeSentence(subject);
+    const text = difficulty === 'easy' && setIndex === 0 && sentenceIndex === 0
+      ? 'I usually start my morning with a cup of hot coffee.'
+      : makeSentence(subject);
     return {
       id: `builtin-${difficulty}-set-${setIndex + 1}-${sentenceIndex + 1}`,
       difficulty,
