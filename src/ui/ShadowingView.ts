@@ -763,7 +763,7 @@ export function renderShadowingView(
       }, 60_000);
       state.statusMessage = isOnlineStt
         ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score".'
-        : 'Listening via device/browser speech recognition (no raw audio retained by SpeakCoach in this mode)... Speak clearly, then tap "Stop & Score".';
+        : 'Listening via device/browser speech recognition. The browser may use its own network speech service; SpeakCoach does not upload raw audio in this mode. Speak clearly, then tap "Stop & Score".';
     } catch (err) {
       if (viewGeneration !== shadowingViewGeneration) return;
       state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
