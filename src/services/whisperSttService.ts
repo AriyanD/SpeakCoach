@@ -389,7 +389,7 @@ export async function requestWhisperWordTimestamps(params: {
     params.transport
   );
 
-  const parsed = parseWhisperWordTimestamps(res.data, params.durationMs ?? 3000, params.languageLocale?.split('-')[0] ?? 'en');
+  const parsed = parseWhisperWordTimestamps(res.data, params.durationMs ?? 3000, params.language?.split('-')[0] ?? 'en');
   return {
     transcript: parsed.transcript,
     words: parsed.words,
@@ -516,7 +516,7 @@ export async function requestAzurePronunciationAssessment(params: {
   }).filter(item => item.word.length > 0);
   const normalizedWords: SpokenWordToken[] = words.length
     ? words
-    : buildSpokenTokensFromTranscript(transcript, params.durationMs ?? 3000, undefined, params.language?.split('-')[0] ?? 'en');
+    : buildSpokenTokensFromTranscript(transcript, params.durationMs ?? 3000, undefined, params.languageLocale?.split('-')[0] ?? 'en');
   const raw: WhisperVerboseResponse = {
     text: transcript,
     words: normalizedWords.map(word => ({
