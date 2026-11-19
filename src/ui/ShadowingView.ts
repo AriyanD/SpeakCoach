@@ -393,6 +393,12 @@ export function renderShadowingView(
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
   const selectedLanguage = getShadowingLanguage(state.languageCode);
+  const ieltsNavButton = document.querySelector<HTMLButtonElement>('#nav-ielts');
+  if (ieltsNavButton) {
+    ieltsNavButton.disabled = state.languageCode !== 'en';
+    ieltsNavButton.title = state.languageCode === 'en' ? 'IELTS practice' : 'IELTS is available only in English Shadowing mode';
+    ieltsNavButton.setAttribute('aria-disabled', String(state.languageCode !== 'en'));
+  }
 
   const isRec = audioRecorder.isRecording();
   const scoringTier = summary.slots.pronunciation_scoring;
