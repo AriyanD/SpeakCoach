@@ -11,21 +11,21 @@ export interface ShadowingTranslationResult {
   modelName: string;
   account: 'primary' | 'secondary';
 }
-
 export function buildShadowingTranslationPrompt(text: string, targetLanguage: string, mode: 'translate' | 'grammar' = 'translate'): string {
   const source = text.trim();
   const language = targetLanguage.trim();
   if (!source) throw new Error('Enter a word or sentence to translate.');
-  if (!language) throw new Error('Choose a target language.');
-  if (source.length > 4000) throw new Error('Text is too long to translate (maximum 4,000 characters).');
+  if (source.length > 4000) throw new Error('Text is too long (maximum 4,000 characters).');
   if (mode === 'grammar') return [
-    'Explain the English grammar of the following text in ' + language + '.',
-    'Give a learner-friendly explanation of sentence structure, tense and aspect, clauses, word order, and important grammatical patterns. Explain why they are used and include short examples only when useful.',
+    'Explain the English grammar of the following text entirely in English. Do not translate the explanation or use Persian or any other language.',
+    'Give a learner-friendly explanation suitable for English learners and IELTS candidates: explain sentence structure, tense and aspect, clauses, word order, and important grammatical patterns, including why they are used. Add short examples in English when useful.',
     'For a single word or fragment, explain its grammatical role and common usage. Use concise headings and bullet points.',
+    'Regardless of the selected translation language, the entire grammar explanation must be in English.',
     '',
     'Text:',
     source
   ].join('\n');
+  if (!language) throw new Error('Choose a target language.');
   return [
     'Translate the following text into ' + language + '.',
     'Preserve the original meaning, tone, and punctuation. Return only the translated text, without labels, explanations, or quotation marks.',
@@ -35,7 +35,6 @@ export function buildShadowingTranslationPrompt(text: string, targetLanguage: st
     source
   ].join('\n');
 }
-
 export function extractShadowingTranslationText(payload: any, wireFormat: 'gemini' | 'openai'): string {
   if (wireFormat === 'gemini') {
     const parts = payload?.candidates?.[0]?.content?.parts;
@@ -50,7 +49,6 @@ export function extractShadowingTranslationText(payload: any, wireFormat: 'gemin
       ? content.map((part: any) => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\n').trim()
       : '';
 }
-
 export async function translateShadowingText(
   text: string,
   targetLanguage: string,
@@ -100,7 +98,9 @@ export async function translateShadowingText(
         data: {
           model,
           messages: [
-            { role: 'system', content: 'You are a precise translator. Return only the translation, without labels or explanations.' },
+            { role: 'system', content: mode === 'grammar'
+              ? 'You are an expert English grammar tutor for English learners and IELTS candidates. Explain grammar entirely in English. Never respond in Persian or another language, even if the app translation language is set to Persian.'
+              : 'You are a precise translator. Return only the translation, without labels or explanations.' },
             { role: 'user', content: prompt }
           ],
           temperature: 0.2
