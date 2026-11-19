@@ -217,6 +217,9 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(ieltsButton).not.toBeNull();
     expect(ieltsButton?.disabled).toBe(false);
     expect(ieltsButton?.getAttribute('aria-disabled')).toBe('true');
+    // The restriction must not be displayed persistently in Shadowing; it is explained only after an IELTS-tab click.
+    expect(root.querySelector('.sh-ielts-language-notice')).toBeNull();
+    expect(document.body.querySelector('.app-toast-error')).toBeNull();
     ieltsButton?.click();
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(document.body.querySelector('.app-toast-error')?.textContent).toContain('IELTS is English-only');
