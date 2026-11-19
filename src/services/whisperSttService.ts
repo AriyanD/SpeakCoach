@@ -389,7 +389,7 @@ export async function requestWhisperWordTimestamps(params: {
     params.transport
   );
 
-  const parsed = parseWhisperWordTimestamps(res.data, params.durationMs ?? 3000, params.language?.split('-')[0] ?? 'en');
+  const parsed = parseWhisperWordTimestamps(res.data, params.durationMs ?? 3000, params.languageLocale?.split('-')[0] ?? 'en');
   return {
     transcript: parsed.transcript,
     words: parsed.words,
