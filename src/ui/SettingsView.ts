@@ -732,8 +732,27 @@ export async function renderSettingsView(
     const resolveKey = async (slotId: SlotId, provider: QuickProvider, account: 'primary' | 'secondary'): Promise<string> => {
       const supplied = suppliedKeys[provider.source];
       if (supplied) return supplied;
-      try { return await loadApiKeyStrict(slotId, provider.providerId, account); }
-      catch { return ''; }
+      try {
+        const localKey = await loadApiKeyStrict(slotId, provider.providerId, account);
+        if (localKey.trim()) return localKey;
+      } catch { /* Try another saved key from the same provider family. */ }
+
+      const reusableProviderIds: Record<'gemini' | 'groq', string[]> = {
+        gemini: ['gemini_tts', 'gemini_pronunciation', 'gemini_stt', 'gemini_eval', 'gemini_gen', 'gemini_translation'],
+        groq: ['whisper_alignment', 'whisper_stt', 'custom_openai_eval', 'custom_openai_gen', 'custom_openai_translation']
+      };
+      for (const otherSlotId of SLOT_ORDER) {
+        for (const providerId of reusableProviderIds[provider.source]) {
+          if (!SLOT_DEFINITIONS[otherSlotId].providers.some((preset) => preset.id === providerId)) continue;
+          for (const keyAccount of ['primary', 'secondary'] as const) {
+            try {
+              const savedKey = await loadApiKeyStrict(otherSlotId, providerId, keyAccount);
+              if (savedKey.trim()) return savedKey;
+            } catch { /* Continue scanning for a recoverable credential. */ }
+          }
+        }
+      }
+      return '';
     };
 
     const makeConfig = (slotId: SlotId, provider: QuickProvider, account: 'primary' | 'secondary', previous?: SlotConfig['secondary'] | SlotConfig): SlotConfig => {
