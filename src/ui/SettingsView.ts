@@ -787,6 +787,8 @@ export async function renderSettingsView(
           const primaryPreset = getPreset(item.slotId, item.primary.providerId);
           const primaryKey = await resolveKey(item.slotId, item.primary, 'primary');
           const primaryConfig = makeConfig(item.slotId, item.primary, 'primary', previous);
+          // Quick Setup may not recommend API 2 for this slot (Voice/TTS). Preserve the existing fallback.
+          primaryConfig.secondary = previous.secondary;
           if (primaryKey) await saveApiKey(item.slotId, primaryPreset.id, primaryKey, 'primary');
           await saveSlotConfig(primaryConfig);
           configs[item.slotId] = primaryConfig;
