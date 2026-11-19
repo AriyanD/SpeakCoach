@@ -106,90 +106,125 @@ async function generateAiShadowingSentences(
   const recentMemory = getRecentShadowingMemory(language.code).slice(-6).map(text => text.length > 110 ? `${text.slice(0, 107).trimEnd()}…` : text);
   const memoryNote = recentMemory.length ? `\nAvoid copying or closely paraphrasing these recent practice sentences: ${recentMemory.map(text => `"${text}"`).join(' | ')}.` : '';
   const topicNote = requestedTopic.trim() ? `\nRequested topic: ${requestedTopic.trim()}. Keep all sentences within this broad topic, but give each sentence a distinct practical angle and a clear, specific subtopic.` : '';
-  const prompt = `Create ${count} original ${language.promptName} shadowing practice sentences for a learner of ${language.promptName}.
-Write every sentence, topic, and pronunciation guidance in ${language.promptName}. Do not use English unless it is part of a proper name.
-Difficulty: ${difficulty}.${topicNote}${memoryNote}
+  const buildPrompt = (requestedCount: number, retryIndex: number, accumulated: string[]): string => {
+    const retryNote = retryIndex > 0
+      ? `\nThis is completion attempt ${retryIndex + 1}. Return ONLY ${requestedCount} additional sentences. Do not apologize, explain, or repeat any sentence already supplied.`
+      : '';
+    const existingNote = accumulated.length
+      ? `\nAlready accepted sentences (do not repeat or paraphrase): ${accumulated.map(item => `"${item}"`).join(' | ')}.`
+      : '';
+    return `Create exactly ${requestedCount} original ${language.promptName} shadowing practice sentences for a learner of ${language.promptName}.
+IMPORTANT LANGUAGE RULE: Every sentence, topic, and pronunciation guidance MUST be written naturally and entirely in ${language.promptName} (${language.nativeName}). Never answer in English, translate the request, or mix languages, except proper names. This applies to JSON values too.
+Difficulty: ${difficulty}.${topicNote}${memoryNote}${existingNote}${retryNote}
 Requirements:
-- Return exactly ${count} different sentences.
-- Each sentence must be natural, useful spoken ${language.promptName}; aim for 8 to 28 words (or equivalent language-appropriate units).
+- Output exactly ${requestedCount} sentence objects. Count them before responding.
+- Each sentence must be natural, idiomatic spoken ${language.promptName}; aim for 8–28 words (or equivalent language-appropriate units).
 - Easy: clear everyday vocabulary and simple structure.
-- Medium: varied vocabulary and a moderately complex structure.
-- Hard: advanced but natural vocabulary and a complex structure.
-- Give every sentence its own short, specific topic and one pronunciation feature relevant to ${language.promptName}.
+- Medium: varied vocabulary and moderately complex structure.
+- Hard: advanced but natural vocabulary and complex structure.
+- Give each sentence its own short specific topic and pronunciation feature, both in ${language.promptName}.
 - Avoid clichés, famous quotations, duplicates, and near-paraphrases.
+- If you cannot fit the full count, prioritize completing the exact number rather than adding explanations.
 Return ONLY valid JSON in this exact shape:
-{"sentences":[{"topic":"short specific topic in ${language.promptName}","text":"the sentence in ${language.promptName}","phoneticFocus":"one pronunciation feature in ${language.promptName}"},{"topic":"another topic","text":"another sentence","phoneticFocus":"another feature"}]}
-The sentences array must contain exactly ${count} items.`;
+{"sentences":[{"topic":"localized topic","text":"localized sentence","phoneticFocus":"localized pronunciation guidance"}]}
+The sentences array must contain exactly ${requestedCount} items.`;
+  };
 
-  const attempt = await runWithSlotApiFallback('llm_generator', config, async (attemptConfig, apiKey) => {
-    const attemptPreset = getPreset('llm_generator', attemptConfig.providerId);
-    const baseUrl = normalizeBaseUrl(attemptConfig.baseUrl);
-    const wireFormat = resolveWireFormat({ ...attemptConfig, baseUrl });
-    let raw = '';
-    if (wireFormat === 'gemini') {
-      const model = (attemptConfig.modelOrVoice || attemptPreset.defaultModelOrVoice).trim();
-      const modelPath = model.startsWith('models/') ? model : `models/${model}`;
-      const prepared = buildGeminiEndpointRequest({
-        baseUrl,
-        defaultPath: `/${modelPath}:generateContent`,
-        apiKey,
-        slotConfig: attemptConfig
+  const collected: GeneratedShadowingSentence[] = [];
+  const seen = new Set<string>();
+  let lastError = '';
+  // Some compatible models silently truncate or under-deliver large JSON arrays.
+  // Retry only the missing remainder instead of discarding a usable partial response.
+  for (let batchAttempt = 0; batchAttempt < 4 && collected.length < count; batchAttempt++) {
+    const remaining = count - collected.length;
+    const prompt = buildPrompt(remaining, batchAttempt, collected.map(sentence => sentence.text));
+    try {
+      const attempt = await runWithSlotApiFallback('llm_generator', config, async (attemptConfig, apiKey) => {
+        const attemptPreset = getPreset('llm_generator', attemptConfig.providerId);
+        const baseUrl = normalizeBaseUrl(attemptConfig.baseUrl);
+        const wireFormat = resolveWireFormat({ ...attemptConfig, baseUrl });
+        let raw = '';
+        if (wireFormat === 'gemini') {
+          const model = (attemptConfig.modelOrVoice || attemptPreset.defaultModelOrVoice).trim();
+          const modelPath = model.startsWith('models/') ? model : `models/${model}`;
+          const prepared = buildGeminiEndpointRequest({
+            baseUrl,
+            defaultPath: `/${modelPath}:generateContent`,
+            apiKey,
+            slotConfig: attemptConfig
+          });
+          const response = await nativeHttpRequest<any>({
+            url: prepared.url,
+            method: 'POST',
+            headers: prepared.headers,
+            data: {
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.75, responseMimeType: 'application/json' }
+            },
+            timeoutMs: 60000,
+            maxRetries: 1
+          }, transport);
+          const body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+          const parts = body?.candidates?.[0]?.content?.parts;
+          raw = Array.isArray(parts) ? parts.map((part: any) => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\n') : '';
+        } else {
+          const model = (attemptConfig.modelOrVoice || attemptPreset.defaultModelOrVoice).trim();
+          const prepared = buildCustomEndpointRequest({
+            baseUrl,
+            defaultPath: '/chat/completions',
+            apiKey,
+            slotConfig: attemptConfig,
+            defaultHeaders: { 'Content-Type': 'application/json' }
+          });
+          const response = await nativeHttpRequest<any>({
+            url: prepared.url,
+            method: 'POST',
+            headers: prepared.headers,
+            data: {
+              model,
+              messages: [
+                { role: 'system', content: `You generate idiomatic ${language.promptName} practice material. Strictly obey the target language and the requested JSON array length. Return valid JSON only.` },
+                { role: 'user', content: prompt }
+              ],
+              temperature: 0.75,
+              response_format: { type: 'json_object' }
+            },
+            timeoutMs: 60000,
+            maxRetries: 1
+          }, transport);
+          const body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+          const content = body?.choices?.[0]?.message?.content ?? body?.output_text ?? body?.text ?? '';
+          raw = typeof content === 'string' ? content : Array.isArray(content) ? content.map((part: any) => part?.text ?? '').filter(Boolean).join('\n') : '';
+        }
+
+        const parsed = JSON.parse(cleanJsonPayload(raw)) as Record<string, unknown>;
+        const items = Array.isArray(parsed.sentences) ? parsed.sentences : remaining === 1 ? [parsed] : [];
+        const accepted: GeneratedShadowingSentence[] = [];
+        for (const item of items) {
+          try {
+            const sentence = parseSentence(JSON.stringify(item), difficulty, language.code);
+            const normalized = normalizeShadowingSentenceForDuplicateCheck(sentence.text);
+            if (!normalized || seen.has(normalized)) continue;
+            seen.add(normalized);
+            accepted.push({ ...sentence, providerName: attemptPreset.name, modelName: attemptConfig.modelOrVoice });
+          } catch {
+            // Skip invalid individual items and retry to fill the shortfall.
+          }
+        }
+        return accepted;
       });
-      const response = await nativeHttpRequest<any>({
-        url: prepared.url,
-        method: 'POST',
-        headers: prepared.headers,
-        data: {
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.85, responseMimeType: 'application/json' }
-        },
-        timeoutMs: 60000,
-        maxRetries: 1
-      }, transport);
-      const body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
-      const parts = body?.candidates?.[0]?.content?.parts;
-      raw = Array.isArray(parts) ? parts.map((part: any) => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\n') : '';
-    } else {
-      const model = (attemptConfig.modelOrVoice || attemptPreset.defaultModelOrVoice).trim();
-      const prepared = buildCustomEndpointRequest({
-        baseUrl,
-        defaultPath: '/chat/completions',
-        apiKey,
-        slotConfig: attemptConfig,
-        defaultHeaders: { 'Content-Type': 'application/json' }
-      });
-      const response = await nativeHttpRequest<any>({
-        url: prepared.url,
-        method: 'POST',
-        headers: prepared.headers,
-        data: {
-          model,
-          messages: [
-            { role: 'system', content: `You create concise, high-quality ${language.promptName} shadowing practice material. All user-facing sentence content must be in ${language.promptName}. Return valid JSON only.` },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.85,
-          response_format: { type: 'json_object' }
-        },
-        timeoutMs: 60000,
-        maxRetries: 1
-      }, transport);
-      const body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
-      const content = body?.choices?.[0]?.message?.content ?? body?.output_text ?? body?.text ?? '';
-      raw = typeof content === 'string' ? content : Array.isArray(content) ? content.map((part: any) => part?.text ?? '').filter(Boolean).join('\n') : '';
+      collected.push(...attempt.result);
+      if (collected.length >= count) break;
+      lastError = `The AI supplied ${collected.length} of ${count} valid unique sentences after ${batchAttempt + 1} attempt(s).`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
     }
+  }
 
-    const parsed = JSON.parse(cleanJsonPayload(raw)) as Record<string, unknown>;
-    const items = Array.isArray(parsed.sentences) ? parsed.sentences : count === 1 ? [parsed] : [];
-    if (items.length !== count) throw new Error(`The AI returned ${items.length} sentences; exactly ${count} were requested. Please try again.`);
-    const sentences = items.map(item => {
-      const sentence = parseSentence(JSON.stringify(item), difficulty, language.code);
-      return { ...sentence, providerName: attemptPreset.name, modelName: attemptConfig.modelOrVoice };
-    });
-    const uniqueTexts = new Set(sentences.map(sentence => normalizeShadowingSentenceForDuplicateCheck(sentence.text)));
-    if (uniqueTexts.size !== sentences.length) throw new Error('The AI returned duplicate sentences. Please generate a new set.');
-    return sentences;
-  });
+  if (collected.length < count) {
+    throw new Error(`Could not complete the sentence set: ${lastError} Please try again.`);
+  }
+  const result = collected.slice(0, count);
 
   attempt.result.forEach(sentence => rememberShadowingSentence(sentence.text, language.code));
   return attempt.result;
