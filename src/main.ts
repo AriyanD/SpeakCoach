@@ -339,7 +339,7 @@ export async function bootstrapApp(
     if (tab === 'ielts') {
       const practiceLanguage = await loadSelectedShadowingLanguage();
       if (practiceLanguage !== 'en') {
-        showToast('IELTS practice is available only when Shadowing practice language is set to English. Switch to English in Shadowing first.', 'info');
+        showToast(`IELTS is English-only. Your current Shadowing language is ${practiceLanguage.toUpperCase()}. Switch the practice language to English before opening IELTS.`, 'error', 5200);
         return;
       }
     }
