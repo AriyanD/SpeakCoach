@@ -57,13 +57,17 @@ function isHistory(value: unknown): value is ShadowingSetHistory {
   if (!value || typeof value !== 'object') return false;
   return DIFFICULTIES.every(difficulty => {
     const entry = (value as ShadowingSetHistory)[difficulty];
+    const activeSet = entry?.sets?.find(set => set.id === entry.activeSetId);
     return !!entry && Array.isArray(entry.sets) && entry.sets.length > 0 &&
       entry.sets.every(set => !!set && typeof set.id === 'string' &&
         (set.source === 'builtin' || set.source === 'ai') &&
-        Array.isArray(set.sentences) && set.sentences.length === 20 && set.sentences.every(isSentence)) &&
-      entry.sets.some(set => set.id === entry.activeSetId) &&
+        Array.isArray(set.sentences) &&
+        set.sentences.length >= 1 && set.sentences.length <= 20 &&
+        (set.source !== 'ai' || set.sentences.length === 20) &&
+        set.sentences.every(isSentence)) &&
+      !!activeSet &&
       Number.isInteger(entry.activeSentenceIndex) && entry.activeSentenceIndex >= 0 &&
-      entry.activeSentenceIndex < 20;
+      entry.activeSentenceIndex < activeSet.sentences.length;
   });
 }
 
@@ -118,10 +122,15 @@ export function selectShadowingSet(
   sentenceIndex = 0
 ): ShadowingSetHistory {
   const entry = history[difficulty];
-  if (!entry.sets.some(set => set.id === setId)) return history;
+  const selectedSet = entry.sets.find(set => set.id === setId);
+  if (!selectedSet) return history;
   return {
     ...history,
-    [difficulty]: { ...entry, activeSetId: setId, activeSentenceIndex: Math.max(0, Math.min(19, sentenceIndex)) }
+    [difficulty]: {
+      ...entry,
+      activeSetId: setId,
+      activeSentenceIndex: Math.max(0, Math.min(selectedSet.sentences.length - 1, sentenceIndex))
+    }
   };
 }
 
@@ -131,9 +140,11 @@ export function selectShadowingSentence(
   sentenceIndex: number
 ): ShadowingSetHistory {
   const entry = history[difficulty];
+  const activeSet = entry.sets.find(set => set.id === entry.activeSetId) ?? entry.sets[0];
+  const maxIndex = Math.max(0, (activeSet?.sentences.length ?? 1) - 1);
   return {
     ...history,
-    [difficulty]: { ...entry, activeSentenceIndex: Math.max(0, Math.min(19, sentenceIndex)) }
+    [difficulty]: { ...entry, activeSentenceIndex: Math.max(0, Math.min(maxIndex, sentenceIndex)) }
   };
 }
 
