@@ -140,6 +140,7 @@ export async function renderSettingsView(
     const isCustom = preset.id.startsWith('custom_openai_');
     const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
     const secondaryIsCustom = secondaryPreset?.id.startsWith('custom_openai_') ?? false;
+    const secondarySameModelAsPrimary = !!slotCfg.secondary && slotCfg.secondary.providerId === slotCfg.providerId && slotCfg.secondary.modelOrVoice.trim() === slotCfg.modelOrVoice.trim();
     const secondaryTestResult = slotCfg.secondary?.testResult;
     const secondaryStatusClass = secondaryTestResult
       ? (secondaryTestResult.ok ? 'pass' : 'fail')
@@ -419,6 +420,7 @@ export async function renderSettingsView(
             <span class="secondary-api-summary-chevron" aria-hidden="true">+</span>
           </summary>
           <p class="card-subtitle secondary-api-help">Configure another provider/account and key. Speech recognition may rotate between verified APIs. API 2 is not guaranteed to be a different model or service: if you use the same gateway, model, or endpoint in both accounts, you may have no independent fallback. Check that each account supports the required operation (TTS: text → audio; STT: audio → text).</p>
+          ${secondarySameModelAsPrimary ? `<div class="status-box info" role="note"><strong>API 2 uses the same provider and model as API 1.</strong> It may still have a separate key or quota, but it is not a different model or an independent model capability.</div>` : ''}
           <div class="form-grid">
             <div class="form-field"><label class="form-label" for="secondary-provider-${slotId}">Secondary provider</label>
               <select class="form-select provider-native-select" id="secondary-provider-${slotId}" aria-hidden="true" tabindex="-1">
