@@ -1,6 +1,8 @@
 import { Preferences } from '@capacitor/preferences';
 import type { ShadowingDifficulty, ShadowingSentence } from '../data/shadowingBank';
 import { getInitialShadowingSets } from '../data/shadowingSentenceSets';
+import { getInitialMultilingualShadowingSets } from '../data/multilingualShadowingSentenceSets';
+import type { ShadowingLanguageCode } from '../data/shadowingLanguages';
 
 export interface ShadowingSentenceSet {
   id: string;
@@ -27,11 +29,14 @@ export function createEmptyShadowingSetHistory(): ShadowingSetHistory {
   };
 }
 
-function makeSeedHistory(): ShadowingSetHistory {
+export function makeSeedHistory(languageCode: ShadowingLanguageCode = 'en'): ShadowingSetHistory {
   const history = {} as ShadowingSetHistory;
   for (const difficulty of DIFFICULTIES) {
-    const sets = getInitialShadowingSets(difficulty).map((sentences, index) => ({
-      id: `builtin-${difficulty}-${index + 1}`,
+    const initialSets = languageCode === 'en'
+      ? getInitialShadowingSets(difficulty)
+      : getInitialMultilingualShadowingSets(languageCode, difficulty);
+    const sets = initialSets.map((sentences, index) => ({
+      id: languageCode === 'en' ? `builtin-${difficulty}-${index + 1}` : `builtin-${languageCode}-${difficulty}-${index + 1}`,
       source: 'builtin' as const,
       createdAt: index,
       sentences

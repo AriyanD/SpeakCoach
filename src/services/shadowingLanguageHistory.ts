@@ -1,6 +1,7 @@
 import { Preferences } from '@capacitor/preferences';
 import {
   loadShadowingSetHistory,
+  makeSeedHistory,
   type ShadowingSetHistory
 } from './shadowingSetHistory';
 import {
@@ -117,4 +118,9 @@ export async function loadSelectedShadowingLanguage(): Promise<ShadowingLanguage
 
 export async function saveSelectedShadowingLanguage(code: ShadowingLanguageCode): Promise<void> {
   await Preferences.set({ key: SHADOWING_SELECTED_LANGUAGE_KEY, value: code });
+}
+
+/** Creates a native offline starter history for a language not used before. */
+export function createShadowingHistoryForLanguage(languageCode: ShadowingLanguageCode): ShadowingSetHistory {
+  return makeSeedHistory(languageCode);
 }

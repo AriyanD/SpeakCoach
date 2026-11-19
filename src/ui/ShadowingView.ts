@@ -27,7 +27,7 @@ import { getCachedModelWordTimings } from '../services/modelTimingService';
 import { generateAiShadowingSentenceBatch } from '../services/shadowingAiGenerator';
 import { clearDiagnosticsCache } from './DiagnosticsView';
 import { SHADOWING_LANGUAGES, getShadowingLanguage, countShadowingLanguageUnits, type ShadowingLanguageCode } from '../data/shadowingLanguages';
-import { loadShadowingLanguageHistories, saveShadowingLanguageHistories, getShadowingHistoryForLanguage, setShadowingHistoryForLanguage, loadSelectedShadowingLanguage, saveSelectedShadowingLanguage, type ShadowingLanguageHistories } from '../services/shadowingLanguageHistory';
+import { loadShadowingLanguageHistories, saveShadowingLanguageHistories, getShadowingHistoryForLanguage, createShadowingHistoryForLanguage, setShadowingHistoryForLanguage, loadSelectedShadowingLanguage, saveSelectedShadowingLanguage, type ShadowingLanguageHistories } from '../services/shadowingLanguageHistory';
 
 interface ShadowingState {
   difficulty: ShadowingDifficulty;
@@ -121,7 +121,7 @@ function ensureSentenceSetHistory(): Promise<ShadowingSetHistory> {
     sentenceLanguageHistories = await loadShadowingLanguageHistories();
     state.languageCode = await loadSelectedShadowingLanguage();
     const existing = getShadowingHistoryForLanguage(sentenceLanguageHistories, state.languageCode);
-    sentenceSetHistory = existing ?? createEmptyShadowingSetHistory();
+    sentenceSetHistory = existing ?? createShadowingHistoryForLanguage(state.languageCode);
     if (!existing) await persistCurrentShadowingHistory();
     return sentenceSetHistory;
   })();
