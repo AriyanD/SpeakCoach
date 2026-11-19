@@ -67,6 +67,10 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(document.body.querySelector('.app-toast-error')?.textContent).toContain('IELTS is English-only');
     expect(root.querySelector('#sh-target-text')?.textContent).toBe('Jag brukar ta en kort promenad efter frukosten.');
+
+    languageSelect!.value = 'en';
+    languageSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   });
 
   it('starts the transcript box EMPTY and refuses to score when recognizer returns empty (silence)', async () => {
