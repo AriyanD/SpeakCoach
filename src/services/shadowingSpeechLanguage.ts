@@ -20,8 +20,10 @@ export function isAzurePronunciationLocaleSupported(locale: string): boolean {
   return AZURE_PRONUNCIATION_LOCALES.has(locale);
 }
 
-export function getElevenLabsLanguageCode(locale: string): string | null {
+export function getElevenLabsLanguageCode(locale: string, modelId = 'eleven_multilingual_v2'): string | null {
   const code = locale.split('-')[0]?.toLowerCase() ?? '';
+  // Eleven Flash v2 is English-only; do not let it silently read other scripts.
+  if (modelId.toLowerCase() === 'eleven_flash_v2') return code === 'en' ? code : null;
   return ELEVENLABS_MULTILINGUAL_LANGUAGES.has(code) ? code : null;
 }
 
