@@ -11,7 +11,6 @@ export interface ShadowingTranslationResult {
   modelName: string;
   account: 'primary' | 'secondary';
 }
-
 export function buildShadowingTranslationPrompt(text: string, targetLanguage: string, mode: 'translate' | 'grammar' = 'translate'): string {
   const source = text.trim();
   const language = targetLanguage.trim();
@@ -25,7 +24,7 @@ export function buildShadowingTranslationPrompt(text: string, targetLanguage: st
     '',
     'Text:',
     source
-  ].join('\\n');
+  ].join('\n');
   if (!language) throw new Error('Choose a target language.');
   return [
     'Translate the following text into ' + language + '.',
@@ -34,9 +33,8 @@ export function buildShadowingTranslationPrompt(text: string, targetLanguage: st
     '',
     'Text:',
     source
-  ].join('\\n');
+  ].join('\n');
 }
-
 export function extractShadowingTranslationText(payload: any, wireFormat: 'gemini' | 'openai'): string {
   if (wireFormat === 'gemini') {
     const parts = payload?.candidates?.[0]?.content?.parts;
@@ -51,7 +49,6 @@ export function extractShadowingTranslationText(payload: any, wireFormat: 'gemin
       ? content.map((part: any) => typeof part?.text === 'string' ? part.text : '').filter(Boolean).join('\n').trim()
       : '';
 }
-
 export async function translateShadowingText(
   text: string,
   targetLanguage: string,
@@ -101,7 +98,9 @@ export async function translateShadowingText(
         data: {
           model,
           messages: [
-            { role: 'system', content: 'You are a precise translator. Return only the translation, without labels or explanations.' },
+            { role: 'system', content: mode === 'grammar'
+              ? 'You are an expert English grammar tutor for English learners and IELTS candidates. Explain grammar entirely in English. Never respond in Persian or another language, even if the app translation language is set to Persian.'
+              : 'You are a precise translator. Return only the translation, without labels or explanations.' },
             { role: 'user', content: prompt }
           ],
           temperature: 0.2
