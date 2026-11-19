@@ -19,6 +19,14 @@ export const SHADOWING_HISTORY_KEY = 'speakcoach_shadowing_set_history_v2';
 export const MAX_SHADOWING_SETS_PER_DIFFICULTY = 10;
 const DIFFICULTIES: ShadowingDifficulty[] = ['easy', 'medium', 'hard'];
 
+export function createEmptyShadowingSetHistory(): ShadowingSetHistory {
+  return {
+    easy: { sets: [], activeSetId: '', activeSentenceIndex: 0 },
+    medium: { sets: [], activeSetId: '', activeSentenceIndex: 0 },
+    hard: { sets: [], activeSetId: '', activeSentenceIndex: 0 }
+  };
+}
+
 function makeSeedHistory(): ShadowingSetHistory {
   const history = {} as ShadowingSetHistory;
   for (const difficulty of DIFFICULTIES) {
@@ -151,6 +159,7 @@ export function moveShadowingSet(
   direction: -1 | 1
 ): ShadowingSetHistory {
   const entry = history[difficulty];
+  if (entry.sets.length === 0) return history;
   const current = Math.max(0, entry.sets.findIndex(set => set.id === entry.activeSetId));
   const nextIndex = Math.max(0, Math.min(entry.sets.length - 1, current + direction));
   if (nextIndex === current) return history;
