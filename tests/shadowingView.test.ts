@@ -190,6 +190,9 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
 
   it('loads offline starter sentences after switching languages, reports the IELTS restriction, and lets users dismiss the speech API notice', async () => {
     const root = document.createElement('div');
+    // ShadowingView updates the shared bottom-navigation element through
+    // document.querySelector, so mount the app as it is mounted in production.
+    document.body.appendChild(root);
     await bootstrapApp(root, 'shadowing');
     await new Promise((resolve) => setTimeout(resolve, 50));
 
