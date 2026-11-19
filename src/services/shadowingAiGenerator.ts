@@ -13,11 +13,13 @@ export interface GeneratedShadowingSentence extends ShadowingSentence {
   modelName: string;
 }
 
+const SHADOWING_MEMORY_KEY = 'speakcoach_shadowing_recent_sentences_v1';
 const SHADOWING_MEMORY_KEY_PREFIX = 'speakcoach_shadowing_recent_sentences_v2';
 const MAX_SHADOWING_MEMORY = 16;
 
 function getMemoryKey(languageCode: string): string {
-  return `${SHADOWING_MEMORY_KEY_PREFIX}.${getShadowingLanguage(languageCode).code}`;
+  const code = getShadowingLanguage(languageCode).code;
+  return code === 'en' ? SHADOWING_MEMORY_KEY : `${SHADOWING_MEMORY_KEY_PREFIX}.${code}`;
 }
 
 /** Canonical form used only to detect exact duplicates across generated sentences. */
@@ -117,7 +119,7 @@ Requirements:
 - Avoid clichés, famous quotations, duplicates, and near-paraphrases.
 Return ONLY valid JSON in this exact shape:
 {"sentences":[{"topic":"short specific topic in ${language.promptName}","text":"the sentence in ${language.promptName}","phoneticFocus":"one pronunciation feature in ${language.promptName}"},{"topic":"another topic","text":"another sentence","phoneticFocus":"another feature"}]}
-The sentences array must contain exactly ${count} items.`;;
+The sentences array must contain exactly ${count} items.`;
 
   const attempt = await runWithSlotApiFallback('llm_generator', config, async (attemptConfig, apiKey) => {
     const attemptPreset = getPreset('llm_generator', attemptConfig.providerId);
