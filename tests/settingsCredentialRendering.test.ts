@@ -74,7 +74,13 @@ describe('Settings credential rendering', () => {
 
     expect(container.querySelector('#quick-setup-status')?.textContent).toContain('Quick setup finished');
     const after = await loadAllSlotsConfig();
-    expect(after.voice_tts.secondary).toEqual(originalSecondary);
+    expect(after.voice_tts.secondary).toMatchObject({
+      providerId: originalSecondary.providerId,
+      baseUrl: originalSecondary.baseUrl,
+      modelOrVoice: originalSecondary.modelOrVoice,
+      authStyle: originalSecondary.authStyle
+    });
+    expect(after.voice_tts.secondary?.verified).toBe(false);
   });
 
 });
