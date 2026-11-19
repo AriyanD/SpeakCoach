@@ -36,7 +36,8 @@ function isDifficultyHistory(value: unknown): boolean {
       const item = set as { id?: unknown; source?: unknown; sentences?: unknown[] } | null;
       return !!item && typeof item.id === 'string' &&
         (item.source === 'builtin' || item.source === 'ai') &&
-        Array.isArray(item.sentences) && item.sentences.length === 20 &&
+        Array.isArray(item.sentences) && item.sentences.length >= 1 && item.sentences.length <= 20 &&
+        (item.source !== 'ai' || item.sentences.length === 20) &&
         item.sentences.every(sentence => {
           const row = sentence as Record<string, unknown> | null;
           return !!row && typeof row.id === 'string' && typeof row.text === 'string' &&
