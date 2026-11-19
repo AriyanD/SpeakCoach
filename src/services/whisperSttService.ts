@@ -163,7 +163,8 @@ type TransportFn = (opts: HttpOptions) => Promise<HttpResponse>;
 
 export function parseWhisperWordTimestamps(
   payload: unknown,
-  fallbackDurationMs = 3000
+  fallbackDurationMs = 3000,
+  languageCode = 'en'
 ): { transcript: string; words: SpokenWordToken[] } {
   if (!payload) {
     return { transcript: '', words: [] };
@@ -177,7 +178,7 @@ export function parseWhisperWordTimestamps(
       const clean = payload.trim();
       return {
         transcript: clean,
-        words: buildSpokenTokensFromTranscript(clean, fallbackDurationMs, undefined)
+        words: buildSpokenTokensFromTranscript(clean, fallbackDurationMs, undefined, languageCode)
       };
     }
   } else {
@@ -230,7 +231,7 @@ export function parseWhisperWordTimestamps(
         : fallbackDurationMs;
     return {
       transcript,
-      words: buildSpokenTokensFromTranscript(transcript, durMs, undefined)
+      words: buildSpokenTokensFromTranscript(transcript, durMs, undefined, languageCode)
     };
   }
 
@@ -387,7 +388,7 @@ export async function requestWhisperWordTimestamps(params: {
     params.transport
   );
 
-  const parsed = parseWhisperWordTimestamps(res.data, params.durationMs ?? 3000);
+  const parsed = parseWhisperWordTimestamps(res.data, params.durationMs ?? 3000, params.language?.split('-')[0] ?? 'en');
   return {
     transcript: parsed.transcript,
     words: parsed.words,
