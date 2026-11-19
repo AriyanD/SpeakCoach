@@ -34,5 +34,7 @@ describe('Shadowing speech language routing', () => {
     expect(getElevenLabsLanguageCode('sv-SE')).toBe('sv');
     expect(getElevenLabsLanguageCode('fa-IR')).toBeNull();
     expect(getElevenLabsLanguageCode('ja-JP')).toBe('ja');
+    expect(getElevenLabsLanguageCode('sv-SE', 'eleven_flash_v2')).toBeNull();
+    expect(getElevenLabsLanguageCode('en-US', 'eleven_flash_v2')).toBe('en');
   });
 });
