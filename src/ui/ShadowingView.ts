@@ -682,7 +682,7 @@ export function renderShadowingView(
     state.statusMessage = 'Generating 20 new practice sentences...';
     renderShadowingView(container, summary);
     try {
-      const generated = await generateAiShadowingSentenceBatch(state.difficulty, 20, state.topicInput.trim(), state.languageCode);
+      const generated = await generateAiShadowingSentenceBatch(state.difficulty, 20, state.topicInput.trim(), undefined, state.languageCode);
       sentenceSetHistory = appendShadowingSet(sentenceSetHistory!, state.difficulty, generated);
       await persistCurrentShadowingHistory();
       state.index = 0;
