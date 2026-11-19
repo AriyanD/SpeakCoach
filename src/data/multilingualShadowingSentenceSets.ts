@@ -59,7 +59,7 @@ const SENTENCES: Record<Exclude<ShadowingLanguageCode, 'en'>, LanguageRows> = {
   },
   ar: {
     easy: [{ topic: 'الحياة اليومية', text: 'أشرب القهوة كل صباح قبل الذهاب إلى العمل.', phoneticFocus: 'Clear emphatic consonants and short vowels' }],
-    medium: [{ topic: 'النقل', text: 'يساعد transport العام على تقليل الازدحام في شوارع المدينة.', phoneticFocus: 'Consonant articulation and natural phrase stress' }],
+    medium: [{ topic: 'النقل', text: 'يساعد النقل العام على تقليل الازدحام في شوارع المدينة.', phoneticFocus: 'Consonant articulation and natural phrase stress' }],
     hard: [{ topic: 'المجتمع', text: 'يتطلب التغيير المستدام دراسة آثاره الاجتماعية ومراعاة احتياجات الفئات المختلفة.', phoneticFocus: 'Emphatic consonants, long vowels and sentence rhythm' }]
   },
   zh: {
@@ -69,13 +69,13 @@ const SENTENCES: Record<Exclude<ShadowingLanguageCode, 'en'>, LanguageRows> = {
   },
   ja: {
     easy: [{ topic: '日常生活', text: '毎朝、仕事の前に温かいお茶を飲みます。', phoneticFocus: 'Mora timing and clear vowel length' }],
-    medium: [{ topic: '交通', text: '公共交通機関を利用する人が増えると、 शहरの渋滞を減らすことができます。', phoneticFocus: 'Pitch accent and particle pronunciation' }],
+    medium: [{ topic: '交通', text: '公共交通機関を利用する人が増えると、 街の渋滞を減らすことができます。', phoneticFocus: 'Pitch accent and particle pronunciation' }],
     hard: [{ topic: '社会', text: '持続可能な社会への移行には、さまざまな人々への社会的な影響を考慮する必要があります。', phoneticFocus: 'Mora timing, devoiced vowels and sentence intonation' }]
   },
   ko: {
     easy: [{ topic: '일상생활', text: '저는 아침마다 커피를 마시고 하루를 시작해요.', phoneticFocus: 'Vowel clarity and natural phrase endings' }],
-    medium: [{ topic: '교통', text: '대중교통을 이용하는 사람이 많아지면 도시의 교통 체증을 줄일 수 있습니다.', phoneticFocus: ' 받침 pronunciation and sound linking' }],
-    hard: [{ topic: '사회', text: '지속 가능한 변화를 위해서는 다양한 집단이 겪는 사회적 영향을 함께 고려해야 합니다.', phoneticFocus: ' 받침 assimilation, spacing and sentence rhythm' }]
+    medium: [{ topic: '교통', text: '대중교통을 이용하는 사람이 많아지면 도시의 교통 체증을 줄일 수 있습니다.', phoneticFocus: 'Batchim (final consonant) pronunciation and sound linking' }],
+    hard: [{ topic: '사회', text: '지속 가능한 변화를 위해서는 다양한 집단이 겪는 사회적 영향을 함께 고려해야 합니다.', phoneticFocus: 'Batchim assimilation, spacing and sentence rhythm' }]
   }
 };
 
