@@ -118,7 +118,7 @@ function isSpeechApiNoticeDismissed(): boolean {
 }
 function isSpeechApiRelatedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? '');
-  return /\\b(api|http|status|401|403|404|408|409|429|5\\d\\d|network|fetch|timeout|endpoint|provider|model|unsupported|not supported|quota|rate.?limit|connection|service unavailable|cors|recognition service)\\b/i.test(message);
+  return /\b(api|http|status|401|403|404|408|409|429|5\d\d|network|fetch|timeout|endpoint|provider|model|unsupported|not supported|quota|rate.?limit|connection|service unavailable|cors|recognition service)\b/i.test(message);
 }
 function reopenSpeechApiNoticeForError(error: unknown): void {
   if (isSpeechApiRelatedError(error)) state.forceSpeechApiNotice = true;
