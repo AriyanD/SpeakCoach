@@ -369,7 +369,7 @@ export async function speakOfflineNativeTts(
   safetyTimeoutMs = 30000,
   onPlaybackStart?: () => void
 ): Promise<void> {
-  const cleanLang = /^[a-z]{2,3}-[A-Z]{2,4}$/i.test(locale) ? locale : 'en-US';
+  const cleanLang = normalizeSpeechLocale(locale);
   stopAllTts();
 
   // In browser preview, use SpeechSynthesis directly so its real onstart event
@@ -480,7 +480,7 @@ export async function speakSentenceWithTierFallback(
 ): Promise<SpeakResult> {
   const playbackGeneration = activePlaybackGeneration;
   const rate = options?.rate ?? 1.0;
-  const locale = options?.locale ?? 'en-US';
+  const locale = normalizeSpeechLocale(options?.locale);
   const languageCode = locale.split('-')[0].toLowerCase();
   const wordCount = Math.max(1, countShadowingLanguageUnits(text, languageCode));
   const durationEstimateMs = Math.round(((wordCount * 380) / Math.max(0.5, rate)));
