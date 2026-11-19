@@ -26,7 +26,7 @@ function isDifficultyHistory(value: unknown): boolean {
   } | null;
   if (!entry || !Array.isArray(entry.sets) || typeof entry.activeSetId !== 'string') return false;
   if (!Number.isInteger(entry.activeSentenceIndex) || Number(entry.activeSentenceIndex) < 0) return false;
-  if (entry.sets.length === 0) return false;
+  if (entry.sets.length === 0) return entry.activeSetId === '' && entry.activeSentenceIndex === 0;
   const activeSet = entry.sets.find(set => (set as { id?: unknown } | null)?.id === entry.activeSetId) as
     { sentences?: unknown[] } | undefined;
   return !!activeSet && Array.isArray(activeSet.sentences) &&
@@ -101,4 +101,20 @@ export function setShadowingHistoryForLanguage(
   history: ShadowingSetHistory
 ): ShadowingLanguageHistories {
   return { ...histories, [languageCode]: history };
+}
+
+export const SHADOWING_SELECTED_LANGUAGE_KEY = 'speakcoach_shadowing_selected_language_v1';
+
+export async function loadSelectedShadowingLanguage(): Promise<ShadowingLanguageCode> {
+  try {
+    const stored = await Preferences.get({ key: SHADOWING_SELECTED_LANGUAGE_KEY });
+    const code = stored.value;
+    return SHADOWING_LANGUAGES.some(language => language.code === code)
+      ? code as ShadowingLanguageCode
+      : DEFAULT_SHADOWING_LANGUAGE;
+  } catch { return DEFAULT_SHADOWING_LANGUAGE; }
+}
+
+export async function saveSelectedShadowingLanguage(code: ShadowingLanguageCode): Promise<void> {
+  await Preferences.set({ key: SHADOWING_SELECTED_LANGUAGE_KEY, value: code });
 }
