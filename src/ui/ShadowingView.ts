@@ -1019,6 +1019,11 @@ export async function pauseShadowingRecordingForBackground(): Promise<void> {
 }
 
 export function resetShadowingViewState(): void {
+  sentenceSetHistory = null;
+  sentenceSetHistoryPromise = null;
+  sentenceLanguageHistories = {};
+  state.languageCode = 'en';
+  state.forceSpeechApiNotice = false;
   state.difficulty = 'easy';
   state.isGeneratingAi = false;
   state.aiGenerationError = null;
