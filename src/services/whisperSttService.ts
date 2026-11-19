@@ -244,6 +244,7 @@ export async function requestGeminiAudioTranscription(params: {
   wavBase64: string;
   durationMs?: number;
   language?: string;
+  languageCode?: string;
   transport?: TransportFn;
 }): Promise<{ transcript: string; words: SpokenWordToken[]; raw: WhisperVerboseResponse }> {
   validateWavBase64(params.wavBase64);
@@ -328,7 +329,7 @@ export async function requestGeminiAudioTranscription(params: {
     .filter((item): item is SpokenWordToken => item !== null);
   return {
     transcript,
-    words: words.length ? words : buildSpokenTokensFromTranscript(transcript, durationMs, undefined, params.language?.split('-')[0] ?? 'en'),
+    words: words.length ? words : buildSpokenTokensFromTranscript(transcript, durationMs, undefined, params.languageCode ?? 'en'),
     raw: { text: transcript }
   };
 }
@@ -620,6 +621,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   wavBase64: params.wavBase64,
                   durationMs: params.durationMs,
                   language: getShadowingLanguage(params.languageCode ?? 'en').promptName,
+                  languageCode: params.languageCode ?? 'en',
                   transport: params.transport
                 })
               : await requestWhisperWordTimestamps({
