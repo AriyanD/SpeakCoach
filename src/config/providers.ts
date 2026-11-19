@@ -352,8 +352,8 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
   llm_translation: {
     id: 'llm_translation',
     number: 6,
-    title: '6. LLM Translator (Shadowing Translation)',
-    subtitle: 'A separate AI connection used only to translate Shadowing text.',
+    title: '6. Translation & Grammar',
+    subtitle: 'A separate AI connection for Shadowing translation and on-demand grammar explanations.',
     providers: [
       {
         id: 'openai_compat_translation',

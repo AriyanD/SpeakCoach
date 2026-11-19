@@ -432,8 +432,14 @@ export async function renderSettingsView(
             </div>
             <div class="form-field"><label class="form-label" for="secondary-baseurl-${slotId}">Secondary Base URL</label>
               <input type="url" class="form-input" id="secondary-baseurl-${slotId}" value="${escapeHtml(slotCfg.secondary?.baseUrl || secondaryPreset?.defaultBaseUrl || '')}" placeholder="https://api.example.com/v1" /></div>
-            <div class="form-field"><label class="form-label" for="secondary-model-${slotId}">Secondary model / voice</label>
-              <input type="text" class="form-input" id="secondary-model-${slotId}" value="${escapeHtml(slotCfg.secondary?.modelOrVoice ?? '')}" placeholder="Model name" /></div>
+            <div class="form-field">
+              <div class="settings-field-heading">
+                <label class="form-label" for="secondary-model-${slotId}">Secondary model / voice</label>
+                ${slotId === 'voice_tts' ? '' : `<button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-models-btn-${slotId}">Fetch API 2 models</button>`}
+              </div>
+              <input type="text" class="form-input" id="secondary-model-${slotId}" value="${escapeHtml(slotCfg.secondary?.modelOrVoice ?? '')}" placeholder="${escapeHtml(secondaryPreset?.defaultModelOrVoice ?? 'Model name')}" />
+              ${slotId === 'voice_tts' ? '' : `<div class="model-picker-dropdown"><button type="button" class="model-picker-trigger" aria-expanded="false">Browse API 2 models</button><div class="model-picker-options" id="secondary-models-list-${slotId}" hidden></div></div><div id="fetch-secondary-models-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>`}
+            </div>
             ${slotId === 'voice_tts' ? `<div class="form-field" id="secondary-tts-voice-container-${slotId}" style="${secondaryPreset && secondaryPreset.id !== 'android_native_tts' ? '' : 'display:none;'}">
               <label class="form-label" for="secondary-custom-voice-${slotId}">API 2 voice (choose from the available list or enter a custom name)</label>
               <input type="text" class="form-input" id="secondary-custom-voice-${slotId}" value="${escapeHtml(slotCfg.secondary?.customTtsVoice ?? '')}" placeholder="Choose or enter a voice name" autocomplete="off" />
@@ -1219,6 +1225,52 @@ export async function renderSettingsView(
     const secondaryProviderOptions = container.querySelector<HTMLElement>(`#secondary-provider-options-${slotId}`);
     const secondaryBaseUrlInput = container.querySelector<HTMLInputElement>(`#secondary-baseurl-${slotId}`);
     const secondaryModelInput = container.querySelector<HTMLInputElement>(`#secondary-model-${slotId}`);
+    const fetchSecondaryModelsBtn = container.querySelector<HTMLButtonElement>(`#fetch-secondary-models-btn-${slotId}`);
+    const secondaryModelsList = container.querySelector<HTMLElement>(`#secondary-models-list-${slotId}`);
+    const secondaryModelPickerTrigger = secondaryModelsList?.parentElement?.querySelector<HTMLButtonElement>('.model-picker-trigger');
+    secondaryModelPickerTrigger?.addEventListener('click', () => {
+      if (!secondaryModelsList) return;
+      secondaryModelsList.hidden = !secondaryModelsList.hidden;
+      secondaryModelPickerTrigger.setAttribute('aria-expanded', String(!secondaryModelsList.hidden));
+    });
+    const fetchSecondaryModelsMsg = container.querySelector<HTMLElement>(`#fetch-secondary-models-msg-${slotId}`);
+    secondaryModelsList?.addEventListener('click', (event) => {
+      const option = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-model-value]');
+      if (!option || !secondaryModelInput) return;
+      secondaryModelInput.value = option.dataset.modelValue ?? '';
+      secondaryModelInput.dispatchEvent(new Event('input', { bubbles: true }));
+      secondaryModelsList.hidden = true;
+    });
+    fetchSecondaryModelsBtn?.addEventListener('click', async () => {
+      if (!fetchSecondaryModelsMsg || !secondaryProviderSelect?.value) return;
+      fetchSecondaryModelsBtn.disabled = true;
+      fetchSecondaryModelsMsg.hidden = false;
+      fetchSecondaryModelsMsg.textContent = 'Fetching API 2 models...';
+      try {
+        const preset = getPreset(slotId, secondaryProviderSelect.value);
+        const cfg: SlotConfig = {
+          slotId,
+          providerId: preset.id,
+          baseUrl: secondaryBaseUrlInput?.value.trim() || preset.defaultBaseUrl,
+          modelOrVoice: secondaryModelInput?.value.trim() || preset.defaultModelOrVoice,
+          authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
+          customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
+          customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
+          endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined
+        };
+        const key = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, preset.id, 'secondary');
+        const res = await fetchAvailableModels(cfg, key);
+        fetchSecondaryModelsMsg.textContent = res.message;
+        if (res.supported && res.models.length && secondaryModelsList) {
+          secondaryModelsList.innerHTML = res.models.map(model => `<button type="button" class="model-option" data-model-value="${escapeHtml(model)}">${escapeHtml(model)}</button>`).join('');
+          secondaryModelsList.hidden = false;
+        }
+      } catch (error) {
+        fetchSecondaryModelsMsg.textContent = error instanceof Error ? error.message : String(error);
+      } finally {
+        fetchSecondaryModelsBtn.disabled = false;
+      }
+    });
     const secondaryCustomVoiceInput = container.querySelector<HTMLInputElement>(`#secondary-custom-voice-${slotId}`);
     const secondaryCustomVoiceContainer = container.querySelector<HTMLElement>(`#secondary-tts-voice-container-${slotId}`);
     const secondaryKeyInput = container.querySelector<HTMLInputElement>(`#secondary-key-${slotId}`);

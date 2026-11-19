@@ -261,7 +261,7 @@ export async function requestLlmIeltsEvaluation(params: {
     rawResponseText = res.data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   } else {
     // OpenAI / Groq / Custom OpenAI-compatible
-    const model = (params.slotConfig.modelOrVoice || 'gpt-4o-mini').trim();
+    const model = (params.slotConfig.modelOrVoice || (baseUrl.toLowerCase().includes('groq.com') ? 'openai/gpt-oss-120b' : 'gpt-4o-mini')).trim();
     const prepared = buildCustomEndpointRequest({
       baseUrl,
       defaultPath: '/chat/completions',
@@ -746,7 +746,7 @@ Return this JSON shape:
       const body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
       raw = body?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text ?? '').join('\n') ?? '';
     } else {
-      const model = (apiConfig.modelOrVoice || 'gpt-4o-mini').trim();
+      const model = (apiConfig.modelOrVoice || (baseUrl.toLowerCase().includes('groq.com') ? 'openai/gpt-oss-120b' : 'gpt-4o-mini')).trim();
       const prepared = buildCustomEndpointRequest({ baseUrl, defaultPath: '/chat/completions', apiKey, slotConfig: apiConfig, defaultHeaders: { 'Content-Type': 'application/json' } });
       const response = await nativeHttpRequest<any>({
         url: prepared.url,

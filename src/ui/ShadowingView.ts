@@ -48,6 +48,8 @@ interface ShadowingState {
   translationSourceText: string | null;
   translationTargetLanguage: string;
   translationResult: string;
+  grammarResult: string;
+  translationMode: 'translate' | 'grammar';
   translationStatus: string | null;
   translationStatusType: 'info' | 'pass' | 'fail';
   isTranslating: boolean;
@@ -73,6 +75,8 @@ const state: ShadowingState = {
   translationSourceText: null,
   translationTargetLanguage: 'fa',
   translationResult: '',
+  grammarResult: '',
+  translationMode: 'translate',
   translationStatus: null,
   translationStatusType: 'info',
   isTranslating: false,
@@ -365,6 +369,7 @@ export function renderShadowingView(
     state.translationSourceText = translationSource;
     state.translationText = translationSource;
     state.translationResult = '';
+    state.grammarResult = '';
     state.translationStatus = null;
     state.translationStatusType = 'info';
   }
@@ -432,10 +437,11 @@ export function renderShadowingView(
           <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1} of ${activeHistory.sets.length}</span>
           <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
         </div>
-        <p class="card-subtitle sh-ai-sentence-count">Sentence ${state.index + 1} of 20</p>
+        
         ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
       </div>
       ${!state.customDrillText ? `<div class="card-subtitle shadowing-topic-label">Topic: <strong>${escapeHtml(sentence?.topic ?? 'Offline practice')}</strong></div>` : ''}
+      <p class="card-subtitle sh-ai-sentence-count">Sentence ${state.index + 1} of 20</p>
       <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div>
       <p class="card-subtitle sh-focus-copy">
         ${
@@ -446,11 +452,11 @@ export function renderShadowingView(
       </p>
 
       <div class="btn-row sh-player-controls" aria-label="Sentence playback controls">
-        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-prev-btn" aria-label="Previous sentence" title="Previous sentence">←</button>
+        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-prev-btn" aria-label="Previous sentence" title="Previous sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 9 12l10 7z"/></svg></button>
         <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback === 'normal' ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && !state.activeModelPlayback ? '' : 'disabled'} aria-label="Play model at normal speed" title="Play model at normal speed" aria-busy="${state.activeModelPlayback === 'normal'}">
           ${state.activeModelPlayback === 'normal' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
         </button>
-        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" title="Next sentence">→</button>
+        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && !state.activeModelPlayback ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
           ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
         </button>
@@ -459,6 +465,13 @@ export function renderShadowingView(
             ? `<button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button>`
             : ''
         }
+      </div>
+
+      <div class="btn-row sh-record-controls">
+        <button type="button" class="btn btn-primary sh-record-action ${isRec ? 'is-recording' : ''}" id="sh-record-btn" ${hasSentence ? '' : 'disabled'} aria-label="${isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
+          ${isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : 'Record Repetition'}
+        </button>
+        <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
       </div>
 
       <details class="sh-transcript-details" ${state.recognizerError ? 'open' : ''}>
@@ -480,13 +493,6 @@ export function renderShadowingView(
         </div>
       </details>
 
-      <div class="btn-row sh-record-controls">
-        <button type="button" class="btn btn-primary sh-record-action" id="sh-record-btn" ${hasSentence ? '' : 'disabled'} aria-label="${isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
-          ${isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score' : 'Record Repetition'}
-        </button>
-        <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
-      </div>
-
       ${
         state.emptyAttemptError
           ? `<div class="status-box fail" id="sh-empty-error" role="alert">${escapeHtml(
@@ -500,7 +506,7 @@ export function renderShadowingView(
     <section class="card sh-translation-card" id="sh-translation-card">
       <div class="card-header">
         <div>
-          <h2 class="card-title">Translation</h2>
+          <h2 class="card-title">Translation &amp; Grammar</h2>
           <p class="card-subtitle">Edit the sentence or enter a single word, choose a language, then translate.</p>
         </div>
       </div>
@@ -513,11 +519,13 @@ export function renderShadowingView(
           <label class="form-label" for="sh-translation-language">Translate into</label>
           <select class="form-select" id="sh-translation-language" ${state.isTranslating ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
         </div>
-        <button type="button" class="btn btn-primary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>
-          ${state.isTranslating ? 'Translating…' : 'Translate'}
-        </button>
+        <div class="sh-translation-actions">
+          <button type="button" class="btn btn-primary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>Translate</button>
+          <button type="button" class="btn btn-secondary sh-grammar-btn" id="sh-grammar-btn" ${state.isTranslating ? 'disabled' : ''}>Explain Grammar</button>
+        </div>
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
+      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, '<br>')}</div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
   `;
@@ -527,6 +535,7 @@ export function renderShadowingView(
     state.translationResult = '';
     state.translationStatus = null;
     container.querySelector('#sh-translation-result')?.remove();
+    container.querySelector('#sh-grammar-result')?.remove();
     container.querySelector('#sh-translation-status')?.remove();
   });
   container.querySelector<HTMLSelectElement>('#sh-translation-language')?.addEventListener('change', event => {
@@ -536,7 +545,7 @@ export function renderShadowingView(
     container.querySelector('#sh-translation-result')?.remove();
     container.querySelector('#sh-translation-status')?.remove();
   });
-  container.querySelector<HTMLButtonElement>('#sh-translate-btn')?.addEventListener('click', async () => {
+  const runTranslationAction = async (mode: 'translate' | 'grammar'): Promise<void> => {
     if (state.isTranslating) return;
     const textToTranslate = state.translationText.trim();
     const requestTargetLanguage = state.translationTargetLanguage;
@@ -547,16 +556,19 @@ export function renderShadowingView(
       return;
     }
     state.isTranslating = true;
+    state.translationMode = mode;
     state.translationResult = '';
-    state.translationStatus = 'Translating with the configured Translation API…';
+    state.grammarResult = '';
+    state.translationStatus = mode === 'grammar' ? 'Explaining grammar with the configured Translation API…' : 'Translating with the configured Translation API…';
     state.translationStatusType = 'info';
     renderShadowingView(container, summary);
     try {
       const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === requestTargetLanguage)?.label ?? requestTargetLanguage;
-      const result = await translateShadowingText(textToTranslate, targetLanguage);
+      const result = await translateShadowingText(textToTranslate, targetLanguage, undefined, mode);
       if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
-        state.translationResult = result.text;
-        state.translationStatus = `Translation complete via ${result.providerName} (${result.account === 'secondary' ? 'API 2' : 'API 1'}).`;
+        if (mode === 'grammar') state.grammarResult = result.text;
+        else state.translationResult = result.text;
+        state.translationStatus = `${mode === 'grammar' ? 'Grammar explanation' : 'Translation'} complete via ${result.providerName} (${result.account === 'secondary' ? 'API 2' : 'API 1'}).`;
         state.translationStatusType = 'pass';
       }
     } catch (error) {
@@ -568,7 +580,9 @@ export function renderShadowingView(
       state.isTranslating = false;
       renderShadowingView(container, summary);
     }
-  });
+  };
+  container.querySelector<HTMLButtonElement>('#sh-translate-btn')?.addEventListener('click', () => { void runTranslationAction('translate'); });
+  container.querySelector<HTMLButtonElement>('#sh-grammar-btn')?.addEventListener('click', () => { void runTranslationAction('grammar'); });
 
   container.querySelectorAll<HTMLButtonElement>('[data-word-replay]').forEach(button => {
     button.addEventListener('click', async () => {
