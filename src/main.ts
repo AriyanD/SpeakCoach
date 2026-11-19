@@ -17,6 +17,8 @@ import { initializeTheme } from './services/themeManager';
 import { initializeAppLanguage, observeAppLanguage } from './services/appLanguage';
 import { runFirstLaunchOnboarding } from './ui/OnboardingView';
 import { confirmInApp } from './ui/confirmDialog';
+import { showToast } from './ui/toast';
+import { loadSelectedShadowingLanguage } from './services/shadowingLanguageHistory';
 import type { IeltsTestRecord } from './storage/ieltsHistoryStore';
 
 interface NativeBackPlugin {
@@ -333,7 +335,14 @@ export async function bootstrapApp(
     }
   };
 
-  const handleBottomNavTap = (tab: ActiveTab): void => {
+  const handleBottomNavTap = async (tab: ActiveTab): Promise<void> => {
+    if (tab === 'ielts') {
+      const practiceLanguage = await loadSelectedShadowingLanguage();
+      if (practiceLanguage !== 'en') {
+        showToast('IELTS practice is available only when Shadowing practice language is set to English. Switch to English in Shadowing first.', 'info');
+        return;
+      }
+    }
     const section = getSection(tab);
     if (isSameNavigationSection(currentTab, tab)) {
       scrollAppToTop(viewContainer);
@@ -370,9 +379,9 @@ export async function bootstrapApp(
     resetSectionToRoot(section);
   };
 
-  navShadowingBtn?.addEventListener('click', () => handleBottomNavTap('shadowing'));
-  navIeltsBtn?.addEventListener('click', () => handleBottomNavTap('ielts'));
-  navSettingsBtn?.addEventListener('click', () => handleBottomNavTap('settings'));
+  navShadowingBtn?.addEventListener('click', () => { void handleBottomNavTap('shadowing'); });
+  navIeltsBtn?.addEventListener('click', () => { void handleBottomNavTap('ielts'); });
+  navSettingsBtn?.addEventListener('click', () => { void handleBottomNavTap('settings'); });
 
   let exitHintTimer: number | undefined;
   let quitDialogOpen = false;
