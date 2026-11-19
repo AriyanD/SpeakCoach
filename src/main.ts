@@ -17,7 +17,6 @@ import { initializeTheme } from './services/themeManager';
 import { initializeAppLanguage, observeAppLanguage } from './services/appLanguage';
 import { runFirstLaunchOnboarding } from './ui/OnboardingView';
 import { confirmInApp } from './ui/confirmDialog';
-import { showToast } from './ui/toast';
 import type { IeltsTestRecord } from './storage/ieltsHistoryStore';
 
 interface NativeBackPlugin {
