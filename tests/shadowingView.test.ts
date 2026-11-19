@@ -39,6 +39,34 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-target-text')?.textContent).toBe(initialShadowingText);
   });
 
+  it('loads offline starter sentences after switching languages, reports the IELTS restriction, and lets users dismiss the speech API notice', async () => {
+    const root = document.createElement('div');
+    await bootstrapApp(root, 'shadowing');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const notice = root.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
+    expect(notice).not.toBeNull();
+    expect(notice?.querySelector('#sh-api-notice-dismiss-btn')).not.toBeNull();
+    notice?.querySelector<HTMLButtonElement>('#sh-api-notice-dismiss-btn')?.click();
+    expect(root.querySelector('.sh-api-capability-notice')?.hasAttribute('hidden')).toBe(true);
+    expect(localStorage.getItem('speakcoach_speech_api_notice_dismissed_v1')).toBe('true');
+
+    const languageSelect = root.querySelector<HTMLSelectElement>('#sh-language-select');
+    expect(languageSelect).not.toBeNull();
+    languageSelect!.value = 'sv';
+    languageSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(root.querySelector('#sh-target-text')?.textContent).toBe('Jag brukar ta en kort promenad efter frukosten.');
+    expect(root.querySelector('.sh-empty-language-history')).toBeNull();
+    expect(root.querySelector('.sh-api-capability-notice')?.hasAttribute('hidden')).toBe(true);
+
+    root.querySelector<HTMLButtonElement>('#nav-ielts')?.click();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(root.querySelector('.app-toast-error')?.textContent).toContain('IELTS is English-only');
+    expect(root.querySelector('#sh-target-text')?.textContent).toBe('Jag brukar ta en kort promenad efter frukosten.');
+  });
+
   it('starts the transcript box EMPTY and refuses to score when recognizer returns empty (silence)', async () => {
     const root = document.createElement('div');
     await bootstrapApp(root, 'shadowing');
