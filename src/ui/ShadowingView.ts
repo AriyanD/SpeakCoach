@@ -26,7 +26,7 @@ import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttServ
 import { getCachedModelWordTimings } from '../services/modelTimingService';
 import { generateAiShadowingSentenceBatch } from '../services/shadowingAiGenerator';
 import { clearDiagnosticsCache } from './DiagnosticsView';
-import { SHADOWING_LANGUAGES, getShadowingLanguage, type ShadowingLanguageCode } from '../data/shadowingLanguages';
+import { SHADOWING_LANGUAGES, getShadowingLanguage, countShadowingLanguageUnits, type ShadowingLanguageCode } from '../data/shadowingLanguages';
 import { loadShadowingLanguageHistories, saveShadowingLanguageHistories, getShadowingHistoryForLanguage, setShadowingHistoryForLanguage, loadSelectedShadowingLanguage, saveSelectedShadowingLanguage, type ShadowingLanguageHistories } from '../services/shadowingLanguageHistory';
 
 interface ShadowingState {
@@ -390,7 +390,7 @@ export function renderShadowingView(
     state.translationStatusType = 'info';
   }
   const targetExpectedDurationMs = state.customDrillText
-    ? Math.max(1200, state.customDrillText.split(/\s+/).length * 480)
+    ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
   const selectedLanguage = getShadowingLanguage(state.languageCode);
 
@@ -426,7 +426,7 @@ export function renderShadowingView(
       </div>
       <div class="form-field sh-language-picker-field">
         <label class="form-label" for="sh-language-select">Practice language</label>
-        <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language">
+        <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language" style="max-width:240px;">
           ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
         </select>
       </div>
@@ -887,7 +887,7 @@ export function renderShadowingView(
     const vadAnalysis = rec.wavBase64
       ? analyzeWavBase64Vad(rec.wavBase64, targetExpectedDurationMs)
       : undefined;
-    const modelTimings = (await getCachedModelWordTimings(targetText)) ?? undefined;
+    const modelTimings = state.languageCode === 'en' ? (await getCachedModelWordTimings(targetText)) ?? undefined : undefined;
 
     if (sttOutcome.activeTier.tier <= 2 && sttOutcome.words.length > 0) {
       state.lastReport = scoreShadowingTier2({
