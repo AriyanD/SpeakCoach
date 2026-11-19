@@ -447,7 +447,7 @@ export function renderShadowingView(
 
       ${scoringTier.tier === 3 ? `<details class="offline-quality-notice shadowing-offline-notice" aria-label="Offline pronunciation accuracy notice">
         <summary><strong>Pronunciation accuracy notice</strong><span class="offline-quality-learn-more">Learn more</span></summary>
-        <p>Offline feedback uses Android's system SpeechRecognizer and approximate word/timing checks. It is still useful for practising repetition, fluency and matching the target sentence, but it is not a precise pronunciation score. For more dependable transcription and word-level timing, connect and test an online speech-to-text provider in Slot 2 (for example, Groq Whisper when available for your account). This improves the information available to the practice feedback, but true phoneme-level pronunciation assessment requires a dedicated pronunciation-assessment service.</p>
+        <p>Offline feedback uses the device or browser speech recognizer and approximate word/timing checks. It is still useful for practising repetition, fluency and matching the target sentence, but it is not a precise pronunciation score. For more dependable transcription and word-level timing, connect and test an online speech-to-text provider in Slot 2 (for example, Groq Whisper when available for your account). This improves the information available to the practice feedback, but true phoneme-level pronunciation assessment requires a dedicated pronunciation-assessment service.</p>
       </details>` : ''}
       <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
         <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy">Easy</button>
