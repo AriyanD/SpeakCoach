@@ -7,6 +7,7 @@ import { nativeHttpRequest } from './httpClient';
 import { executeWithTierFallback } from './tierManager';
 import { buildSpokenTokensFromTranscript, type SpokenWordToken } from './wordAlignment';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest, resolveWireFormat } from './customEndpointHelper';
+import { getShadowingLanguage } from '../data/shadowingLanguages';
 
 /**
  * Build a multipart/form-data body as a binary Uint8Array.
@@ -431,6 +432,7 @@ export async function requestAzurePronunciationAssessment(params: {
   wavBase64: string;
   durationMs?: number;
   referenceText: string;
+  languageLocale?: string;
   allowNoMatch?: boolean;
   transport?: TransportFn;
 }): Promise<{ transcript: string; words: SpokenWordToken[]; raw: WhisperVerboseResponse; recognitionStatus: string }> {
@@ -438,14 +440,18 @@ export async function requestAzurePronunciationAssessment(params: {
   const referenceText = params.referenceText.trim();
   if (!referenceText) throw new Error('Azure pronunciation assessment requires the reference sentence.');
   if ((params.durationMs ?? 0) > 30000) throw new Error('Azure REST pronunciation assessment supports recordings up to 30 seconds. Trying the secondary speech provider.');
+  const language = params.languageLocale ?? 'en-US';
+  const supportedLocales = new Set(['ar-EG','ar-SA','ca-ES','zh-HK','zh-CN','zh-TW','da-DK','nl-NL','en-AU','en-CA','en-IN','en-GB','en-US','fi-FI','fr-CA','fr-FR','de-DE','hi-IN','it-IT','ja-JP','ko-KR','ms-MY','nb-NO','pl-PL','pt-BR','pt-PT','ru-RU','es-MX','es-ES','sv-SE','ta-IN','th-TH','vi-VN']);
+  if (!supportedLocales.has(language)) {
+    throw new Error(`Azure pronunciation assessment does not support ${language}. Trying another speech provider.`);
+  }
   const baseUrl = normalizeBaseUrl(params.slotConfig.baseUrl);
   const endpointPath = params.slotConfig.endpointPathOverride?.trim() || '/speech/recognition/conversation/cognitiveservices/v1';
   const endpoint = endpointPath.startsWith('http://') || endpointPath.startsWith('https://')
     ? endpointPath
     : `${baseUrl}${endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`}`;
   const separator = endpoint.includes('?') ? '&' : '?';
-  const url = `${endpoint}${separator}format=detailed&language=${encodeURIComponent(params.slotConfig.modelOrVoice || 'en-US')}`;
-  const language = params.slotConfig.modelOrVoice || 'en-US';
+  const url = `${endpoint}${separator}format=detailed&language=${encodeURIComponent(language)}`;
   const pronunciationHeader = encodeUtf8Base64(JSON.stringify({
     ReferenceText: referenceText,
     GradingSystem: 'HundredMark',
@@ -528,6 +534,8 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   offlineTranscript: string;
   offlineConfidence?: number;
   referenceText?: string;
+  languageCode?: string;
+  languageLocale?: string;
   transport?: TransportFn;
 }): Promise<WhisperTranscriptionOutcome> {
   const requestedSlotId = params.slotId ?? 'ielts_stt';
@@ -601,6 +609,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                 wavBase64: params.wavBase64,
                 durationMs: params.durationMs,
                 referenceText: params.referenceText ?? '',
+                languageLocale: params.languageLocale ?? 'en-US',
                 transport: params.transport
               })
             : (candidateCfg.providerId === 'gemini_stt' || resolveWireFormat(candidateCfg) === 'gemini')
@@ -609,7 +618,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   apiKey,
                   wavBase64: params.wavBase64,
                   durationMs: params.durationMs,
-                  language: 'English',
+                  language: getShadowingLanguage(params.languageCode ?? 'en').promptName,
                   transport: params.transport
                 })
               : await requestWhisperWordTimestamps({
@@ -617,6 +626,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   apiKey,
                   wavBase64: params.wavBase64,
                   durationMs: params.durationMs,
+                  language: params.languageCode ?? 'en',
                   transport: params.transport
                 });
           usedSlotId = candidateSlotId;
