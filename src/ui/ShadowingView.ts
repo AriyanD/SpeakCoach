@@ -405,7 +405,9 @@ export function renderShadowingView(
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
   const selectedLanguage = getShadowingLanguage(state.languageCode);
-  const ieltsNavButton = document.querySelector<HTMLButtonElement>('#nav-ielts');
+  // The navigation belongs to the same app root as this view. Avoid a global
+  // lookup, which can update another mounted app instance (or a stale test root).
+  const ieltsNavButton = container.parentElement?.querySelector<HTMLButtonElement>('#nav-ielts') ?? null;
   if (ieltsNavButton) {
     // Keep the control clickable so the navigation handler can explain why
     // IELTS is unavailable. Native disabled buttons suppress click events.
