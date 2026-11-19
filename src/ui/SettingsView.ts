@@ -346,6 +346,9 @@ export async function renderSettingsView(
               </div>
             </div>
             <div id="fetch-models-msg-${slotId}" style="display: none;" class="settings-fetch-models-message"></div>
+            ${isCustom ? `<p class="card-subtitle custom-model-free-text-note">Custom API model names are free text. You are not limited to the suggestions above; enter the exact model ID accepted by your API gateway. The endpoint must implement this feature's required request format.</p>` : ''}
+            ${slotId === 'voice_tts' ? `<p class="card-subtitle">This slot requires a Text-to-Speech endpoint (text → audio), normally <code>/audio/speech</code> for OpenAI-compatible APIs. A chat/completions model alone is not sufficient.</p>` : ''}
+            ${slotId === 'pronunciation_scoring' || slotId === 'ielts_stt' ? `<p class="card-subtitle">This slot requires a Speech-to-Text endpoint (audio → text), normally <code>/audio/transcriptions</code> for OpenAI-compatible APIs. A text-only chat model is not sufficient.</p>` : ''}
           </div>
 
           ${
@@ -415,7 +418,7 @@ export async function renderSettingsView(
             <span class="secondary-api-configure-label">Tap to configure</span>
             <span class="secondary-api-summary-chevron" aria-hidden="true">+</span>
           </summary>
-          <p class="card-subtitle secondary-api-help">Configure a separate provider and key. It is used if the primary fails. Speech recognition rotates between verified providers.</p>
+          <p class="card-subtitle secondary-api-help">Configure another provider/account and key. Speech recognition may rotate between verified APIs. API 2 is not guaranteed to be a different model or service: if you use the same gateway, model, or endpoint in both accounts, you may have no independent fallback. Check that each account supports the required operation (TTS: text → audio; STT: audio → text).</p>
           <div class="form-grid">
             <div class="form-field"><label class="form-label" for="secondary-provider-${slotId}">Secondary provider</label>
               <select class="form-select provider-native-select" id="secondary-provider-${slotId}" aria-hidden="true" tabindex="-1">
