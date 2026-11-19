@@ -4,7 +4,6 @@ import {
   getActiveShadowingSet,
   moveShadowingSet,
   selectShadowingSentence,
-  createEmptyShadowingSetHistory,
   type ShadowingSetHistory
 } from '../services/shadowingSetHistory';
 import {
