@@ -99,15 +99,20 @@ export async function downloadSpeakCoachUpdate(asset: SpeakCoachReleaseAsset): P
   const directoryPath = 'SpeakCoach/updates';
   const filePath = `${directoryPath}/${asset.name}`;
 
-  // Android's Filesystem.downloadFile does not reliably create missing parent
-  // directories on every Capacitor 6 device. Create the destination explicitly
-  // before opening the output stream (the previous implementation could fail
-  // with ENOENT on a fresh install).
-  await Filesystem.mkdir({
-    path: directoryPath,
-    directory: Directory.Data,
-    recursive: true
-  });
+  // Ensure the destination exists without failing when a previous attempt
+  // (or an earlier download) has already created it. Only suppress the
+  // specific "already exists" condition; permission and storage errors must
+  // still stop the download.
+  try {
+    await Filesystem.mkdir({
+      path: directoryPath,
+      directory: Directory.Data,
+      recursive: true
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/directory\s+exists|already\s+exists/i.test(message)) throw error;
+  }
 
   try {
     const result = await Filesystem.downloadFile({
