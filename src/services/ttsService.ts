@@ -9,6 +9,7 @@ import { executeWithTierFallback } from './tierManager';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest } from './customEndpointHelper';
 import { runWithSlotApiFallback } from './apiFallback';
 import { convertPcmBase64ToWavDataUrl } from './pcmWavHelper';
+import { countShadowingLanguageUnits } from '../data/shadowingLanguages';
 
 export interface SpeakResult {
   activeTier: ResolvedSlotTier;
@@ -74,11 +75,12 @@ export async function synthesizeOnlineNeuralAudio(
   slotCfg: SlotConfig,
   apiKey: string,
   rate = 1.0,
-  transport?: TransportFn
+  transport?: TransportFn,
+  locale = 'en-US'
 ): Promise<{ dataUrl: string; fromCache: boolean }> {
   const hash = computeAudioCacheHash({
     providerId: slotCfg.providerId,
-    voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}`,
+    voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${locale}`,
     rate,
     text
   });
@@ -221,7 +223,10 @@ export async function synthesizeOnlineNeuralAudio(
   if (slotCfg.providerId === 'azure_tts') {
     const voiceName = (slotCfg.customTtsVoice?.trim() || slotCfg.modelOrVoice || 'en-US-JennyNeural').trim();
     const langMatch = voiceName.match(/^([a-z]{2}-[A-Z]{2})/);
-    const xmlLang = langMatch ? langMatch[1] : 'en-US';
+    if (langMatch && langMatch[1].toLowerCase() !== locale.toLowerCase()) {
+      throw new Error(`The configured Azure voice ${voiceName} is for ${langMatch[1]}, not ${locale}. Select a matching voice in Azure or use the device voice.`);
+    }
+    const xmlLang = locale;
     const prosodyRatePct = `${Math.round((rate - 1) * 100)}%`;
     const ssml = `<speak version='1.0' xml:lang='${xmlLang}'><voice name='${escapeXml(
       voiceName
@@ -249,9 +254,13 @@ export async function synthesizeOnlineNeuralAudio(
   }
 
   if (slotCfg.providerId === 'elevenlabs_tts') {
+    const supportedLanguages = new Set(['en','ja','zh','de','hi','fr','ko','pt','it','es','id','nl','tr','fil','pl','sv','bg','ro','ar','cs','el','fi','hr','ms','sk','da','ta','uk','ru']);
     const [voiceIdPart, modelIdPart] = (slotCfg.modelOrVoice || '21m00Tcm4TlvDq8ikWAM').split(':');
     const voiceId = slotCfg.customTtsVoice?.trim() || voiceIdPart?.trim() || '21m00Tcm4TlvDq8ikWAM';
     const modelId = modelIdPart?.trim() || 'eleven_multilingual_v2';
+    if (!supportedLanguages.has(locale.split('-')[0].toLowerCase())) {
+      throw new Error(`ElevenLabs ${modelId} does not list ${locale} as a supported language. The device voice will be used instead.`);
+    }
 
     const res = await nativeHttpRequest<string>(
       {
@@ -264,7 +273,8 @@ export async function synthesizeOnlineNeuralAudio(
         },
         data: {
           text,
-          model_id: modelId
+          model_id: modelId,
+          language_code: locale.split('-')[0].toLowerCase()
         },
         responseType: 'blob',
         timeoutMs: 15000
@@ -358,7 +368,7 @@ export async function speakOfflineNativeTts(
   safetyTimeoutMs = 30000,
   onPlaybackStart?: () => void
 ): Promise<void> {
-  const cleanLang = locale.toLowerCase().includes('gb') ? 'en-GB' : 'en-US';
+  const cleanLang = /^[a-z]{2,3}-[A-Z]{2,4}$/i.test(locale) ? locale : 'en-US';
   stopAllTts();
 
   // In browser preview, use SpeechSynthesis directly so its real onstart event
@@ -464,11 +474,14 @@ export async function speakSentenceWithTierFallback(
     rate?: number;
     transport?: TransportFn;
     onPlaybackStart?: () => void;
+    locale?: string;
   }
 ): Promise<SpeakResult> {
   const playbackGeneration = activePlaybackGeneration;
   const rate = options?.rate ?? 1.0;
-  const wordCount = Math.max(1, text.trim().split(/\s+/).length);
+  const locale = options?.locale ?? 'en-US';
+  const languageCode = locale.split('-')[0].toLowerCase();
+  const wordCount = Math.max(1, countShadowingLanguageUnits(text, languageCode));
   const durationEstimateMs = Math.round(((wordCount * 380) / Math.max(0.5, rate)));
 
   const configs = await loadAllSlotsConfig();
@@ -481,7 +494,7 @@ export async function speakSentenceWithTierFallback(
     'voice_tts',
     async () => {
       const attempt = await runWithSlotApiFallback('voice_tts', voiceSlot, (apiConfig, apiKey) =>
-        synthesizeOnlineNeuralAudio(text, apiConfig, apiKey, rate, options?.transport)
+        synthesizeOnlineNeuralAudio(text, apiConfig, apiKey, rate, options?.transport, locale)
       );
       usedProviderConfig.current = { config: attempt.config, account: attempt.account };
       const { dataUrl, fromCache } = attempt.result;
@@ -503,7 +516,7 @@ export async function speakSentenceWithTierFallback(
         return true;
       }
       usedCache = false;
-      await speakOfflineNativeTts(text, voiceSlot.modelOrVoice || 'en-US', rate, 30000, options?.onPlaybackStart);
+      await speakOfflineNativeTts(text, locale, rate, 30000, options?.onPlaybackStart);
       return true;
     }
   );
