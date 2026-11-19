@@ -561,6 +561,24 @@ export function renderShadowingView(
     </section>
   `;
 
+  container.querySelector<HTMLSelectElement>('#sh-language-select')?.addEventListener('change', async event => {
+    if (audioRecorder.isRecording() || state.isGeneratingAi) return;
+    const nextCode = (event.target as HTMLSelectElement).value as ShadowingLanguageCode;
+    if (!SHADOWING_LANGUAGES.some(language => language.code === nextCode) || nextCode === state.languageCode) return;
+    await persistCurrentShadowingHistory();
+    state.languageCode = nextCode;
+    await saveSelectedShadowingLanguage(nextCode);
+    const nextHistory = getShadowingHistoryForLanguage(sentenceLanguageHistories, nextCode);
+    sentenceSetHistory = nextHistory ?? createEmptyShadowingSetHistory();
+    if (!nextHistory) await persistCurrentShadowingHistory();
+    state.index = sentenceSetHistory[state.difficulty].activeSentenceIndex;
+    state.customDrillText = null;
+    state.aiGenerationError = null;
+    clearAttemptState();
+    stopAllTts();
+    renderShadowingView(container, summary);
+  });
+
   container.querySelector<HTMLTextAreaElement>('#sh-translation-input')?.addEventListener('input', event => {
     state.translationText = (event.target as HTMLTextAreaElement).value;
     state.translationResult = '';
@@ -692,7 +710,7 @@ export function renderShadowingView(
     state.customDrillText = null;
     state.aiGenerationError = null;
     clearAttemptState();
-    await saveShadowingSetHistory(sentenceSetHistory);
+    await persistCurrentShadowingHistory();
     renderShadowingView(container, summary);
   });
 
@@ -700,7 +718,7 @@ export function renderShadowingView(
     state.index = Math.max(0, state.index - 1);
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
-      await saveShadowingSetHistory(sentenceSetHistory);
+      await persistCurrentShadowingHistory();
     }
     state.customDrillText = null;
     clearAttemptState();
@@ -711,7 +729,7 @@ export function renderShadowingView(
     state.index = Math.min(19, state.index + 1);
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
-      await saveShadowingSetHistory(sentenceSetHistory);
+      await persistCurrentShadowingHistory();
     }
     state.customDrillText = null;
     clearAttemptState();
@@ -893,7 +911,8 @@ export function renderShadowingView(
         spokenTokensOverride: sttOutcome.words.length > 0 ? sttOutcome.words : undefined,
         activeTierOverride: scoringTier,
         vadAnalysis,
-        referenceTimingsOverride: modelTimings
+        referenceTimingsOverride: modelTimings,
+        languageCode: state.languageCode
       });
     }
 
