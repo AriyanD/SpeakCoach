@@ -226,8 +226,8 @@ The sentences array must contain exactly ${requestedCount} items.`;
   }
   const result = collected.slice(0, count);
 
-  attempt.result.forEach(sentence => rememberShadowingSentence(sentence.text, language.code));
-  return attempt.result;
+  collected.forEach(sentence => rememberShadowingSentence(sentence.text, language.code));
+  return collected;
 }
 
 export async function generateAiShadowingSentence(
