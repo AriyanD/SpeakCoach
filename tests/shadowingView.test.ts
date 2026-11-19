@@ -18,6 +18,9 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
 
   it('starts with offline sentence sets, removes source choice, and reports missing AI configuration', async () => {
     const root = document.createElement('div');
+    // ShadowingView updates the shared bottom-navigation element through
+    // document.querySelector, so mount the app as it is mounted in production.
+    document.body.appendChild(root);
     await bootstrapApp(root, 'shadowing');
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -219,6 +222,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     languageSelect!.value = 'en';
     languageSelect!.dispatchEvent(new Event('change', { bubbles: true }));
     await new Promise((resolve) => setTimeout(resolve, 50));
+    root.remove();
   });
 
 });
