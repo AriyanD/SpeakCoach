@@ -18,7 +18,6 @@ import { initializeAppLanguage, observeAppLanguage } from './services/appLanguag
 import { runFirstLaunchOnboarding } from './ui/OnboardingView';
 import { confirmInApp } from './ui/confirmDialog';
 import { showToast } from './ui/toast';
-import { loadSelectedShadowingLanguage } from './services/shadowingLanguageHistory';
 import type { IeltsTestRecord } from './storage/ieltsHistoryStore';
 
 interface NativeBackPlugin {
@@ -336,13 +335,6 @@ export async function bootstrapApp(
   };
 
   const handleBottomNavTap = async (tab: ActiveTab): Promise<void> => {
-    if (tab === 'ielts') {
-      const practiceLanguage = await loadSelectedShadowingLanguage();
-      if (practiceLanguage !== 'en') {
-        showToast(`IELTS is English-only. Your current Shadowing language is ${practiceLanguage.toUpperCase()}. Switch the practice language to English before opening IELTS.`, 'error', 5200);
-        return;
-      }
-    }
     const section = getSection(tab);
     if (isSameNavigationSection(currentTab, tab)) {
       scrollAppToTop(viewContainer);
