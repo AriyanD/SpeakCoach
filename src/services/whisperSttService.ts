@@ -8,6 +8,7 @@ import { executeWithTierFallback } from './tierManager';
 import { buildSpokenTokensFromTranscript, type SpokenWordToken } from './wordAlignment';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest, resolveWireFormat } from './customEndpointHelper';
 import { getShadowingLanguage } from '../data/shadowingLanguages';
+import { isAzurePronunciationLocaleSupported, toWhisperLanguageCode } from './shadowingSpeechLanguage';
 
 /**
  * Build a multipart/form-data body as a binary Uint8Array.
@@ -441,8 +442,7 @@ export async function requestAzurePronunciationAssessment(params: {
   if (!referenceText) throw new Error('Azure pronunciation assessment requires the reference sentence.');
   if ((params.durationMs ?? 0) > 30000) throw new Error('Azure REST pronunciation assessment supports recordings up to 30 seconds. Trying the secondary speech provider.');
   const language = params.languageLocale ?? 'en-US';
-  const supportedLocales = new Set(['ar-EG','ar-SA','ca-ES','zh-HK','zh-CN','zh-TW','da-DK','nl-NL','en-AU','en-CA','en-IN','en-GB','en-US','fi-FI','fr-CA','fr-FR','de-DE','hi-IN','it-IT','ja-JP','ko-KR','ms-MY','nb-NO','pl-PL','pt-BR','pt-PT','ru-RU','es-MX','es-ES','sv-SE','ta-IN','th-TH','vi-VN']);
-  if (!supportedLocales.has(language)) {
+  if (!isAzurePronunciationLocaleSupported(language)) {
     throw new Error(`Azure pronunciation assessment does not support ${language}. Trying another speech provider.`);
   }
   const baseUrl = normalizeBaseUrl(params.slotConfig.baseUrl);
@@ -626,7 +626,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   apiKey,
                   wavBase64: params.wavBase64,
                   durationMs: params.durationMs,
-                  language: params.languageCode ?? 'en',
+                  language: toWhisperLanguageCode(params.languageLocale ?? `${params.languageCode ?? 'en'}-US`),
                   transport: params.transport
                 });
           usedSlotId = candidateSlotId;
