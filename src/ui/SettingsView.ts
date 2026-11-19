@@ -535,7 +535,7 @@ export async function renderSettingsView(
         </button>
         <div class="quick-setup-panel" id="quick-setup-panel" hidden>
           <p class="card-subtitle">For the best experience, we recommend configuring the providers manually in API Settings below. If you use free API plans, separate accounts may help distribute legitimate usage where the provider's terms allow it; do not use multiple accounts to bypass provider limits or restrictions.</p>
-          <p class="card-subtitle">If you prefer a simpler setup, start with these two services: Google Gemini provides the core AI generation and evaluation, while Groq can provide speech recognition and Shadowing alignment. Gemini is essential for the core features; Groq is an optional addition for better speech support.</p>
+          <p class="card-subtitle">Quick Setup assigns Google Gemini as the default provider for most features and Groq as the backup. IELTS Evaluator uses Groq first with Gemini as backup. Voice/TTS uses Gemini because Groq has no compatible TTS preset here. Both keys are optional if already stored; missing keys leave that provider unverified.</p>
           <ul class="quick-setup-links">
             <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get a Google Gemini API key</a></li>
             <li><a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Get a Groq API key</a></li>
@@ -557,7 +557,7 @@ export async function renderSettingsView(
           <ul class="quick-setup-checklist" id="quick-setup-checklist">
             ${SLOT_ORDER.map((slotId) => `<li data-quick-setup-slot="${slotId}"><span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\d+\.\s*/, ''))}</span><span class="card-subtitle">Not checked</span></li>`).join('')}
           </ul>
-          <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick Setup fills both API slots automatically. It keeps API 2 as a fallback; Voice/TTS has no Groq-compatible backup. Connections are checked sequentially.</div>
+          <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick Setup fills both API slots automatically. It keeps API 2 as a fallback; Voice/TTS has no Groq-compatible backup. Connections are checked sequentially. Missing API keys leave those providers unverified.</div>
         </div>
       </div>
       <div class="settings-api-group-heading">
@@ -771,6 +771,8 @@ export async function renderSettingsView(
           if (primaryKey) await saveApiKey(item.slotId, primaryPreset.id, primaryKey, 'primary');
           await saveSlotConfig(primaryConfig);
           configs[item.slotId] = primaryConfig;
+          lastTestResults.delete(item.slotId);
+          await clearSlotConnectionTestResult(item.slotId);
 
           let primaryStatus = 'Primary configured';
           if (primaryKey) {
@@ -783,6 +785,8 @@ export async function renderSettingsView(
               else primaryStatus = 'Primary test failed';
             } catch (error) {
               attempted += 1;
+              await clearSlotConnectionTestResult(item.slotId);
+              lastTestResults.delete(item.slotId);
               primaryStatus = `Primary test failed: ${error instanceof Error ? error.message : String(error)}`;
             }
           } else {
@@ -822,7 +826,12 @@ export async function renderSettingsView(
                 else secondaryStatus = 'API 2 test failed';
               } catch (error) {
                 attempted += 1;
-                secondaryStatus = `API 2 test failed: ${error instanceof Error ? error.message : String(error)}`;
+                const message = error instanceof Error ? error.message : String(error);
+                const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
+                secondaryConfig = { ...secondaryConfig, verified: false, testResult };
+                await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+                configs[item.slotId].secondary = secondaryConfig;
+                secondaryStatus = `API 2 test failed: ${message}`;
               }
             } else skipped += 1;
             if (rowStatus) rowStatus.textContent = `${primaryStatus}; ${secondaryStatus}`;
