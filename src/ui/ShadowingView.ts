@@ -458,7 +458,7 @@ export function renderShadowingView(
       <div class="ai-sentence-panel">
         <div class="ai-sentence-panel-copy">
           <strong>Get a new sentence set</strong>
-          <span>Each set contains 20 sentences.</span>
+          <span>AI-generated sets contain 20 sentences; offline starter sets may contain one.</span>
         </div>
         <div class="form-field sh-topic-field">
           <label class="form-label" for="sh-topic-input">Optional topic</label>
@@ -479,7 +479,7 @@ export function renderShadowingView(
         ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
       </div>
       ${!state.customDrillText ? `<div class="card-subtitle shadowing-topic-label">Topic: <strong>${escapeHtml(sentence?.topic ?? 'Offline practice')}</strong></div>` : ''}
-      <p class="card-subtitle sh-ai-sentence-count">${hasLanguageSentenceSet ? `Sentence ${state.index + 1} of 20` : 'No sentence set yet'}</p>
+      <p class="card-subtitle sh-ai-sentence-count">${hasLanguageSentenceSet ? `Sentence ${state.index + 1} of ${activeSet?.sentences.length ?? 0}` : 'No sentence set yet'}</p>
       <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div>
       <p class="card-subtitle sh-focus-copy">
         ${
@@ -733,7 +733,7 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', async () => {
-    state.index = Math.min(19, state.index + 1);
+    state.index = Math.min(Math.max(0, (activeSet?.sentences.length ?? 1) - 1), state.index + 1);
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
       await persistCurrentShadowingHistory();
