@@ -258,7 +258,7 @@ export async function synthesizeOnlineNeuralAudio(
     const [voiceIdPart, modelIdPart] = (slotCfg.modelOrVoice || '21m00Tcm4TlvDq8ikWAM').split(':');
     const voiceId = slotCfg.customTtsVoice?.trim() || voiceIdPart?.trim() || '21m00Tcm4TlvDq8ikWAM';
     const modelId = modelIdPart?.trim() || 'eleven_multilingual_v2';
-    const languageCode = getElevenLabsLanguageCode(locale);
+    const languageCode = getElevenLabsLanguageCode(locale, modelId);
     if (!languageCode) {
       throw new Error(`ElevenLabs ${modelId} does not list ${locale} as a supported language. The device voice will be used instead.`);
     }
