@@ -459,7 +459,7 @@ export function renderShadowingView(
         <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
         <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
       </details>
-      ${state.languageCode !== 'en' ? `<div class="status-box info sh-ielts-language-notice" role="status"><strong>IELTS mode is English-only.</strong> IELTS scoring and examiner practice are unavailable while Shadowing is set to ${escapeHtml(selectedLanguage.label)}. Switch back to English to use IELTS.</div>` : ''}
+      
       ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate.</div>` : ''}
 
       ${scoringTier.tier === 3 ? `<details class="offline-quality-notice shadowing-offline-notice" aria-label="Offline pronunciation accuracy notice">
