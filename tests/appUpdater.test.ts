@@ -47,6 +47,25 @@ describe('SpeakCoach update downloads', () => {
     expect(Filesystem.deleteFile).not.toHaveBeenCalled();
   });
 
+  it('continues downloading when the destination directory already exists', async () => {
+    vi.mocked(Filesystem.mkdir).mockRejectedValue(new Error('Directory exists'));
+
+    await expect(downloadSpeakCoachUpdate(asset)).resolves.toContain('SpeakCoach-v1.0.6.apk');
+
+    expect(Filesystem.downloadFile).toHaveBeenCalled();
+    expect(Filesystem.stat).toHaveBeenCalled();
+    expect(Filesystem.deleteFile).not.toHaveBeenCalled();
+  });
+
+  it('does not hide real directory creation errors', async () => {
+    const error = new Error('Permission denied');
+    vi.mocked(Filesystem.mkdir).mockRejectedValue(error);
+
+    await expect(downloadSpeakCoachUpdate(asset)).rejects.toBe(error);
+
+    expect(Filesystem.downloadFile).not.toHaveBeenCalled();
+  });
+
   it('deletes an incomplete APK and refuses to return its path', async () => {
     vi.mocked(Filesystem.stat).mockResolvedValue({ size: 500 } as never);
 
