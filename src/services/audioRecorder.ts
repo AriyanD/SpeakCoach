@@ -386,7 +386,7 @@ class AudioRecorderService {
       offlineTranscript: transcript,
       offlineConfidence: confidence,
       offlineAlternatives: alternatives,
-      recognizerError: mock?.error ?? this.webSpeechError || undefined
+      recognizerError: (mock?.error ?? this.webSpeechError) || undefined
     };
   }
 }
