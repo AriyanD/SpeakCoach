@@ -124,6 +124,19 @@ class AudioRecorderService {
   private webProcessor: ScriptProcessorNode | null = null;
   private webChunks: Float32Array[] = [];
   private webSampleRate = 16000;
+  private webSpeechRecognizer: {
+    lang: string;
+    continuous: boolean;
+    interimResults: boolean;
+    onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string; confidence?: number }>> }) => void) | null;
+    onerror: ((event: { error?: string }) => void) | null;
+    onend: (() => void) | null;
+    start(): void;
+    stop(): void;
+  } | null = null;
+  private webSpeechTranscript = '';
+  private webSpeechConfidence = 0;
+  private webSpeechError = '';
   private mockRecognizerOutput: {
     transcript: string;
     confidence: number;
@@ -182,6 +195,9 @@ class AudioRecorderService {
     const preferOffline = options?.preferOffline ?? false;
     this.activeCaptureMode = useOfflineRecognizer ? 'offline_recognizer' : 'online_wav';
     this.lastStartOptions = { locale, useOfflineRecognizer, preferOffline };
+    this.webSpeechTranscript = '';
+    this.webSpeechConfidence = 0;
+    this.webSpeechError = '';
 
     if (Capacitor.isNativePlatform()) {
       try {
@@ -216,6 +232,42 @@ class AudioRecorderService {
     }
 
     this.webChunks = [];
+    if (useOfflineRecognizer && typeof window !== 'undefined') {
+      const speechWindow = window as unknown as {
+        SpeechRecognition?: new () => NonNullable<AudioRecorderService['webSpeechRecognizer']>;
+        webkitSpeechRecognition?: new () => NonNullable<AudioRecorderService['webSpeechRecognizer']>;
+      };
+      const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+      if (Recognition) {
+        try {
+          const recognizer = new Recognition();
+          recognizer.lang = locale;
+          recognizer.continuous = true;
+          recognizer.interimResults = false;
+          recognizer.onresult = (event) => {
+            const results = Array.from(event.results);
+            const transcripts = results.map(result => result[0]?.transcript?.trim() ?? '').filter(Boolean);
+            this.webSpeechTranscript = transcripts.join(' ').trim();
+            const confidences = results.map(result => result[0]?.confidence).filter((value): value is number =>
+              typeof value === 'number' && value > 0 && value <= 1
+            );
+            this.webSpeechConfidence = confidences.length
+              ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
+              : 0;
+          };
+          recognizer.onerror = (event) => {
+            this.webSpeechError = event.error || 'Browser speech recognition failed.';
+          };
+          recognizer.onend = () => undefined;
+          recognizer.start();
+          this.webSpeechRecognizer = recognizer;
+        } catch (error) {
+          this.webSpeechError = error instanceof Error ? error.message : 'Browser speech recognition could not start.';
+        }
+      } else {
+        this.webSpeechError = 'Offline speech recognition is not available in this browser. Use an online speech provider or the Android app.';
+      }
+    }
     if (
       !useOfflineRecognizer &&
       typeof navigator !== 'undefined' &&
@@ -248,6 +300,20 @@ class AudioRecorderService {
     const durationMs = Math.max(200, Math.min(130000, rawElapsed));
     const captureMode = this.activeCaptureMode;
     this.active = false;
+    if (this.webSpeechRecognizer) {
+      const recognizer = this.webSpeechRecognizer;
+      await new Promise<void>(resolve => {
+        const timeout = setTimeout(resolve, 1200);
+        const previousOnEnd = recognizer.onend;
+        recognizer.onend = () => {
+          clearTimeout(timeout);
+          previousOnEnd?.();
+          resolve();
+        };
+        try { recognizer.stop(); } catch { clearTimeout(timeout); resolve(); }
+      });
+      this.webSpeechRecognizer = null;
+    }
     this.startMs = 0;
 
     if (Capacitor.isNativePlatform()) {
@@ -307,8 +373,8 @@ class AudioRecorderService {
 
     const mock = this.mockRecognizerOutput;
     this.mockRecognizerOutput = null;
-    const transcript = (mock?.transcript ?? '').trim();
-    const confidence = mock?.confidence ?? 0;
+    const transcript = (mock?.transcript ?? this.webSpeechTranscript).trim();
+    const confidence = mock?.confidence ?? this.webSpeechConfidence;
     const alternatives =
       mock?.alternatives ?? (transcript ? [{ transcript, confidence }] : []);
 
@@ -320,7 +386,7 @@ class AudioRecorderService {
       offlineTranscript: transcript,
       offlineConfidence: confidence,
       offlineAlternatives: alternatives,
-      recognizerError: mock?.error
+      recognizerError: mock?.error ?? this.webSpeechError || undefined
     };
   }
 }
