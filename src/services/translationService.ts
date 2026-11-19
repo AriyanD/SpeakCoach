@@ -16,9 +16,8 @@ export function buildShadowingTranslationPrompt(text: string, targetLanguage: st
   const source = text.trim();
   const language = targetLanguage.trim();
   if (!source) throw new Error('Enter a word or sentence to translate.');
-  if (mode === 'grammar') {
-    if (source.length > 4000) throw new Error('Text is too long to explain (maximum 4,000 characters).');
-    return [
+  if (source.length > 4000) throw new Error('Text is too long (maximum 4,000 characters).');
+  if (mode === 'grammar') return [
     'Explain the English grammar of the following text entirely in English. Do not translate the explanation or use Persian or any other language.',
     'Give a learner-friendly explanation suitable for English learners and IELTS candidates: explain sentence structure, tense and aspect, clauses, word order, and important grammatical patterns, including why they are used. Add short examples in English when useful.',
     'For a single word or fragment, explain its grammatical role and common usage. Use concise headings and bullet points.',
@@ -28,7 +27,6 @@ export function buildShadowingTranslationPrompt(text: string, targetLanguage: st
     source
   ].join('\\n');
   if (!language) throw new Error('Choose a target language.');
-  if (source.length > 4000) throw new Error('Text is too long to translate (maximum 4,000 characters).');
   return [
     'Translate the following text into ' + language + '.',
     'Preserve the original meaning, tone, and punctuation. Return only the translated text, without labels, explanations, or quotation marks.',
@@ -36,7 +34,7 @@ export function buildShadowingTranslationPrompt(text: string, targetLanguage: st
     '',
     'Text:',
     source
-  ].join('\n');
+  ].join('\\n');
 }
 
 export function extractShadowingTranslationText(payload: any, wireFormat: 'gemini' | 'openai'): string {
