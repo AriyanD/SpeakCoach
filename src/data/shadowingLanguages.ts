@@ -26,7 +26,7 @@ export const SHADOWING_LANGUAGES: readonly ShadowingLanguage[] = [
   { code: 'ar', locale: 'ar-SA', label: 'Arabic', nativeName: 'العربية', promptName: 'Arabic', usesWordSegmentation: true },
   { code: 'zh', locale: 'zh-CN', label: 'Chinese', nativeName: '简体中文', promptName: 'Simplified Chinese', usesWordSegmentation: false },
   { code: 'ja', locale: 'ja-JP', label: 'Japanese', nativeName: '日本語', promptName: 'Japanese', usesWordSegmentation: false },
-  { code: 'ko', locale: 'ko-KR', label: 'Korean', nativeName: '한국어', promptName: 'Korean', usesWordSegmentation: false }
+  { code: 'ko', locale: 'ko-KR', label: 'Korean', nativeName: '한국어', promptName: 'Korean', usesWordSegmentation: true }
 ] as const;
 
 export const DEFAULT_SHADOWING_LANGUAGE: ShadowingLanguageCode = 'en';
@@ -58,5 +58,6 @@ export function countShadowingLanguageUnits(text: string, languageCode: string):
 
   // A conservative character-based fallback avoids treating an unspaced
   // sentence as a single word when native segmentation is unavailable.
-  return Array.from(clean.replace(/[\s\p{P}\p{S}]/gu, '')).length;
+  const characters = Array.from(clean.replace(/[\s\p{P}\p{S}]/gu, '')).length;
+  return Math.max(1, Math.ceil(characters / (language.code === 'ja' ? 2.5 : 2)));
 }
