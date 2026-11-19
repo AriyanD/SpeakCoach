@@ -207,7 +207,11 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('.sh-empty-language-history')).toBeNull();
     expect(root.querySelector('.sh-api-capability-notice')?.hasAttribute('hidden')).toBe(true);
 
-    root.querySelector<HTMLButtonElement>('#nav-ielts')?.click();
+    const ieltsButton = root.querySelector<HTMLButtonElement>('#nav-ielts');
+    expect(ieltsButton).not.toBeNull();
+    expect(ieltsButton?.disabled).toBe(false);
+    expect(ieltsButton?.getAttribute('aria-disabled')).toBe('true');
+    ieltsButton?.click();
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(document.body.querySelector('.app-toast-error')?.textContent).toContain('IELTS is English-only');
     expect(root.querySelector('#sh-target-text')?.textContent).toBe('Jag brukar ta en kort promenad efter frukosten.');
