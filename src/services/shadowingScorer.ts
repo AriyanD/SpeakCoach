@@ -283,7 +283,8 @@ export function scoreShadowingTier2(params: {
         params.referenceText,
         params.spokenTokens,
         params.expectedDurationMs,
-        params.referenceTimingsOverride
+        params.referenceTimingsOverride,
+        params.languageCode ?? 'en'
       )
     : [];
 
