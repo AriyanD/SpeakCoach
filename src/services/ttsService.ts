@@ -182,7 +182,7 @@ export async function synthesizeOnlineNeuralAudio(
           contents: [{ role: 'user', parts: [{ text }] }],
           generationConfig: {
             responseModalities: ['AUDIO'],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+            speechConfig: { languageCode: locale.split('-')[0].toLowerCase(), voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
           }
         },
         timeoutMs: 30000,
