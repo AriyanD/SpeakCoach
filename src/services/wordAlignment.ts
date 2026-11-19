@@ -91,7 +91,11 @@ export function tokenizeShadowingText(text: string, languageCode = 'en'): string
     if (Segmenter) return Array.from(new Segmenter(language.locale, { granularity: 'word' }).segment(clean))
       .filter(part => part.isWordLike).map(part => part.segment);
   } catch { /* Use a character fallback on older WebViews. */ }
-  return Array.from(clean.replace(/[\s\p{P}\p{S}]/gu, ''));
+  const characters = Array.from(clean.replace(/[\s\p{P}\p{S}]/gu, ''));
+  const chunkSize = language.code === 'ja' ? 3 : 2;
+  return Array.from({ length: Math.ceil(characters.length / chunkSize) }, (_, index) =>
+    characters.slice(index * chunkSize, (index + 1) * chunkSize).join('')
+  );
 }
 
 function normalizeForLanguage(raw: string, languageCode = 'en'): string {
