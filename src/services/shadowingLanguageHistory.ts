@@ -48,6 +48,7 @@ function isDifficultyHistory(value: unknown): boolean {
 function isLanguageHistories(value: unknown): value is ShadowingLanguageHistories {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
+  if (!record[DEFAULT_SHADOWING_LANGUAGE]) return false;
   return Object.entries(record).every(([code, history]) =>
     SHADOWING_LANGUAGES.some(language => language.code === code) &&
     !!history && typeof history === 'object' &&
