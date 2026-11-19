@@ -407,8 +407,10 @@ export function renderShadowingView(
   const selectedLanguage = getShadowingLanguage(state.languageCode);
   const ieltsNavButton = document.querySelector<HTMLButtonElement>('#nav-ielts');
   if (ieltsNavButton) {
-    ieltsNavButton.disabled = state.languageCode !== 'en';
-    ieltsNavButton.title = state.languageCode === 'en' ? 'IELTS practice' : 'IELTS is available only in English Shadowing mode';
+    // Keep the control clickable so the navigation handler can explain why
+    // IELTS is unavailable. Native disabled buttons suppress click events.
+    ieltsNavButton.disabled = false;
+    ieltsNavButton.title = state.languageCode === 'en' ? 'IELTS practice' : 'IELTS is English-only — click for details';
     ieltsNavButton.setAttribute('aria-disabled', String(state.languageCode !== 'en'));
   }
 
