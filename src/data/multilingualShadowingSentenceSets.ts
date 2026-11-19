@@ -69,7 +69,7 @@ const SENTENCES: Record<Exclude<ShadowingLanguageCode, 'en'>, LanguageRows> = {
   },
   ja: {
     easy: [{ topic: '日常生活', text: '毎朝、仕事の前に温かいお茶を飲みます。', phoneticFocus: 'Mora timing and clear vowel length' }],
-    medium: [{ topic: '交通', text: '公共交通機関を利用する人が増えると、 街の渋滞を減らすことができます。', phoneticFocus: 'Pitch accent and particle pronunciation' }],
+    medium: [{ topic: '交通', text: '公共交通機関を利用する人が増えると、街の渋滞を減らすことができます。', phoneticFocus: 'Pitch accent and particle pronunciation' }],
     hard: [{ topic: '社会', text: '持続可能な社会への移行には、さまざまな人々への社会的な影響を考慮する必要があります。', phoneticFocus: 'Mora timing, devoiced vowels and sentence intonation' }]
   },
   ko: {
