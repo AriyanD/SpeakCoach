@@ -224,8 +224,6 @@ The sentences array must contain exactly ${requestedCount} items.`;
   if (collected.length < count) {
     throw new Error(`Could not complete the sentence set: ${lastError} Please try again.`);
   }
-  const result = collected.slice(0, count);
-
   collected.forEach(sentence => rememberShadowingSentence(sentence.text, language.code));
   return collected;
 }
