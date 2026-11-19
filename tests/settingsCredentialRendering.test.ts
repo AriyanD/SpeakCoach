@@ -46,4 +46,35 @@ describe('Settings credential rendering', () => {
     expect(container.querySelector('#required-api-status')).not.toBeNull();
     expect(container.querySelector('.settings-api-required-label')?.textContent).toContain('Required');
   });
+  it('preserves an existing Voice/TTS API 2 when Quick Setup has no recommended backup', async () => {
+    const secondaryProvider = 'openai_tts';
+    const secondaryPreset = getPreset('voice_tts', secondaryProvider);
+    const originalSecondary = {
+      providerId: secondaryProvider,
+      baseUrl: secondaryPreset.defaultBaseUrl,
+      modelOrVoice: secondaryPreset.defaultModelOrVoice,
+      authStyle: 'bearer' as const
+    };
+    await saveSecondarySlotConfig('voice_tts', originalSecondary);
+
+    const current = await loadAllSlotsConfig();
+    const summary = await resolveGlobalTierSummary(current);
+    const container = document.createElement('div');
+    await renderSettingsView(container, current, summary, async () => {});
+
+    container.querySelector<HTMLButtonElement>('#quick-setup-run-btn')!.click();
+    const confirm = document.querySelector<HTMLButtonElement>('.sc-dialog-actions .btn-danger');
+    expect(confirm).not.toBeNull();
+    confirm!.click();
+
+    for (let i = 0; i < 100; i++) {
+      if (container.querySelector('#quick-setup-status')?.textContent?.includes('Quick setup finished')) break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    expect(container.querySelector('#quick-setup-status')?.textContent).toContain('Quick setup finished');
+    const after = await loadAllSlotsConfig();
+    expect(after.voice_tts.secondary).toEqual(originalSecondary);
+  });
+
 });
