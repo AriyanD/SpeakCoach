@@ -10,6 +10,7 @@ import { buildCustomEndpointRequest, buildGeminiEndpointRequest } from './custom
 import { runWithSlotApiFallback } from './apiFallback';
 import { convertPcmBase64ToWavDataUrl } from './pcmWavHelper';
 import { countShadowingLanguageUnits } from '../data/shadowingLanguages';
+import { getElevenLabsLanguageCode, normalizeSpeechLocale } from './shadowingSpeechLanguage';
 
 export interface SpeakResult {
   activeTier: ResolvedSlotTier;
@@ -254,11 +255,11 @@ export async function synthesizeOnlineNeuralAudio(
   }
 
   if (slotCfg.providerId === 'elevenlabs_tts') {
-    const supportedLanguages = new Set(['en','ja','zh','de','hi','fr','ko','pt','it','es','id','nl','tr','fil','pl','sv','bg','ro','ar','cs','el','fi','hr','ms','sk','da','ta','uk','ru']);
     const [voiceIdPart, modelIdPart] = (slotCfg.modelOrVoice || '21m00Tcm4TlvDq8ikWAM').split(':');
     const voiceId = slotCfg.customTtsVoice?.trim() || voiceIdPart?.trim() || '21m00Tcm4TlvDq8ikWAM';
     const modelId = modelIdPart?.trim() || 'eleven_multilingual_v2';
-    if (!supportedLanguages.has(locale.split('-')[0].toLowerCase())) {
+    const languageCode = getElevenLabsLanguageCode(locale);
+    if (!languageCode) {
       throw new Error(`ElevenLabs ${modelId} does not list ${locale} as a supported language. The device voice will be used instead.`);
     }
 
@@ -274,7 +275,7 @@ export async function synthesizeOnlineNeuralAudio(
         data: {
           text,
           model_id: modelId,
-          language_code: locale.split('-')[0].toLowerCase()
+          language_code: languageCode
         },
         responseType: 'blob',
         timeoutMs: 15000
