@@ -55,6 +55,7 @@ interface ShadowingState {
   translationStatus: string | null;
   translationStatusType: 'info' | 'pass' | 'fail';
   isTranslating: boolean;
+  forceSpeechApiNotice: boolean;
 }
 
 const state: ShadowingState = {
@@ -83,6 +84,7 @@ const state: ShadowingState = {
   translationStatus: null,
   translationStatusType: 'info',
   isTranslating: false,
+  forceSpeechApiNotice: false
 };
 
 const TRANSLATION_LANGUAGES = [
@@ -111,6 +113,11 @@ function renderTranslationLanguageOptions(selected: string): string {
 let sentenceSetHistory: ShadowingSetHistory | null = null;
 let sentenceSetHistoryPromise: Promise<ShadowingSetHistory> | null = null;
 let sentenceLanguageHistories: ShadowingLanguageHistories = {};
+const SPEECH_API_NOTICE_DISMISSED_KEY = 'speakcoach_speech_api_notice_dismissed_v1';
+function isSpeechApiNoticeDismissed(): boolean {
+  try { return localStorage.getItem(SPEECH_API_NOTICE_DISMISSED_KEY) === 'true'; } catch { return false; }
+}
+function reopenSpeechApiNotice(): void { state.forceSpeechApiNotice = true; }
 async function persistCurrentShadowingHistory(): Promise<void> {
   if (!sentenceSetHistory) return;
   sentenceLanguageHistories = setShadowingHistoryForLanguage(sentenceLanguageHistories, state.languageCode, sentenceSetHistory);
@@ -436,11 +443,12 @@ export function renderShadowingView(
           ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
         </select>
       </div>
-      <details class="offline-quality-notice sh-api-capability-notice" aria-label="Speech API capability notice">
+      <details class="offline-quality-notice sh-api-capability-notice" aria-label="Speech API capability notice" ${(!isSpeechApiNoticeDismissed() || state.forceSpeechApiNotice) ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
         <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
         <strong>Important: speech APIs have separate capabilities</strong>
         <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
         <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
+        <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
       </details>
       ${state.languageCode !== 'en' ? `<div class="status-box info sh-ielts-language-notice" role="status"><strong>IELTS mode is English-only.</strong> IELTS scoring and examiner practice are unavailable while Shadowing is set to ${escapeHtml(selectedLanguage.label)}. Switch back to English to use IELTS.</div>` : ''}
       ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate.</div>` : ''}
@@ -568,6 +576,12 @@ export function renderShadowingView(
     </section>
   `;
 
+  container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice')?.querySelector<HTMLButtonElement>('#sh-api-notice-dismiss-btn')?.addEventListener('click', () => {
+    try { localStorage.setItem(SPEECH_API_NOTICE_DISMISSED_KEY, 'true'); } catch { /* Dismiss for this render even if storage is unavailable. */ }
+    state.forceSpeechApiNotice = false;
+    container.querySelector('.sh-api-capability-notice')?.setAttribute('hidden', '');
+  });
+
   container.querySelector<HTMLSelectElement>('#sh-language-select')?.addEventListener('change', async event => {
     if (audioRecorder.isRecording() || state.isGeneratingAi) return;
     const nextCode = (event.target as HTMLSelectElement).value as ShadowingLanguageCode;
@@ -576,7 +590,7 @@ export function renderShadowingView(
     state.languageCode = nextCode;
     await saveSelectedShadowingLanguage(nextCode);
     const nextHistory = getShadowingHistoryForLanguage(sentenceLanguageHistories, nextCode);
-    sentenceSetHistory = nextHistory ?? createEmptyShadowingSetHistory();
+    sentenceSetHistory = nextHistory ?? createShadowingHistoryForLanguage(nextCode);
     if (!nextHistory) await persistCurrentShadowingHistory();
     state.index = sentenceSetHistory[state.difficulty].activeSentenceIndex;
     state.customDrillText = null;
@@ -653,6 +667,7 @@ export function renderShadowingView(
         const result = await speakSentenceWithTierFallback(word, { locale: selectedLanguage.locale });
         state.statusMessage = `Played “${word}” via ${result.activeTier.detailLabel}.`;
       } catch (error) {
+        reopenSpeechApiNotice();
         state.statusMessage = `Could not play “${word}”: ${error instanceof Error ? error.message : String(error)}`;
       } finally {
         renderShadowingView(container, summary);
@@ -769,6 +784,7 @@ export function renderShadowingView(
         : `Played slow model audio (0.72x) via ${res.activeTier.detailLabel}.${offlineVoiceNote}`;
     } catch (error) {
       if (playbackToken !== shadowingModelPlaybackToken) return;
+      reopenSpeechApiNotice();
       state.statusMessage = `Could not play model audio: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
       if (playbackToken === shadowingModelPlaybackToken) {
@@ -867,6 +883,7 @@ export function renderShadowingView(
     state.recognizedConfidence = rec.offlineConfidence;
     state.recognizedAlternatives = rec.offlineAlternatives;
     state.recognizerError = rec.recognizerError;
+    if (rec.recognizerError) reopenSpeechApiNotice();
 
     // Never fall back to reference text! If recognizer returned empty/null/error, DO NOT score.
     if (!rawRecognized) {
