@@ -535,7 +535,7 @@ export async function renderSettingsView(
         </button>
         <div class="quick-setup-panel" id="quick-setup-panel" hidden>
           <p class="card-subtitle">For the best experience, we recommend configuring the providers manually in API Settings below. If you use free API plans, separate accounts may help distribute legitimate usage where the provider's terms allow it; do not use multiple accounts to bypass provider limits or restrictions.</p>
-          <p class="card-subtitle">If you prefer a simpler setup, start with these two services: Google Gemini provides the core AI generation and evaluation, while Groq can provide speech recognition and Shadowing alignment. Gemini is essential for the core features; Groq is an optional addition for better speech support.</p>
+          <p class="card-subtitle">Quick Setup assigns Google Gemini as the default provider for most features and Groq as the backup. IELTS Evaluator uses Groq first with Gemini as backup. Voice/TTS uses Gemini because Groq has no compatible TTS preset here. Both keys are optional if already stored; missing keys leave that provider unverified.</p>
           <ul class="quick-setup-links">
             <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get a Google Gemini API key</a></li>
             <li><a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Get a Groq API key</a></li>
@@ -550,14 +550,14 @@ export async function renderSettingsView(
               <input type="password" class="form-input" id="quick-setup-groq-key" autocomplete="off" placeholder="Paste Groq key (optional)" />
             </div>
           </div>
-          <p class="card-subtitle">Quick Setup configures the recommended providers across the six features, tests each selected connection in sequence, and preserves existing API 2 settings.</p>
+          <p class="card-subtitle">Quick Setup fills API 1 and API 2 for all compatible features. API 2 is the fallback. Voice/TTS has no compatible Groq backup. Connection checks run sequentially.</p>
           <div class="btn-row">
             <button type="button" class="btn btn-primary" id="quick-setup-run-btn">Set up recommended providers</button>
           </div>
           <ul class="quick-setup-checklist" id="quick-setup-checklist">
             ${SLOT_ORDER.map((slotId) => `<li data-quick-setup-slot="${slotId}"><span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\d+\.\s*/, ''))}</span><span class="card-subtitle">Not checked</span></li>`).join('')}
           </ul>
-          <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick Setup changes API 1 provider choices only after you confirm. Each configured provider is tested in sequence.</div>
+          <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick Setup fills both API slots automatically. It keeps API 2 as a fallback; Voice/TTS has no Groq-compatible backup. Connections are checked sequentially. Missing API keys leave those providers unverified.</div>
         </div>
       </div>
       <div class="settings-api-group-heading">
@@ -693,7 +693,7 @@ export async function renderSettingsView(
   quickSetupButton?.addEventListener('click', async () => {
     const confirmed = await confirmInApp({
       title: 'Set up the recommended AI providers?',
-      message: 'This changes API 1 provider choices for the six AI features and sends test requests to the selected services. Tests may consume API credits or quota. Existing API 2 settings are preserved.',
+      message: 'This configures API 1 and API 2 for the six features. API connection tests run sequentially and may consume quota. API 2 is configured as a fallback; Voice/TTS has no Groq-compatible TTS backup.',
       confirmLabel: 'Run quick setup',
       cancelLabel: 'Keep current settings',
       tone: 'danger'
@@ -706,99 +706,168 @@ export async function renderSettingsView(
       gemini: geminiInput?.value.trim() ?? '',
       groq: groqInput?.value.trim() ?? ''
     };
-    const plan: Array<{ slotId: SlotId; candidates: Array<{ providerId: string; source: 'gemini' | 'groq' }> }> = [
-      { slotId: 'voice_tts', candidates: [{ providerId: 'gemini_tts', source: 'gemini' }] },
-      { slotId: 'pronunciation_scoring', candidates: [
-        { providerId: 'whisper_alignment', source: 'groq' },
-        { providerId: 'gemini_pronunciation', source: 'gemini' }
-      ] },
-      { slotId: 'ielts_stt', candidates: [
-        { providerId: 'whisper_stt', source: 'groq' },
-        { providerId: 'gemini_stt', source: 'gemini' }
-      ] },
-      { slotId: 'llm_evaluator', candidates: [{ providerId: 'gemini_eval', source: 'gemini' }] },
-      { slotId: 'llm_generator', candidates: [{ providerId: 'gemini_gen', source: 'gemini' }] },
-      { slotId: 'llm_translation', candidates: [{ providerId: 'gemini_translation', source: 'gemini' }] }
+    type QuickProvider = { providerId: string; source: 'gemini' | 'groq'; baseUrl?: string; model?: string };
+    type QuickPlanItem = { slotId: SlotId; primary: QuickProvider; secondary?: QuickProvider };
+    const groqBaseUrl = 'https://api.groq.com/openai/v1';
+    const groqLlmModel = 'openai/gpt-oss-120b';
+    const plan: QuickPlanItem[] = [
+      { slotId: 'voice_tts', primary: { providerId: 'gemini_tts', source: 'gemini' } },
+      { slotId: 'pronunciation_scoring', primary: { providerId: 'gemini_pronunciation', source: 'gemini' }, secondary: { providerId: 'whisper_alignment', source: 'groq' } },
+      { slotId: 'ielts_stt', primary: { providerId: 'gemini_stt', source: 'gemini' }, secondary: { providerId: 'whisper_stt', source: 'groq' } },
+      { slotId: 'llm_evaluator', primary: { providerId: 'custom_openai_eval', source: 'groq', baseUrl: groqBaseUrl, model: groqLlmModel }, secondary: { providerId: 'gemini_eval', source: 'gemini' } },
+      { slotId: 'llm_generator', primary: { providerId: 'gemini_gen', source: 'gemini' }, secondary: { providerId: 'custom_openai_gen', source: 'groq', baseUrl: groqBaseUrl, model: groqLlmModel } },
+      { slotId: 'llm_translation', primary: { providerId: 'gemini_translation', source: 'gemini' }, secondary: { providerId: 'custom_openai_translation', source: 'groq', baseUrl: groqBaseUrl, model: groqLlmModel } }
     ];
 
     quickSetupButton.disabled = true;
     quickSetupButton.textContent = 'Setting up…';
     if (quickSetupStatus) {
       quickSetupStatus.className = 'status-box info';
-      quickSetupStatus.textContent = 'Testing providers one by one. Keep the app open until the checklist is complete.';
+      quickSetupStatus.textContent = 'Configuring providers and checking available API keys one by one…';
     }
     let attempted = 0;
     let passed = 0;
     let skipped = 0;
 
+    const resolveKey = async (slotId: SlotId, provider: QuickProvider, account: 'primary' | 'secondary'): Promise<string> => {
+      const supplied = suppliedKeys[provider.source];
+      if (supplied) return supplied;
+      try {
+        const localKey = await loadApiKeyStrict(slotId, provider.providerId, account);
+        if (localKey.trim()) return localKey;
+      } catch { /* Try another saved key from the same provider family. */ }
+
+      const reusableProviderIds: Record<'gemini' | 'groq', string[]> = {
+        gemini: ['gemini_tts', 'gemini_pronunciation', 'gemini_stt', 'gemini_eval', 'gemini_gen', 'gemini_translation'],
+        groq: ['whisper_alignment', 'whisper_stt', 'custom_openai_eval', 'custom_openai_gen', 'custom_openai_translation']
+      };
+      for (const otherSlotId of SLOT_ORDER) {
+        for (const providerId of reusableProviderIds[provider.source]) {
+          if (!SLOT_DEFINITIONS[otherSlotId].providers.some((preset) => preset.id === providerId)) continue;
+          for (const keyAccount of ['primary', 'secondary'] as const) {
+            try {
+              const savedKey = await loadApiKeyStrict(otherSlotId, providerId, keyAccount);
+              if (savedKey.trim()) return savedKey;
+            } catch { /* Continue scanning for a recoverable credential. */ }
+          }
+        }
+      }
+      return '';
+    };
+
+    const makeConfig = (slotId: SlotId, provider: QuickProvider, account: 'primary' | 'secondary', previous?: SlotConfig['secondary'] | SlotConfig): SlotConfig => {
+      const preset = getPreset(slotId, provider.providerId);
+      const sameProvider = previous?.providerId === provider.providerId;
+      const config: SlotConfig = {
+        slotId,
+        providerId: provider.providerId,
+        baseUrl: provider.baseUrl ?? (sameProvider ? previous!.baseUrl : preset.defaultBaseUrl),
+        modelOrVoice: provider.model ?? (sameProvider ? previous!.modelOrVoice : preset.defaultModelOrVoice),
+        authStyle: sameProvider ? previous!.authStyle : 'bearer',
+        customHeaderName: sameProvider ? previous!.customHeaderName : undefined,
+        customQueryParamName: sameProvider ? previous!.customQueryParamName : undefined,
+        endpointPathOverride: sameProvider ? previous!.endpointPathOverride : undefined,
+        customTtsVoice: sameProvider ? previous!.customTtsVoice : undefined,
+        speechRate: slotId === 'voice_tts' ? configs[slotId].speechRate : undefined
+      };
+      if (account === 'secondary') {
+        const priorSecondary = previous as SlotConfig['secondary'];
+        config.authStyle = priorSecondary?.authStyle ?? 'bearer';
+      }
+      return config;
+    };
+
     try {
       for (const item of plan) {
         const row = container.querySelector<HTMLElement>(`[data-quick-setup-slot="${item.slotId}"]`);
         const rowStatus = row?.querySelector<HTMLElement>('span:last-child');
-        if (rowStatus) rowStatus.textContent = 'Checking…';
-
+        if (rowStatus) rowStatus.textContent = 'Configuring…';
         try {
-          let selected: { providerId: string; key: string } | null = null;
-          for (const candidate of item.candidates) {
-            let key = suppliedKeys[candidate.source];
-            if (!key) {
-              try { key = await loadApiKeyStrict(item.slotId, candidate.providerId, 'primary'); }
-              catch { key = ''; }
-            }
-            if (key.trim()) {
-              selected = { providerId: candidate.providerId, key: key.trim() };
-              break;
-            }
-          }
-
-          if (!selected) {
-            skipped += 1;
-            if (rowStatus) rowStatus.textContent = 'Skipped — no matching key';
-            continue;
-          }
-
-          const preset = getPreset(item.slotId, selected.providerId);
           const previous = configs[item.slotId];
-          const sameProvider = previous.providerId === preset.id;
-          const cfg: SlotConfig = {
-            slotId: item.slotId,
-            providerId: preset.id,
-            baseUrl: sameProvider ? previous.baseUrl : preset.defaultBaseUrl,
-            modelOrVoice: sameProvider ? previous.modelOrVoice : preset.defaultModelOrVoice,
-            authStyle: sameProvider ? previous.authStyle : 'bearer',
-            customHeaderName: sameProvider ? previous.customHeaderName : undefined,
-            customQueryParamName: sameProvider ? previous.customQueryParamName : undefined,
-            endpointPathOverride: sameProvider ? previous.endpointPathOverride : undefined,
-            customTtsVoice: sameProvider ? previous.customTtsVoice : undefined,
-            speechRate: previous.speechRate,
-            secondary: previous.secondary
-          };
+          const primaryPreset = getPreset(item.slotId, item.primary.providerId);
+          const primaryKey = await resolveKey(item.slotId, item.primary, 'primary');
+          const primaryConfig = makeConfig(item.slotId, item.primary, 'primary', previous);
+          if (primaryKey) await saveApiKey(item.slotId, primaryPreset.id, primaryKey, 'primary');
+          await saveSlotConfig(primaryConfig);
+          configs[item.slotId] = primaryConfig;
+          lastTestResults.delete(item.slotId);
+          await clearSlotConnectionTestResult(item.slotId);
 
-          await saveApiKey(item.slotId, preset.id, selected.key, 'primary');
-          await saveSlotConfig(cfg);
-          configs[item.slotId] = cfg;
-          const result = await testSlotConnection(cfg, { apiKeyOverride: selected.key });
-          const persisted = await saveSlotConnectionTestResult(item.slotId, result);
-          lastTestResults.set(item.slotId, persisted);
-          attempted += 1;
-          const ok = result.ok && result.tier !== 3;
-          if (ok) passed += 1;
-          if (rowStatus) rowStatus.textContent = ok
-            ? `Ready — ${preset.name}`
-            : `Saved, but test failed — ${result.message}`;
+          let primaryStatus = 'Primary configured';
+          if (primaryKey) {
+            try {
+              const result = await testSlotConnection(primaryConfig, { apiKeyOverride: primaryKey });
+              const persisted = await saveSlotConnectionTestResult(item.slotId, result);
+              lastTestResults.set(item.slotId, persisted);
+              attempted += 1;
+              if (result.ok && result.tier !== 3) { passed += 1; primaryStatus = 'Primary verified'; }
+              else primaryStatus = 'Primary test failed';
+            } catch (error) {
+              attempted += 1;
+              await clearSlotConnectionTestResult(item.slotId);
+              lastTestResults.delete(item.slotId);
+              primaryStatus = `Primary test failed: ${error instanceof Error ? error.message : String(error)}`;
+            }
+          } else {
+            skipped += 1;
+            primaryStatus = 'Primary configured — key missing';
+          }
+
+          if (item.secondary) {
+            const secondaryPreset = getPreset(item.slotId, item.secondary.providerId);
+            const secondaryKey = await resolveKey(item.slotId, item.secondary, 'secondary');
+            const secondaryConfigBase = makeConfig(item.slotId, item.secondary, 'secondary', previous.secondary);
+            let secondaryConfig: NonNullable<SlotConfig['secondary']> = {
+              providerId: secondaryConfigBase.providerId,
+              baseUrl: secondaryConfigBase.baseUrl,
+              modelOrVoice: secondaryConfigBase.modelOrVoice,
+              authStyle: secondaryConfigBase.authStyle,
+              customHeaderName: secondaryConfigBase.customHeaderName,
+              customQueryParamName: secondaryConfigBase.customQueryParamName,
+              endpointPathOverride: secondaryConfigBase.endpointPathOverride,
+              customTtsVoice: secondaryConfigBase.customTtsVoice,
+              verified: false
+            };
+            if (secondaryKey) await saveApiKey(item.slotId, secondaryPreset.id, secondaryKey, 'secondary');
+            await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+            configs[item.slotId].secondary = secondaryConfig;
+
+            let secondaryStatus = 'API 2 configured — key missing';
+            if (secondaryKey) {
+              try {
+                const result = await testSlotConnection({ ...secondaryConfigBase, secondary: undefined }, { apiKeyOverride: secondaryKey });
+                const testResult = { ok: result.ok && result.tier !== 3, latencyMs: result.latencyMs, message: result.message, testedAt: Date.now() };
+                secondaryConfig = { ...secondaryConfig, verified: testResult.ok, testResult };
+                await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+                configs[item.slotId].secondary = secondaryConfig;
+                attempted += 1;
+                if (testResult.ok) { passed += 1; secondaryStatus = 'API 2 verified'; }
+                else secondaryStatus = 'API 2 test failed';
+              } catch (error) {
+                attempted += 1;
+                const message = error instanceof Error ? error.message : String(error);
+                const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
+                secondaryConfig = { ...secondaryConfig, verified: false, testResult };
+                await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+                configs[item.slotId].secondary = secondaryConfig;
+                secondaryStatus = `API 2 test failed: ${message}`;
+              }
+            } else skipped += 1;
+            if (rowStatus) rowStatus.textContent = `${primaryStatus}; ${secondaryStatus}`;
+          } else {
+            if (rowStatus) rowStatus.textContent = `${primaryStatus}; no compatible Groq TTS backup`;
+          }
         } catch (error) {
-          attempted += 1;
-          const detail = error instanceof Error ? error.message : String(error);
-          if (rowStatus) rowStatus.textContent = `Failed — ${detail}`;
+          skipped += 1;
+          if (rowStatus) rowStatus.textContent = `Setup incomplete — ${error instanceof Error ? error.message : String(error)}`;
         }
       }
 
       if (geminiInput) geminiInput.value = '';
       if (groqInput) groqInput.value = '';
       if (quickSetupStatus) {
-        const failed = attempted - passed;
-        quickSetupStatus.className = failed > 0 ? 'status-box info' : 'status-box pass';
-        quickSetupStatus.textContent = `Quick setup finished: ${passed} of ${attempted} tested providers passed; ${skipped} slot(s) skipped because no matching key was available. Review any failed rows below.`;
+        quickSetupStatus.className = attempted > 0 && passed === attempted ? 'status-box pass' : 'status-box info';
+        quickSetupStatus.textContent = `Quick setup finished: ${passed} of ${attempted} API checks passed; ${skipped} provider(s) skipped or left unverified. Review any incomplete rows below.`;
       }
       refreshRequiredApiStatus();
       await _onSettingsUpdated();
