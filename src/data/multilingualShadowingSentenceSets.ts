@@ -1,54 +1,101 @@
 import type { ShadowingDifficulty, ShadowingSentence } from './shadowingBank';
 import type { ShadowingLanguageCode } from './shadowingLanguages';
 
-/**
- * Original, language-specific offline practice material.
- * These are authored directly in each language; they are not translations
- * of the English bank. Each difficulty currently ships with one complete
- * 20-sentence starter set per language.
- */
-const SENTENCES: Partial<Record<Exclude<ShadowingLanguageCode, 'en'>, Record<ShadowingDifficulty, { topic: string; text: string }[]>>> = {
-sv: {
-easy: [
-['Vardag','Jag brukar ta en kort promenad efter frukosten.'],['Mat','Vi lagar gärna middag tillsammans på söndagar.'],['Hem','Det är skönt att öppna fönstret när solen skiner.'],['Fritid','På helgen träffar jag ofta några vänner på ett kafé.'],['Resor','Jag packar alltid en extra tröja när jag ska resa.'],['Lärande','Det blir lättare att lära sig när man övar lite varje dag.'],['Natur','Barnen tycker om att leka i parken efter skolan.'],['Väder','I dag är luften frisk och himlen nästan helt klar.'],['Transport','Bussen kommer om ungefär fem minuter.'],['Hälsa','Jag försöker dricka mer vatten under dagen.'],['Kultur','Det finns ett litet bibliotek nära mitt hem.'],['Shopping','Jag skriver en inköpslista innan jag går till affären.'],['Arbete','Vi börjar mötet klockan nio i morgon.'],['Matlagning','Soppan behöver bara några minuter till på spisen.'],['Vänner','Min vän ringde för att fråga hur jag mår.'],['Boende','Vi har flyttat några växter till balkongen.'],['Musik','Den här låten påminner mig om sommaren.'],['Stad','Det är mycket folk på torget i kväll.'],['Tid','Jag vill gärna ha lite mer tid att läsa.'],['Planer','Om vädret blir fint går vi till stranden.']],
-medium: [
-['Kollektivtrafik','När fler väljer bussen minskar trängseln på vägarna.'],['Utbildning','En bra lärare hjälper eleverna att våga ställa frågor.'],['Miljö','Det går att minska matsvinnet genom att planera veckans måltider.'],['Arbetsliv','Flexibla arbetstider kan göra vardagen enklare för många familjer.'],['Grannskap','Ett gemensamt odlingsområde kan skapa kontakt mellan grannar.'],['Teknik','Digitala tjänster är användbara när de är enkla att förstå.'],['Hälsa','Regelbunden rörelse kan förbättra både sömn och koncentration.'],['Kultur','Lokala föreningar spelar en viktig roll i stadens kulturliv.'],['Resor','Det är klokt att undersöka alternativen innan man bokar en resa.'],['Ekonomi','Små utgifter blir ofta större än man tror över ett helt år.'],['Boende','Tillgång till grönområden påverkar hur människor trivs i ett område.'],['Mat','Säsongens råvaror är ofta både billigare och godare.'],['Lärande','Man minns nya idéer bättre när man använder dem i praktiken.'],['Samhälle','Trygga mötesplatser gör det lättare för människor att lära känna varandra.'],['Arbete','Tydliga förväntningar förebygger många missförstånd i ett team.'],['Klimat','Energieffektiva byggnader kan sänka kostnaderna på lång sikt.'],['Vardagsliv','En genomtänkt rutin ger mer utrymme för sådant man tycker om.'],['Service','Offentlig information bör vara tillgänglig för alla invånare.'],['Transport','Säkra cykelvägar gör det enklare att välja ett hållbart färdsätt.'],['Framtid','Det är viktigt att väga dagens behov mot kommande generationers möjligheter.']],
-hard: [
-['Politik','Långsiktiga samhällsreformer kräver mer än tillfälliga lösningar och välformulerade målsättningar.'],['Hållbarhet','En omställning blir trovärdig först när dess sociala konsekvenser tas på allvar.'],['Ekonomi','Ekonomisk tillväxt säger relativt lite om hur resurser och möjligheter faktiskt fördelas.'],['Demokrati','Beslut som påverkar ett lokalsamhälle bör utformas tillsammans med dem som berörs.'],['Konsumtion','Individuella val formas i hög grad av de infrastrukturer och institutioner som omger oss.'],['Arbetsliv','Effektivisering riskerar att skapa nya problem om arbetsvillkor och inflytande lämnas utanför analysen.'],['Miljö','Miljöpolitik behöver förena ekologiska gränser med en rättvis fördelning av omställningens kostnader.'],['Teknik','Tekniska framsteg bör bedömas utifrån vilka behov de tillgodoser och vilka beroenden de skapar.'],['Stadsutveckling','En inkluderande stadsplanering kräver att även grupper med begränsade resurser får verkligt inflytande.'],['Utbildning','Utbildningssystemets kvalitet kan inte enbart mätas genom resultat på standardiserade prov.'],['Kultur','Kulturellt arv hålls levande när människor får möjlighet att omtolka det i nya sammanhang.'],['Policy','En policy kan få motsatt effekt om dess antaganden inte prövas mot människors faktiska erfarenheter.'],['Rättvisa','Formell likabehandling garanterar inte jämlika möjligheter när utgångslägena skiljer sig åt.'],['Forskning','Forskningsresultat behöver sättas in i sitt sammanhang innan de omsätts i politiska rekommendationer.'],['Resurser','Gemensamma resurser förvaltas bäst genom tydliga regler och meningsfull delaktighet.'],['Förändring','Varaktig förändring uppstår sällan utan att etablerade vanor och maktförhållanden granskas.'],['Institutioner','Institutioners legitimitet beror också på hur öppna de är för kritik och ansvarsutkrävande.'],['Klimat','Klimatomställningens tempo måste diskuteras tillsammans med frågan om vem som bär ansvaret.'],['Samhälle','Statistiska genomsnitt kan dölja stora skillnader mellan grupper och geografiska områden.'],['Framtid','En hållbar framtid förutsätter att samhället omprövar vad som räknas som välstånd och framgång.']]
-},
-de: {
-easy: [
-['Alltag','Ich gehe morgens gern eine Runde durch den Park.'],['Essen','Am Wochenende kochen wir oft gemeinsam mit Freunden.'],['Zuhause','Die Wohnung wirkt heller, wenn die Vorhänge offen sind.'],['Freizeit','Nach der Arbeit höre ich meistens ein wenig Musik.'],['Reisen','Für eine kurze Reise brauche ich nicht viel Gepäck.'],['Lernen','Mit regelmäßiger Übung fällt mir die Aussprache leichter.'],['Natur','Im Herbst liegen überall bunte Blätter auf dem Boden.'],['Wetter','Heute ist es kühl, aber die Sonne scheint.'],['Verkehr','Der nächste Zug fährt in zehn Minuten ab.'],['Gesundheit','Ich versuche, jeden Tag ausreichend Wasser zu trinken.'],['Kultur','In unserer Stadt gibt es ein kleines Theater.'],['Einkaufen','Vor dem Einkauf schaue ich in den Kühlschrank.'],['Arbeit','Morgen beginnt die Besprechung etwas früher.'],['Kochen','Die Kartoffeln müssen noch ein paar Minuten kochen.'],['Freunde','Eine gute Freundin hat mich gestern besucht.'],['Wohnen','Auf dem Balkon wachsen jetzt frische Kräuter.'],['Musik','Dieses Lied erinnert mich an meine Schulzeit.'],['Stadt','Am Abend ist der Marktplatz besonders lebendig.'],['Zeit','Ich möchte mir wieder mehr Zeit zum Lesen nehmen.'],['Pläne','Wenn es morgen nicht regnet, fahren wir ans Meer.']],
-medium: [
-['Öffentlicher Verkehr','Wenn mehr Menschen Bus und Bahn nutzen, gibt es weniger Autos auf den Straßen.'],['Bildung','Guter Unterricht gibt Lernenden Raum, eigene Fragen zu entwickeln.'],['Umwelt','Wer Mahlzeiten im Voraus plant, kann Lebensmittelverschwendung deutlich verringern.'],['Arbeitswelt','Flexible Arbeitszeiten erleichtern vielen Menschen die Vereinbarkeit von Beruf und Familie.'],['Nachbarschaft','Ein gemeinsamer Garten kann Menschen aus unterschiedlichen Generationen zusammenbringen.'],['Technik','Digitale Angebote sind nur dann hilfreich, wenn sie verständlich gestaltet sind.'],['Gesundheit','Regelmäßige Bewegung wirkt sich positiv auf Schlaf und Konzentration aus.'],['Kultur','Kleine Kulturvereine tragen wesentlich zum Leben einer Stadt bei.'],['Reisen','Vor der Buchung lohnt es sich, verschiedene Verkehrsmittel miteinander zu vergleichen.'],['Wirtschaft','Viele kleine Ausgaben summieren sich im Laufe eines Jahres zu einem beträchtlichen Betrag.'],['Wohnen','Grünflächen in der Nähe erhöhen häufig die Lebensqualität eines Viertels.'],['Ernährung','Regionale Produkte haben oft kürzere Transportwege und passen besser zur Saison.'],['Lernen','Neue Kenntnisse bleiben länger erhalten, wenn man sie praktisch anwendet.'],['Gesellschaft','Offene Treffpunkte erleichtern den Austausch zwischen Menschen, die sich sonst kaum begegnen.'],['Zusammenarbeit','Klare Absprachen helfen einem Team, unnötige Konflikte zu vermeiden.'],['Klima','Gut gedämmte Gebäude können langfristig Energie und Geld sparen.'],['Alltag','Eine realistische Tagesplanung lässt genügend Raum für spontane Entscheidungen.'],['Öffentliche Dienste','Wichtige Informationen sollten für alle Einwohner leicht zugänglich sein.'],['Mobilität','Sichere Radwege machen das Fahrrad für viele Wege zu einer echten Alternative.'],['Zukunft','Bei politischen Entscheidungen müssen auch die Interessen zukünftiger Generationen berücksichtigt werden.']],
-hard: [
-['Politik','Langfristige Reformen lassen sich nicht durch kurzfristige Maßnahmen und überzeugende Schlagworte ersetzen.'],['Nachhaltigkeit','Ein gesellschaftlicher Wandel ist nur glaubwürdig, wenn seine sozialen Folgen ernst genommen werden.'],['Wirtschaft','Wirtschaftliches Wachstum sagt wenig darüber aus, wie Ressourcen und Chancen tatsächlich verteilt sind.'],['Demokratie','Entscheidungen über ein Gemeinwesen sollten gemeinsam mit den betroffenen Menschen entwickelt werden.'],['Konsum','Individuelle Konsumentscheidungen werden maßgeblich durch Infrastrukturen und institutionelle Rahmenbedingungen geprägt.'],['Arbeitswelt','Effizienzsteigerungen können neue Ungleichheiten schaffen, wenn Arbeitsbedingungen und Mitbestimmung unberücksichtigt bleiben.'],['Umwelt','Eine gerechte Klimapolitik muss ökologische Grenzen und die Verteilung der Transformationskosten zusammendenken.'],['Technologie','Technischer Fortschritt sollte danach beurteilt werden, welche Bedürfnisse er erfüllt und welche Abhängigkeiten er erzeugt.'],['Stadtentwicklung','Eine inklusive Stadtplanung setzt voraus, dass auch benachteiligte Gruppen wirksam mitentscheiden können.'],['Bildung','Die Qualität eines Bildungssystems lässt sich nicht allein anhand standardisierter Prüfungsergebnisse beurteilen.'],['Kultur','Kulturelles Erbe bleibt lebendig, wenn Menschen es in neuen gesellschaftlichen Zusammenhängen weiterentwickeln können.'],['Politikgestaltung','Eine politische Maßnahme kann das Gegenteil ihrer Absicht bewirken, wenn ihre Grundannahmen ungeprüft bleiben.'],['Gerechtigkeit','Gleiche Regeln führen nicht automatisch zu gleichen Chancen, solange die Ausgangsbedingungen ungleich sind.'],['Forschung','Wissenschaftliche Erkenntnisse müssen in ihrem jeweiligen Kontext betrachtet werden, bevor sie politische Entscheidungen prägen.'],['Gemeingüter','Gemeinschaftlich genutzte Ressourcen benötigen transparente Regeln und Möglichkeiten zur Mitgestaltung.'],['Wandel','Dauerhafte Veränderungen erfordern häufig eine kritische Auseinandersetzung mit etablierten Gewohnheiten und Machtverhältnissen.'],['Institutionen','Die Legitimität öffentlicher Institutionen hängt auch davon ab, wie offen sie für Kritik und Kontrolle sind.'],['Klima','Über das Tempo der Klimawende lässt sich kaum sprechen, ohne zugleich Verantwortung und Belastungen zu thematisieren.'],['Gesellschaft','Durchschnittswerte können erhebliche Unterschiede zwischen sozialen Gruppen und Regionen verdecken.'],['Zukunft','Eine nachhaltige Zukunft verlangt eine neue Vorstellung davon, was gesellschaftlichen Wohlstand ausmacht.']]
-}
-};
+type StarterRow = { topic: string; text: string; phoneticFocus: string };
+type LanguageRows = Record<ShadowingDifficulty, StarterRow[]>;
 
-const FOCUS: Record<ShadowingDifficulty, string[]> = {
-easy: ['Aussprache und klare Vokale','Wortverbindungen im Satz','Betonung häufiger Wörter','Natürlicher Sprechrhythmus'],
-medium: ['Satzakzent und Nebensätze','Flüssige Wortverbindungen','Betonung längerer Ausdrücke','Klarheit bei Konsonanten'],
-hard: ['Rhythmus komplexer Sätze','Intonation und Satzakzent','Deutliche Konsonantenverbindungen','Flüssige Artikulation']
+// Compact offline starter: one native-language sentence at each difficulty.
+// English remains in its original, separate sentence bank.
+const SENTENCES: Record<Exclude<ShadowingLanguageCode, 'en'>, LanguageRows> = {
+  sv: {
+    easy: [{ topic: 'Vardag', text: 'Jag brukar ta en kort promenad efter frukosten.', phoneticFocus: 'Swedish pitch accent and clear long vowels' }],
+    medium: [{ topic: 'Kollektivtrafik', text: 'När fler väljer bussen minskar trängseln på vägarna.', phoneticFocus: 'Sentence stress and the Swedish sj sound' }],
+    hard: [{ topic: 'Hållbarhet', text: 'En omställning blir trovärdig först när dess sociala konsekvenser tas på allvar.', phoneticFocus: 'Compound words, pitch accent and consonant clusters' }]
+  },
+  de: {
+    easy: [{ topic: 'Alltag', text: 'Ich gehe morgens gern eine Runde durch den Park.', phoneticFocus: 'Clear vowels and the German ch sound' }],
+    medium: [{ topic: 'Öffentlicher Verkehr', text: 'Wenn mehr Menschen Bus und Bahn nutzen, gibt es weniger Autos auf den Straßen.', phoneticFocus: 'Sentence stress and subordinate-clause word order' }],
+    hard: [{ topic: 'Nachhaltigkeit', text: 'Ein gesellschaftlicher Wandel ist nur glaubwürdig, wenn seine sozialen Folgen ernst genommen werden.', phoneticFocus: 'Long compounds, consonant clusters and sentence rhythm' }]
+  },
+  fr: {
+    easy: [{ topic: 'Quotidien', text: 'Je prends toujours un café noir avant de partir au travail.', phoneticFocus: 'Nasal vowels in « prends » and « avant », plus the French uvular r' }],
+    medium: [{ topic: 'Vie quotidienne', text: 'Même lorsque la journée est chargée, je prends le temps de lire quelques pages.', phoneticFocus: 'Liaison, syllable grouping and nasal vowels' }],
+    hard: [{ topic: 'Société', text: 'Une transition durable exige que les conséquences sociales des décisions collectives soient examinées avec attention.', phoneticFocus: 'Connected speech, silent final consonants and sentence intonation' }]
+  },
+  es: {
+    easy: [{ topic: 'Vida diaria', text: 'Me gusta caminar por el parque después del desayuno.', phoneticFocus: 'Pure vowels and the Spanish tapped r' }],
+    medium: [{ topic: 'Transporte', text: 'Cuando más personas utilizan el transporte público, hay menos tráfico en el centro.', phoneticFocus: 'Vowel linking and natural sentence stress' }],
+    hard: [{ topic: 'Sostenibilidad', text: 'Una transformación sostenible requiere analizar quién se beneficia y quién asume sus consecuencias.', phoneticFocus: 'Consonant clarity and stress in longer words' }]
+  },
+  it: {
+    easy: [{ topic: 'Quotidianità', text: 'La mattina preparo un caffè e ascolto la radio.', phoneticFocus: 'Open and closed vowels with clear double consonants' }],
+    medium: [{ topic: 'Trasporti', text: 'Usare la bicicletta per gli spostamenti brevi può rendere la città più vivibile.', phoneticFocus: 'Double consonants and connected speech' }],
+    hard: [{ topic: 'Sostenibilità', text: 'Una transizione giusta deve considerare anche le disuguaglianze che influenzano la vita quotidiana.', phoneticFocus: 'Sentence rhythm, geminate consonants and word stress' }]
+  },
+  nl: {
+    easy: [{ topic: 'Dagelijks leven', text: 'Ik drink graag thee terwijl ik de krant lees.', phoneticFocus: 'Dutch g and clear vowel contrasts' }],
+    medium: [{ topic: 'Mobiliteit', text: 'Veilige fietspaden maken het voor meer mensen aantrekkelijk om de auto thuis te laten.', phoneticFocus: 'Vowel combinations and word stress' }],
+    hard: [{ topic: 'Samenleving', text: 'Een rechtvaardige verandering vraagt aandacht voor de mensen die de gevolgen ervan het sterkst ervaren.', phoneticFocus: 'Consonant clusters and compound-word stress' }]
+  },
+  pt: {
+    easy: [{ topic: 'Rotina', text: 'Gosto de tomar café antes de começar a trabalhar.', phoneticFocus: 'Open vowels and nasal diphthongs' }],
+    medium: [{ topic: 'Transportes', text: 'O transporte público eficiente ajuda a reduzir o número de carros nas cidades.', phoneticFocus: 'Vowel reduction and connected speech' }],
+    hard: [{ topic: 'Sustentabilidade', text: 'Uma mudança duradoura depende de decisões coletivas que respeitem diferentes necessidades sociais.', phoneticFocus: 'Nasal vowels, unstressed vowels and sentence rhythm' }]
+  },
+  ru: {
+    easy: [{ topic: 'Повседневная жизнь', text: 'Утром я обычно пью чай и читаю новости.', phoneticFocus: 'Vowel reduction and soft consonants' }],
+    medium: [{ topic: 'Транспорт', text: 'Когда больше людей пользуются общественным транспортом, на дорогах становится меньше машин.', phoneticFocus: 'Word stress and consonant clusters' }],
+    hard: [{ topic: 'Общество', text: 'Устойчивые изменения требуют учитывать интересы разных групп и долгосрочные последствия решений.', phoneticFocus: 'Unstressed vowel reduction and palatalized consonants' }]
+  },
+  tr: {
+    easy: [{ topic: 'Günlük hayat', text: 'Sabahları kahvemi içtikten sonra kısa bir yürüyüş yaparım.', phoneticFocus: 'Vowel harmony and clear dotted/dotless vowels' }],
+    medium: [{ topic: 'Ulaşım', text: 'Toplu taşıma daha fazla kişi tarafından kullanıldığında şehir trafiği azalabilir.', phoneticFocus: 'Word stress and vowel harmony' }],
+    hard: [{ topic: 'Toplum', text: 'Kalıcı bir dönüşüm, farklı toplumsal grupların ihtiyaçlarının birlikte değerlendirilmesini gerektirir.', phoneticFocus: 'Suffix chains, stress placement and consonant transitions' }]
+  },
+  fa: {
+    easy: [{ topic: 'زندگی روزمره', text: 'من هر روز صبح قبل از شروع کار یک فنجان چای می‌نوشم.', phoneticFocus: 'Clear short and long vowels with natural stress' }],
+    medium: [{ topic: 'حمل‌ونقل', text: 'گسترش حمل‌ونقل عمومی می‌تواند رفت‌وآمد در مرکز شهر را آسان‌تر کند.', phoneticFocus: 'Connected words and consonant clarity' }],
+    hard: [{ topic: 'جامعه', text: 'تغییرات پایدار زمانی امکان‌پذیرند که پیامدهای اجتماعی تصمیم‌ها نیز جدی گرفته شوند.', phoneticFocus: 'Sentence rhythm and clear articulation of joined words' }]
+  },
+  ar: {
+    easy: [{ topic: 'الحياة اليومية', text: 'أشرب القهوة كل صباح قبل الذهاب إلى العمل.', phoneticFocus: 'Clear emphatic consonants and short vowels' }],
+    medium: [{ topic: 'النقل', text: 'يساعد transport العام على تقليل الازدحام في شوارع المدينة.', phoneticFocus: 'Consonant articulation and natural phrase stress' }],
+    hard: [{ topic: 'المجتمع', text: 'يتطلب التغيير المستدام دراسة آثاره الاجتماعية ومراعاة احتياجات الفئات المختلفة.', phoneticFocus: 'Emphatic consonants, long vowels and sentence rhythm' }]
+  },
+  zh: {
+    easy: [{ topic: '日常生活', text: '我每天早上喝一杯茶，然后开始工作。', phoneticFocus: 'Four lexical tones and clear syllable boundaries' }],
+    medium: [{ topic: '交通', text: '如果更多人选择公共交通，城市里的道路就不会那么拥挤。', phoneticFocus: 'Tone changes and smooth syllable transitions' }],
+    hard: [{ topic: '社会', text: '可持续的转型不仅需要技术创新，也需要认真考虑不同群体所面临的社会影响。', phoneticFocus: 'Tone accuracy across longer phrases and neutral tone' }]
+  },
+  ja: {
+    easy: [{ topic: '日常生活', text: '毎朝、仕事の前に温かいお茶を飲みます。', phoneticFocus: 'Mora timing and clear vowel length' }],
+    medium: [{ topic: '交通', text: '公共交通機関を利用する人が増えると、 शहरの渋滞を減らすことができます。', phoneticFocus: 'Pitch accent and particle pronunciation' }],
+    hard: [{ topic: '社会', text: '持続可能な社会への移行には、さまざまな人々への社会的な影響を考慮する必要があります。', phoneticFocus: 'Mora timing, devoiced vowels and sentence intonation' }]
+  },
+  ko: {
+    easy: [{ topic: '일상생활', text: '저는 아침마다 커피를 마시고 하루를 시작해요.', phoneticFocus: 'Vowel clarity and natural phrase endings' }],
+    medium: [{ topic: '교통', text: '대중교통을 이용하는 사람이 많아지면 도시의 교통 체증을 줄일 수 있습니다.', phoneticFocus: ' 받침 pronunciation and sound linking' }],
+    hard: [{ topic: '사회', text: '지속 가능한 변화를 위해서는 다양한 집단이 겪는 사회적 영향을 함께 고려해야 합니다.', phoneticFocus: ' 받침 assimilation, spacing and sentence rhythm' }]
+  }
 };
 
 export function getInitialMultilingualShadowingSets(
   languageCode: Exclude<ShadowingLanguageCode, 'en'>,
   difficulty: ShadowingDifficulty
 ): ShadowingSentence[][] {
-  const rows = SENTENCES[languageCode]?.[difficulty];
-  if (!rows) return [];
-  const focus = FOCUS[difficulty];
+  const rows = SENTENCES[languageCode][difficulty];
   const rate = difficulty === 'easy' ? 390 : difficulty === 'medium' ? 430 : 470;
-  const set = rows.map((row, index) => ({
-    id: `builtin-${languageCode}-${difficulty}-set-1-${index + 1}`,
+  return rows.map((row, setIndex) => [{
+    id: `builtin-${languageCode}-${difficulty}-set-${setIndex + 1}-1`,
     difficulty,
     topic: row.topic,
     text: row.text,
-    phoneticFocus: focus[index % focus.length],
-    expectedTotalDurationMs: Math.max(2600, Math.round(Array.from(row.text).length * rate / (languageCode === 'zh' || languageCode === 'ja' ? 2 : 4)))
-  }));
-  return [set];
+    phoneticFocus: row.phoneticFocus,
+    expectedTotalDurationMs: Math.max(
+      2600,
+      Math.round(Array.from(row.text).length * rate / (languageCode === 'zh' || languageCode === 'ja' ? 2 : 4))
+    )
+  }]);
 }
 
 export function getSupportedMultilingualSentenceLanguages(): ShadowingLanguageCode[] {
