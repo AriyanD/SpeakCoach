@@ -188,7 +188,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('.ielts-library-card')).not.toBeNull();
   });
 
-  it('loads offline starter sentences after switching languages, reports the IELTS restriction, and lets users dismiss the speech API notice', async () => {
+  it('loads offline starter sentences after switching languages, keeps IELTS available, and lets users dismiss the speech API notice', async () => {
     const root = document.createElement('div');
     // ShadowingView updates the shared bottom-navigation element through
     // document.querySelector, so mount the app as it is mounted in production.
@@ -216,14 +216,14 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     const ieltsButton = root.querySelector<HTMLButtonElement>('#nav-ielts');
     expect(ieltsButton).not.toBeNull();
     expect(ieltsButton?.disabled).toBe(false);
-    expect(ieltsButton?.getAttribute('aria-disabled')).toBe('true');
-    // The restriction must not be displayed persistently in Shadowing; it is explained only after an IELTS-tab click.
+    expect(ieltsButton?.hasAttribute('aria-disabled')).toBe(false);
+    expect(ieltsButton?.disabled).toBe(false);
     expect(root.querySelector('.sh-ielts-language-notice')).toBeNull();
     expect(document.body.querySelector('.app-toast-error')).toBeNull();
     ieltsButton?.click();
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    expect(document.body.querySelector('.app-toast-error')?.textContent).toContain('IELTS is English-only');
-    expect(root.querySelector('#sh-target-text')?.textContent).toBe('Jag brukar ta en kort promenad efter frukosten.');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(root.querySelector('.ielts-library-card')).not.toBeNull();
+    expect(document.body.querySelector('.app-toast-error')).toBeNull();
 
     languageSelect!.value = 'en';
     languageSelect!.dispatchEvent(new Event('change', { bubbles: true }));
