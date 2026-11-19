@@ -4,10 +4,12 @@ import { audioRecorder } from '../src/services/audioRecorder';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearLastShadowingAttempt } from '../src/services/shadowingTelemetry';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
+import { saveSelectedShadowingLanguage } from '../src/services/shadowingLanguageHistory';
 
 describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallback & Diagnostics)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await saveSelectedShadowingLanguage('en');
     clearAllRuntimeFailures();
     clearLastShadowingAttempt();
     audioRecorder.setMockRecognizerOutputForTest(null);
@@ -63,7 +65,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
 
     root.querySelector<HTMLButtonElement>('#nav-ielts')?.click();
     await new Promise((resolve) => setTimeout(resolve, 30));
-    expect(root.querySelector('.app-toast-error')?.textContent).toContain('IELTS is English-only');
+    expect(document.body.querySelector('.app-toast-error')?.textContent).toContain('IELTS is English-only');
     expect(root.querySelector('#sh-target-text')?.textContent).toBe('Jag brukar ta en kort promenad efter frukosten.');
   });
 
