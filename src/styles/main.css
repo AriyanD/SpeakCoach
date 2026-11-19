@@ -3700,3 +3700,69 @@ body {
   .ielts-timer-banner:has(.ielts-recording-label),
   .recording-wave i { animation:none; }
 }
+
+/* Multilingual Shadowing layout and visibly disabled IELTS navigation. */
+.bottom-nav .nav-btn:disabled,
+.bottom-nav .nav-btn[aria-disabled="true"] {
+  opacity: .38;
+  filter: grayscale(.75);
+  cursor: not-allowed;
+  pointer-events: none;
+  background: transparent;
+}
+.bottom-nav .nav-btn:disabled span,
+.bottom-nav .nav-btn[aria-disabled="true"] span {
+  color: var(--text-muted);
+}
+.shadowing-main-card .ai-sentence-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  min-width: 0;
+}
+.shadowing-main-card .ai-sentence-panel-copy,
+.shadowing-main-card .sh-topic-field,
+.shadowing-main-card .sh-generate-actions,
+.shadowing-main-card .sh-history-controls,
+.shadowing-main-card .ai-generation-error {
+  min-width: 0;
+  width: 100%;
+}
+.shadowing-main-card .sh-generate-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  margin: 0;
+}
+.shadowing-main-card .sh-generate-actions > #sh-generate-ai-btn {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.shadowing-main-card .sh-history-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.shadowing-main-card .sh-history-caption {
+  flex: 1 1 auto;
+  min-width: 70px;
+  margin-right: 0;
+}
+.shadowing-main-card .sh-history-position {
+  white-space: normal;
+  text-align: center;
+  flex: 1 1 100%;
+  order: 3;
+}
+.shadowing-main-card .sh-history-arrow {
+  flex: 0 0 44px;
+}
+.shadowing-main-card .ai-generation-error {
+  overflow-wrap: anywhere;
+  margin-top: 0;
+}
