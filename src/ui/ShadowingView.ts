@@ -409,11 +409,10 @@ export function renderShadowingView(
   // lookup, which can update another mounted app instance (or a stale test root).
   const ieltsNavButton = container.parentElement?.querySelector<HTMLButtonElement>('#nav-ielts') ?? null;
   if (ieltsNavButton) {
-    // Keep the control clickable so the navigation handler can explain why
-    // IELTS is unavailable. Native disabled buttons suppress click events.
+    // IELTS remains available regardless of the selected Shadowing language.
     ieltsNavButton.disabled = false;
-    ieltsNavButton.title = state.languageCode === 'en' ? 'IELTS practice' : 'IELTS is English-only — click for details';
-    ieltsNavButton.setAttribute('aria-disabled', String(state.languageCode !== 'en'));
+    ieltsNavButton.title = 'IELTS practice';
+    ieltsNavButton.removeAttribute('aria-disabled');
   }
 
   const isRec = audioRecorder.isRecording();
