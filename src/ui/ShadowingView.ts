@@ -802,7 +802,7 @@ export function renderShadowingView(
     clearAttemptState();
     const sttSlotId = resolveShadowingSttSlotId();
     const sttTier = summary.slots[sttSlotId];
-    const isOnlineStt = sttTier.tier === 2 && sttTier.label === 'Online AI';
+    const isOnlineStt = sttTier.tier <= 2 && sttTier.label === 'Online AI';
 
     try {
       await audioRecorder.start(selectedLanguage.locale, { useOfflineRecognizer: !isOnlineStt, preferOffline: !isOnlineStt });
