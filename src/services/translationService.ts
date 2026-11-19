@@ -16,7 +16,9 @@ export function buildShadowingTranslationPrompt(text: string, targetLanguage: st
   const source = text.trim();
   const language = targetLanguage.trim();
   if (!source) throw new Error('Enter a word or sentence to translate.');
-  if (mode === 'grammar') return [
+  if (mode === 'grammar') {
+    if (source.length > 4000) throw new Error('Text is too long to explain (maximum 4,000 characters).');
+    return [
     'Explain the English grammar of the following text entirely in English. Do not translate the explanation or use Persian or any other language.',
     'Give a learner-friendly explanation suitable for English learners and IELTS candidates: explain sentence structure, tense and aspect, clauses, word order, and important grammatical patterns, including why they are used. Add short examples in English when useful.',
     'For a single word or fragment, explain its grammatical role and common usage. Use concise headings and bullet points.',
