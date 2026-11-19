@@ -426,14 +426,14 @@ export function renderShadowingView(
       </div>
       <div class="form-field sh-language-picker-field">
         <label class="form-label" for="sh-language-select">Practice language</label>
-        <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language" style="max-width:240px;">
+        <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language" style="max-width:240px;" ${isRec || state.isGeneratingAi ? "disabled" : ""}>
           ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
         </select>
       </div>
       <details class="offline-quality-notice sh-api-capability-notice" aria-label="Speech API capability notice">
         <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
         <strong>Important: speech APIs have separate capabilities</strong>
-        <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
+        <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
         <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
       </details>
       ${state.languageCode !== 'en' ? `<div class="status-box info sh-ielts-language-notice" role="status"><strong>IELTS mode is English-only.</strong> IELTS scoring and examiner practice are unavailable while Shadowing is set to ${escapeHtml(selectedLanguage.label)}. Switch back to English to use IELTS.</div>` : ''}
