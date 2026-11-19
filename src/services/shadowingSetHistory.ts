@@ -1,6 +1,8 @@
 import { Preferences } from '@capacitor/preferences';
 import type { ShadowingDifficulty, ShadowingSentence } from '../data/shadowingBank';
 import { getInitialShadowingSets } from '../data/shadowingSentenceSets';
+import { getInitialMultilingualShadowingSets } from '../data/multilingualShadowingSentenceSets';
+import type { ShadowingLanguageCode } from '../data/shadowingLanguages';
 
 export interface ShadowingSentenceSet {
   id: string;
@@ -19,16 +21,27 @@ export const SHADOWING_HISTORY_KEY = 'speakcoach_shadowing_set_history_v2';
 export const MAX_SHADOWING_SETS_PER_DIFFICULTY = 10;
 const DIFFICULTIES: ShadowingDifficulty[] = ['easy', 'medium', 'hard'];
 
-function makeSeedHistory(): ShadowingSetHistory {
+export function createEmptyShadowingSetHistory(): ShadowingSetHistory {
+  return {
+    easy: { sets: [], activeSetId: '', activeSentenceIndex: 0 },
+    medium: { sets: [], activeSetId: '', activeSentenceIndex: 0 },
+    hard: { sets: [], activeSetId: '', activeSentenceIndex: 0 }
+  };
+}
+
+export function makeSeedHistory(languageCode: ShadowingLanguageCode = 'en'): ShadowingSetHistory {
   const history = {} as ShadowingSetHistory;
   for (const difficulty of DIFFICULTIES) {
-    const sets = getInitialShadowingSets(difficulty).map((sentences, index) => ({
-      id: `builtin-${difficulty}-${index + 1}`,
+    const initialSets = languageCode === 'en'
+      ? getInitialShadowingSets(difficulty)
+      : getInitialMultilingualShadowingSets(languageCode, difficulty);
+    const sets = initialSets.map((sentences, index) => ({
+      id: languageCode === 'en' ? `builtin-${difficulty}-${index + 1}` : `builtin-${languageCode}-${difficulty}-${index + 1}`,
       source: 'builtin' as const,
       createdAt: index,
       sentences
     }));
-    history[difficulty] = { sets, activeSetId: sets[0].id, activeSentenceIndex: 0 };
+    history[difficulty] = { sets, activeSetId: sets[0]?.id ?? '', activeSentenceIndex: 0 };
   }
   return history;
 }
@@ -44,13 +57,17 @@ function isHistory(value: unknown): value is ShadowingSetHistory {
   if (!value || typeof value !== 'object') return false;
   return DIFFICULTIES.every(difficulty => {
     const entry = (value as ShadowingSetHistory)[difficulty];
+    const activeSet = entry?.sets?.find(set => set.id === entry.activeSetId);
     return !!entry && Array.isArray(entry.sets) && entry.sets.length > 0 &&
       entry.sets.every(set => !!set && typeof set.id === 'string' &&
         (set.source === 'builtin' || set.source === 'ai') &&
-        Array.isArray(set.sentences) && set.sentences.length === 20 && set.sentences.every(isSentence)) &&
-      entry.sets.some(set => set.id === entry.activeSetId) &&
+        Array.isArray(set.sentences) &&
+        set.sentences.length >= 1 && set.sentences.length <= 20 &&
+        (set.source !== 'ai' || set.sentences.length === 20) &&
+        set.sentences.every(isSentence)) &&
+      !!activeSet &&
       Number.isInteger(entry.activeSentenceIndex) && entry.activeSentenceIndex >= 0 &&
-      entry.activeSentenceIndex < 20;
+      entry.activeSentenceIndex < activeSet.sentences.length;
   });
 }
 
@@ -105,10 +122,15 @@ export function selectShadowingSet(
   sentenceIndex = 0
 ): ShadowingSetHistory {
   const entry = history[difficulty];
-  if (!entry.sets.some(set => set.id === setId)) return history;
+  const selectedSet = entry.sets.find(set => set.id === setId);
+  if (!selectedSet) return history;
   return {
     ...history,
-    [difficulty]: { ...entry, activeSetId: setId, activeSentenceIndex: Math.max(0, Math.min(19, sentenceIndex)) }
+    [difficulty]: {
+      ...entry,
+      activeSetId: setId,
+      activeSentenceIndex: Math.max(0, Math.min(selectedSet.sentences.length - 1, sentenceIndex))
+    }
   };
 }
 
@@ -118,9 +140,11 @@ export function selectShadowingSentence(
   sentenceIndex: number
 ): ShadowingSetHistory {
   const entry = history[difficulty];
+  const activeSet = entry.sets.find(set => set.id === entry.activeSetId) ?? entry.sets[0];
+  const maxIndex = Math.max(0, (activeSet?.sentences.length ?? 1) - 1);
   return {
     ...history,
-    [difficulty]: { ...entry, activeSentenceIndex: Math.max(0, Math.min(19, sentenceIndex)) }
+    [difficulty]: { ...entry, activeSentenceIndex: Math.max(0, Math.min(maxIndex, sentenceIndex)) }
   };
 }
 
@@ -151,6 +175,7 @@ export function moveShadowingSet(
   direction: -1 | 1
 ): ShadowingSetHistory {
   const entry = history[difficulty];
+  if (entry.sets.length === 0) return history;
   const current = Math.max(0, entry.sets.findIndex(set => set.id === entry.activeSetId));
   const nextIndex = Math.max(0, Math.min(entry.sets.length - 1, current + direction));
   if (nextIndex === current) return history;

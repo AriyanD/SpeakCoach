@@ -2,9 +2,7 @@ import type { ShadowingDifficulty, ShadowingSentence } from '../data/shadowingBa
 import {
   appendShadowingSet,
   getActiveShadowingSet,
-  loadShadowingSetHistory,
   moveShadowingSet,
-  saveShadowingSetHistory,
   selectShadowingSentence,
   type ShadowingSetHistory
 } from '../services/shadowingSetHistory';
@@ -27,9 +25,12 @@ import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttServ
 import { getCachedModelWordTimings } from '../services/modelTimingService';
 import { generateAiShadowingSentenceBatch } from '../services/shadowingAiGenerator';
 import { clearDiagnosticsCache } from './DiagnosticsView';
+import { SHADOWING_LANGUAGES, getShadowingLanguage, countShadowingLanguageUnits, type ShadowingLanguageCode } from '../data/shadowingLanguages';
+import { loadShadowingLanguageHistories, saveShadowingLanguageHistories, getShadowingHistoryForLanguage, createShadowingHistoryForLanguage, setShadowingHistoryForLanguage, loadSelectedShadowingLanguage, saveSelectedShadowingLanguage, type ShadowingLanguageHistories } from '../services/shadowingLanguageHistory';
 
 interface ShadowingState {
   difficulty: ShadowingDifficulty;
+  languageCode: ShadowingLanguageCode;
   topicInput: string;
   isGeneratingAi: boolean;
   aiGenerationError: string | null;
@@ -53,10 +54,12 @@ interface ShadowingState {
   translationStatus: string | null;
   translationStatusType: 'info' | 'pass' | 'fail';
   isTranslating: boolean;
+  forceSpeechApiNotice: boolean;
 }
 
 const state: ShadowingState = {
   difficulty: 'easy',
+  languageCode: 'en',
   topicInput: '',
   isGeneratingAi: false,
   aiGenerationError: null,
@@ -80,6 +83,7 @@ const state: ShadowingState = {
   translationStatus: null,
   translationStatusType: 'info',
   isTranslating: false,
+  forceSpeechApiNotice: false
 };
 
 const TRANSLATION_LANGUAGES = [
@@ -107,8 +111,32 @@ function renderTranslationLanguageOptions(selected: string): string {
 
 let sentenceSetHistory: ShadowingSetHistory | null = null;
 let sentenceSetHistoryPromise: Promise<ShadowingSetHistory> | null = null;
+let sentenceLanguageHistories: ShadowingLanguageHistories = {};
+const SPEECH_API_NOTICE_DISMISSED_KEY = 'speakcoach_speech_api_notice_dismissed_v1';
+function isSpeechApiNoticeDismissed(): boolean {
+  try { return localStorage.getItem(SPEECH_API_NOTICE_DISMISSED_KEY) === 'true'; } catch { return false; }
+}
+function isSpeechApiRelatedError(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error ?? '')).replace(/[_-]+/g, ' ');
+  return /\b(api|http|status|401|403|404|408|409|429|5\d\d|network|fetch|timeout|endpoint|provider|model|unsupported|not supported|quota|rate.?limit|connection|service unavailable|cors|recognition service)\b/i.test(message);
+}
+function reopenSpeechApiNoticeForError(error: unknown): void {
+  if (isSpeechApiRelatedError(error)) state.forceSpeechApiNotice = true;
+}
+async function persistCurrentShadowingHistory(): Promise<void> {
+  if (!sentenceSetHistory) return;
+  sentenceLanguageHistories = setShadowingHistoryForLanguage(sentenceLanguageHistories, state.languageCode, sentenceSetHistory);
+  await saveShadowingLanguageHistories(sentenceLanguageHistories);
+}
 function ensureSentenceSetHistory(): Promise<ShadowingSetHistory> {
-  if (!sentenceSetHistoryPromise) sentenceSetHistoryPromise = loadShadowingSetHistory();
+  if (!sentenceSetHistoryPromise) sentenceSetHistoryPromise = (async () => {
+    sentenceLanguageHistories = await loadShadowingLanguageHistories();
+    state.languageCode = await loadSelectedShadowingLanguage();
+    const existing = getShadowingHistoryForLanguage(sentenceLanguageHistories, state.languageCode);
+    sentenceSetHistory = existing ?? createShadowingHistoryForLanguage(state.languageCode);
+    if (!existing) await persistCurrentShadowingHistory();
+    return sentenceSetHistory;
+  })();
   return sentenceSetHistoryPromise;
 }
 
@@ -359,11 +387,11 @@ export function renderShadowingView(
     return () => { shadowingViewGeneration++; stopAllTts(); };
   }
   const activeHistory = sentenceSetHistory[state.difficulty];
-  const activeSet = getActiveShadowingSet(sentenceSetHistory, state.difficulty);
+  const activeSet = activeHistory.sets.length ? getActiveShadowingSet(sentenceSetHistory, state.difficulty) : undefined;
   state.index = activeHistory.activeSentenceIndex;
-  const sentence: ShadowingSentence | undefined = activeSet.sentences[state.index];
+  const sentence: ShadowingSentence | undefined = activeSet?.sentences[state.index];
   const hasSentence = !!sentence;
-  const targetText = state.customDrillText ?? sentence?.text ?? 'No sentence is available in this set.';
+  const targetText = state.customDrillText ?? sentence?.text ?? '';
   const translationSource = state.customDrillText ?? sentence?.text ?? '';
   if (state.translationSourceText !== translationSource) {
     state.translationSourceText = translationSource;
@@ -374,12 +402,23 @@ export function renderShadowingView(
     state.translationStatusType = 'info';
   }
   const targetExpectedDurationMs = state.customDrillText
-    ? Math.max(1200, state.customDrillText.split(/\s+/).length * 480)
+    ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
+  const selectedLanguage = getShadowingLanguage(state.languageCode);
+  // The navigation belongs to the same app root as this view. Avoid a global
+  // lookup, which can update another mounted app instance (or a stale test root).
+  const ieltsNavButton = container.parentElement?.querySelector<HTMLButtonElement>('#nav-ielts') ?? null;
+  if (ieltsNavButton) {
+    // IELTS remains available regardless of the selected Shadowing language.
+    ieltsNavButton.disabled = false;
+    ieltsNavButton.title = 'IELTS practice';
+    ieltsNavButton.removeAttribute('aria-disabled');
+  }
 
   const isRec = audioRecorder.isRecording();
   const scoringTier = summary.slots.pronunciation_scoring;
   const ttsTier = summary.slots.voice_tts;
+  const hasLanguageSentenceSet = activeHistory.sets.length > 0;
 
   const altsHtml =
     state.recognizedAlternatives.length > 0
@@ -406,10 +445,25 @@ export function renderShadowingView(
           ${scoringTier.label}
         </span>
       </div>
+      <div class="form-field sh-language-picker-field">
+        <label class="form-label" for="sh-language-select">Practice language</label>
+        <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language" style="max-width:240px;" ${isRec || state.isGeneratingAi ? "disabled" : ""}>
+          ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
+        </select>
+      </div>
+      <details class="offline-quality-notice sh-api-capability-notice" aria-label="Speech API capability notice" ${(!isSpeechApiNoticeDismissed() || state.forceSpeechApiNotice) ? '' : 'hidden'} ${(!isSpeechApiNoticeDismissed() || state.forceSpeechApiNotice) ? 'open' : ''}>
+        <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
+        <strong>Important: speech APIs have separate capabilities</strong>
+        <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
+        <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
+        <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
+      </details>
+      
+      ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate.</div>` : ''}
 
       ${scoringTier.tier === 3 ? `<details class="offline-quality-notice shadowing-offline-notice" aria-label="Offline pronunciation accuracy notice">
         <summary><strong>Pronunciation accuracy notice</strong><span class="offline-quality-learn-more">Learn more</span></summary>
-        <p>Offline feedback uses Android's system SpeechRecognizer and approximate word/timing checks. It is still useful for practising repetition, fluency and matching the target sentence, but it is not a precise pronunciation score. For more dependable transcription and word-level timing, connect and test an online speech-to-text provider in Slot 2 (for example, Groq Whisper when available for your account). This improves the information available to the practice feedback, but true phoneme-level pronunciation assessment requires a dedicated pronunciation-assessment service.</p>
+        <p>Offline feedback uses the device or browser speech recognizer and approximate word/timing checks. It is still useful for practising repetition, fluency and matching the target sentence, but it is not a precise pronunciation score. For more dependable transcription and word-level timing, connect and test an online speech-to-text provider in Slot 2 (for example, Groq Whisper when available for your account). This improves the information available to the practice feedback, but true phoneme-level pronunciation assessment requires a dedicated pronunciation-assessment service.</p>
       </details>` : ''}
       <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
         <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy">Easy</button>
@@ -420,7 +474,7 @@ export function renderShadowingView(
       <div class="ai-sentence-panel">
         <div class="ai-sentence-panel-copy">
           <strong>Get a new sentence set</strong>
-          <span>Each set contains 20 sentences.</span>
+          <span>AI-generated sets contain 20 sentences; offline starter sets may contain one.</span>
         </div>
         <div class="form-field sh-topic-field">
           <label class="form-label" for="sh-topic-input">Optional topic</label>
@@ -433,15 +487,15 @@ export function renderShadowingView(
         </div>
         <div class="sh-history-controls" aria-label="Sentence set history">
           <span class="sh-history-caption">From history</span>
-          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
-          <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1} of ${activeHistory.sets.length}</span>
-          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
+          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
+          <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1 : 0} of ${activeHistory.sets.length}</span>
+          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
         </div>
         
         ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
       </div>
       ${!state.customDrillText ? `<div class="card-subtitle shadowing-topic-label">Topic: <strong>${escapeHtml(sentence?.topic ?? 'Offline practice')}</strong></div>` : ''}
-      <p class="card-subtitle sh-ai-sentence-count">Sentence ${state.index + 1} of 20</p>
+      <p class="card-subtitle sh-ai-sentence-count">${hasLanguageSentenceSet ? `Sentence ${state.index + 1} of ${activeSet?.sentences.length ?? 0}` : 'No sentence set yet'}</p>
       <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div>
       <p class="card-subtitle sh-focus-copy">
         ${
@@ -530,6 +584,30 @@ export function renderShadowingView(
     </section>
   `;
 
+  container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice')?.querySelector<HTMLButtonElement>('#sh-api-notice-dismiss-btn')?.addEventListener('click', () => {
+    try { localStorage.setItem(SPEECH_API_NOTICE_DISMISSED_KEY, 'true'); } catch { /* Dismiss for this render even if storage is unavailable. */ }
+    state.forceSpeechApiNotice = false;
+    container.querySelector('.sh-api-capability-notice')?.setAttribute('hidden', '');
+  });
+
+  container.querySelector<HTMLSelectElement>('#sh-language-select')?.addEventListener('change', async event => {
+    if (audioRecorder.isRecording() || state.isGeneratingAi) return;
+    const nextCode = (event.target as HTMLSelectElement).value as ShadowingLanguageCode;
+    if (!SHADOWING_LANGUAGES.some(language => language.code === nextCode) || nextCode === state.languageCode) return;
+    await persistCurrentShadowingHistory();
+    state.languageCode = nextCode;
+    await saveSelectedShadowingLanguage(nextCode);
+    const nextHistory = getShadowingHistoryForLanguage(sentenceLanguageHistories, nextCode);
+    sentenceSetHistory = nextHistory ?? createShadowingHistoryForLanguage(nextCode);
+    if (!nextHistory) await persistCurrentShadowingHistory();
+    state.index = sentenceSetHistory[state.difficulty].activeSentenceIndex;
+    state.customDrillText = null;
+    state.aiGenerationError = null;
+    clearAttemptState();
+    stopAllTts();
+    renderShadowingView(container, summary);
+  });
+
   container.querySelector<HTMLTextAreaElement>('#sh-translation-input')?.addEventListener('input', event => {
     state.translationText = (event.target as HTMLTextAreaElement).value;
     state.translationResult = '';
@@ -594,9 +672,10 @@ export function renderShadowingView(
       state.activeModelPlayback = null;
       stopAllTts();
       try {
-        const result = await speakSentenceWithTierFallback(word);
+        const result = await speakSentenceWithTierFallback(word, { locale: selectedLanguage.locale });
         state.statusMessage = `Played “${word}” via ${result.activeTier.detailLabel}.`;
       } catch (error) {
+        reopenSpeechApiNoticeForError(error);
         state.statusMessage = `Could not play “${word}”: ${error instanceof Error ? error.message : String(error)}`;
       } finally {
         renderShadowingView(container, summary);
@@ -626,9 +705,9 @@ export function renderShadowingView(
     state.statusMessage = 'Generating 20 new practice sentences...';
     renderShadowingView(container, summary);
     try {
-      const generated = await generateAiShadowingSentenceBatch(state.difficulty, 20, state.topicInput.trim());
+      const generated = await generateAiShadowingSentenceBatch(state.difficulty, 20, state.topicInput.trim(), undefined, state.languageCode);
       sentenceSetHistory = appendShadowingSet(sentenceSetHistory!, state.difficulty, generated);
-      await saveShadowingSetHistory(sentenceSetHistory);
+      await persistCurrentShadowingHistory();
       state.index = 0;
       state.customDrillText = null;
       clearAttemptState();
@@ -650,7 +729,7 @@ export function renderShadowingView(
     state.customDrillText = null;
     state.aiGenerationError = null;
     clearAttemptState();
-    await saveShadowingSetHistory(sentenceSetHistory);
+    await persistCurrentShadowingHistory();
     renderShadowingView(container, summary);
   });
 
@@ -661,7 +740,7 @@ export function renderShadowingView(
     state.customDrillText = null;
     state.aiGenerationError = null;
     clearAttemptState();
-    await saveShadowingSetHistory(sentenceSetHistory);
+    await persistCurrentShadowingHistory();
     renderShadowingView(container, summary);
   });
 
@@ -669,7 +748,7 @@ export function renderShadowingView(
     state.index = Math.max(0, state.index - 1);
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
-      await saveShadowingSetHistory(sentenceSetHistory);
+      await persistCurrentShadowingHistory();
     }
     state.customDrillText = null;
     clearAttemptState();
@@ -677,10 +756,10 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', async () => {
-    state.index = Math.min(19, state.index + 1);
+    state.index = Math.min(Math.max(0, (activeSet?.sentences.length ?? 1) - 1), state.index + 1);
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
-      await saveShadowingSetHistory(sentenceSetHistory);
+      await persistCurrentShadowingHistory();
     }
     state.customDrillText = null;
     clearAttemptState();
@@ -703,7 +782,7 @@ export function renderShadowingView(
     renderShadowingView(container, summary);
     try {
       const rate = mode === 'normal' ? 1.0 : 0.72;
-      const res = await speakSentenceWithTierFallback(targetText, { rate });
+      const res = await speakSentenceWithTierFallback(targetText, { rate, locale: selectedLanguage.locale });
       if (playbackToken !== shadowingModelPlaybackToken) return;
       const offlineVoiceNote = res.activeTier.tier >= 3
         ? ' The basic offline system voice is being used; an online TTS API may sound more natural.'
@@ -713,6 +792,7 @@ export function renderShadowingView(
         : `Played slow model audio (0.72x) via ${res.activeTier.detailLabel}.${offlineVoiceNote}`;
     } catch (error) {
       if (playbackToken !== shadowingModelPlaybackToken) return;
+      reopenSpeechApiNoticeForError(error);
       state.statusMessage = `Could not play model audio: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
       if (playbackToken === shadowingModelPlaybackToken) {
@@ -746,10 +826,10 @@ export function renderShadowingView(
     clearAttemptState();
     const sttSlotId = resolveShadowingSttSlotId();
     const sttTier = summary.slots[sttSlotId];
-    const isOnlineStt = sttTier.tier === 2 && sttTier.label === 'Online AI';
+    const isOnlineStt = sttTier.tier <= 2 && sttTier.label === 'Online AI';
 
     try {
-      await audioRecorder.start('en-US', { useOfflineRecognizer: !isOnlineStt, preferOffline: !isOnlineStt });
+      await audioRecorder.start(selectedLanguage.locale, { useOfflineRecognizer: !isOnlineStt, preferOffline: !isOnlineStt });
       if (viewGeneration !== shadowingViewGeneration) {
         if (audioRecorder.isRecording()) await audioRecorder.stop();
         return;
@@ -763,7 +843,7 @@ export function renderShadowingView(
       }, 60_000);
       state.statusMessage = isOnlineStt
         ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score".'
-        : 'Listening via Android system speech recognition (no raw audio retained by SpeakCoach in this mode)... Speak clearly, then tap "Stop & Score".';
+        : 'Listening via device/browser speech recognition. The browser may use its own network speech service; SpeakCoach does not upload raw audio in this mode. Speak clearly, then tap "Stop & Score".';
     } catch (err) {
       if (viewGeneration !== shadowingViewGeneration) return;
       state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
@@ -793,7 +873,9 @@ export function renderShadowingView(
       durationMs: rec.durationMs,
       offlineTranscript: rec.offlineTranscript,
       offlineConfidence: rec.offlineConfidence,
-      referenceText: targetText
+      referenceText: targetText,
+      languageCode: state.languageCode,
+      languageLocale: selectedLanguage.locale
     }).catch((error) => {
       if (viewGeneration === shadowingViewGeneration) {
         state.statusMessage = `Speech transcription failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -809,6 +891,9 @@ export function renderShadowingView(
     state.recognizedConfidence = rec.offlineConfidence;
     state.recognizedAlternatives = rec.offlineAlternatives;
     state.recognizerError = rec.recognizerError;
+    if (rec.recognizerError && isSpeechApiRelatedError(rec.recognizerError)) {
+      reopenSpeechApiNoticeForError(rec.recognizerError);
+    }
 
     // Never fall back to reference text! If recognizer returned empty/null/error, DO NOT score.
     if (!rawRecognized) {
@@ -836,7 +921,7 @@ export function renderShadowingView(
     const vadAnalysis = rec.wavBase64
       ? analyzeWavBase64Vad(rec.wavBase64, targetExpectedDurationMs)
       : undefined;
-    const modelTimings = (await getCachedModelWordTimings(targetText)) ?? undefined;
+    const modelTimings = state.languageCode === 'en' ? (await getCachedModelWordTimings(targetText)) ?? undefined : undefined;
 
     if (sttOutcome.activeTier.tier <= 2 && sttOutcome.words.length > 0) {
       state.lastReport = scoreShadowingTier2({
@@ -847,7 +932,8 @@ export function renderShadowingView(
         expectedDurationMs: targetExpectedDurationMs,
         activeTierOverride: sttOutcome.activeTier,
         vadAnalysis,
-        referenceTimingsOverride: modelTimings
+        referenceTimingsOverride: modelTimings,
+        languageCode: state.languageCode
       });
     } else {
       state.lastReport = scoreShadowingOfflineTier3({
@@ -859,7 +945,8 @@ export function renderShadowingView(
         spokenTokensOverride: sttOutcome.words.length > 0 ? sttOutcome.words : undefined,
         activeTierOverride: scoringTier,
         vadAnalysis,
-        referenceTimingsOverride: modelTimings
+        referenceTimingsOverride: modelTimings,
+        languageCode: state.languageCode
       });
     }
 
@@ -935,6 +1022,7 @@ export async function pauseShadowingRecordingForBackground(): Promise<void> {
 }
 
 export function resetShadowingViewState(): void {
+  state.forceSpeechApiNotice = false;
   state.difficulty = 'easy';
   state.isGeneratingAi = false;
   state.aiGenerationError = null;

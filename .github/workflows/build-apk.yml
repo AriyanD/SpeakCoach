@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - design/visual-ux-refresh
+      - feat/multilingual-shadowing
     tags:
       - 'v*'
   pull_request:

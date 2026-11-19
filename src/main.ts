@@ -333,7 +333,7 @@ export async function bootstrapApp(
     }
   };
 
-  const handleBottomNavTap = (tab: ActiveTab): void => {
+  const handleBottomNavTap = async (tab: ActiveTab): Promise<void> => {
     const section = getSection(tab);
     if (isSameNavigationSection(currentTab, tab)) {
       scrollAppToTop(viewContainer);
@@ -370,9 +370,9 @@ export async function bootstrapApp(
     resetSectionToRoot(section);
   };
 
-  navShadowingBtn?.addEventListener('click', () => handleBottomNavTap('shadowing'));
-  navIeltsBtn?.addEventListener('click', () => handleBottomNavTap('ielts'));
-  navSettingsBtn?.addEventListener('click', () => handleBottomNavTap('settings'));
+  navShadowingBtn?.addEventListener('click', () => { void handleBottomNavTap('shadowing'); });
+  navIeltsBtn?.addEventListener('click', () => { void handleBottomNavTap('ielts'); });
+  navSettingsBtn?.addEventListener('click', () => { void handleBottomNavTap('settings'); });
 
   let exitHintTimer: number | undefined;
   let quitDialogOpen = false;

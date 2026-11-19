@@ -4,10 +4,12 @@ import { audioRecorder } from '../src/services/audioRecorder';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearLastShadowingAttempt } from '../src/services/shadowingTelemetry';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
+import { saveSelectedShadowingLanguage } from '../src/services/shadowingLanguageHistory';
 
 describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallback & Diagnostics)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await saveSelectedShadowingLanguage('en');
     clearAllRuntimeFailures();
     clearLastShadowingAttempt();
     audioRecorder.setMockRecognizerOutputForTest(null);
@@ -16,6 +18,9 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
 
   it('starts with offline sentence sets, removes source choice, and reports missing AI configuration', async () => {
     const root = document.createElement('div');
+    // ShadowingView updates the shared bottom-navigation element through
+    // document.querySelector, so mount the app as it is mounted in production.
+    document.body.appendChild(root);
     await bootstrapApp(root, 'shadowing');
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -181,6 +186,49 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
 
     expect(audioRecorder.isRecording()).toBe(false);
     expect(root.querySelector('.ielts-library-card')).not.toBeNull();
+  });
+
+  it('loads offline starter sentences after switching languages, keeps IELTS available, and lets users dismiss the speech API notice', async () => {
+    const root = document.createElement('div');
+    // ShadowingView updates the shared bottom-navigation element through
+    // document.querySelector, so mount the app as it is mounted in production.
+    document.body.appendChild(root);
+    await bootstrapApp(root, 'shadowing');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const notice = root.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
+    expect(notice).not.toBeNull();
+    expect(notice?.querySelector('#sh-api-notice-dismiss-btn')).not.toBeNull();
+    notice?.querySelector<HTMLButtonElement>('#sh-api-notice-dismiss-btn')?.click();
+    expect(root.querySelector('.sh-api-capability-notice')?.hasAttribute('hidden')).toBe(true);
+    expect(localStorage.getItem('speakcoach_speech_api_notice_dismissed_v1')).toBe('true');
+
+    const languageSelect = root.querySelector<HTMLSelectElement>('#sh-language-select');
+    expect(languageSelect).not.toBeNull();
+    languageSelect!.value = 'sv';
+    languageSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(root.querySelector('#sh-target-text')?.textContent).toBe('Jag brukar ta en kort promenad efter frukosten.');
+    expect(root.querySelector('.sh-empty-language-history')).toBeNull();
+    expect(root.querySelector('.sh-api-capability-notice')?.hasAttribute('hidden')).toBe(true);
+
+    const ieltsButton = root.querySelector<HTMLButtonElement>('#nav-ielts');
+    expect(ieltsButton).not.toBeNull();
+    expect(ieltsButton?.disabled).toBe(false);
+    expect(ieltsButton?.hasAttribute('aria-disabled')).toBe(false);
+    expect(ieltsButton?.disabled).toBe(false);
+    expect(root.querySelector('.sh-ielts-language-notice')).toBeNull();
+    expect(document.body.querySelector('.app-toast-error')).toBeNull();
+    ieltsButton?.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(root.querySelector('.ielts-library-card')).not.toBeNull();
+    expect(document.body.querySelector('.app-toast-error')).toBeNull();
+
+    languageSelect!.value = 'en';
+    languageSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    root.remove();
   });
 
 });
