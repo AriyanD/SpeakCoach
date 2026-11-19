@@ -41,7 +41,7 @@ export function makeSeedHistory(languageCode: ShadowingLanguageCode = 'en'): Sha
       createdAt: index,
       sentences
     }));
-    history[difficulty] = { sets, activeSetId: sets[0].id, activeSentenceIndex: 0 };
+    history[difficulty] = { sets, activeSetId: sets[0]?.id ?? '', activeSentenceIndex: 0 };
   }
   return history;
 }
