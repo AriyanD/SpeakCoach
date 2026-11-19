@@ -208,6 +208,7 @@ export function scoreShadowingOfflineTier3(params: {
   activeTierOverride?: ResolvedSlotTier;
   vadAnalysis?: WavVadAnalysisResult;
   referenceTimingsOverride?: import('../data/shadowingBank').ReferenceWordTiming[];
+  languageCode?: string;
 }): ShadowingScoreReport {
   const offlinePreset = getOfflinePreset('pronunciation_scoring');
   const activeTier: ResolvedSlotTier = params.activeTierOverride ?? {
@@ -230,7 +231,8 @@ export function scoreShadowingOfflineTier3(params: {
     buildSpokenTokensFromTranscript(
       cleanTranscript,
       params.spokenDurationMs,
-      validConf
+      validConf,
+      params.languageCode ?? 'en'
     );
 
   const alignedWords = cleanTranscript
@@ -238,7 +240,8 @@ export function scoreShadowingOfflineTier3(params: {
         params.referenceText,
         tokens,
         params.expectedDurationMs,
-        params.referenceTimingsOverride
+        params.referenceTimingsOverride,
+        params.languageCode ?? 'en'
       )
     : [];
 
@@ -262,6 +265,7 @@ export function scoreShadowingTier2(params: {
   activeTierOverride?: ResolvedSlotTier;
   vadAnalysis?: WavVadAnalysisResult;
   referenceTimingsOverride?: import('../data/shadowingBank').ReferenceWordTiming[];
+  languageCode?: string;
 }): ShadowingScoreReport {
   const activeTier: ResolvedSlotTier = params.activeTierOverride ?? {
     slotId: 'pronunciation_scoring',
