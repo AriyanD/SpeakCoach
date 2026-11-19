@@ -327,7 +327,7 @@ export async function requestGeminiAudioTranscription(params: {
     .filter((item): item is SpokenWordToken => item !== null);
   return {
     transcript,
-    words: words.length ? words : buildSpokenTokensFromTranscript(transcript, durationMs, undefined),
+    words: words.length ? words : buildSpokenTokensFromTranscript(transcript, durationMs, undefined, params.language?.split('-')[0] ?? 'en'),
     raw: { text: transcript }
   };
 }
@@ -514,7 +514,7 @@ export async function requestAzurePronunciationAssessment(params: {
   }).filter(item => item.word.length > 0);
   const normalizedWords: SpokenWordToken[] = words.length
     ? words
-    : buildSpokenTokensFromTranscript(transcript, params.durationMs ?? 3000, undefined);
+    : buildSpokenTokensFromTranscript(transcript, params.durationMs ?? 3000, undefined, params.language?.split('-')[0] ?? 'en');
   const raw: WhisperVerboseResponse = {
     text: transcript,
     words: normalizedWords.map(word => ({
@@ -649,7 +649,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
           ? params.offlineConfidence
           : undefined;
       const words = cleanOffline
-        ? buildSpokenTokensFromTranscript(cleanOffline, params.durationMs, validOfflineConf)
+        ? buildSpokenTokensFromTranscript(cleanOffline, params.durationMs, validOfflineConf, params.languageCode ?? 'en')
         : [];
       return { transcript: cleanOffline, words };
     }
