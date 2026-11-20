@@ -549,7 +549,10 @@ export async function speakSentenceWithTierFallback(
         return true;
       }
       usedCache = fromCache;
-      await playAudioDataUrl(dataUrl, rate, 30000, options?.onPlaybackStart);
+      // The requested rate has already been applied during online synthesis
+      // (provider speed setting or Gemini slow-speaking prompt). Playing the
+      // generated file at the same reduced rate would slow it twice.
+      await playAudioDataUrl(dataUrl, 1.0, 30000, options?.onPlaybackStart);
       return true;
     },
     async (fallbackTier) => {
