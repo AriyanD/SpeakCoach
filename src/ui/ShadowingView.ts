@@ -409,14 +409,21 @@ export function renderShadowingView(
   const selectedLanguage = getShadowingLanguage(state.languageCode);
   // Keep only the next 20 sentences in the temporary RAM-only TTS prefetch window.
   // The window advances in blocks of 20 so navigation within it does not restart requests.
-  const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${Math.floor(state.index / 20)}`;
+  const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${Math.floor(state.index / 20)}:${activeSet?.sentences[0]?.text ?? ''}`;
   if (prefetchWindowKey !== shadowingPrefetchWindowKey) {
     shadowingPrefetchWindowKey = prefetchWindowKey;
     clearPreloadedSentenceAudio();
     if (!state.customDrillText && activeSet) {
-      activeSet.sentences.slice(state.index + 1, state.index + 21).forEach((nextSentence) => {
-        void preloadSentenceAudio(nextSentence.text, { locale: selectedLanguage.locale });
-      });
+      const queue = activeSet.sentences.slice(state.index + 1, state.index + 21);
+      let cursor = 0;
+      const worker = async (): Promise<void> => {
+        while (cursor < queue.length) {
+          const nextSentence = queue[cursor++];
+          await preloadSentenceAudio(nextSentence.text, { locale: selectedLanguage.locale });
+        }
+      };
+      // Two concurrent requests reduce waiting without flooding provider rate limits.
+      void Promise.all([worker(), worker()]);
     }
   }
   // The navigation belongs to the same app root as this view. Avoid a global
