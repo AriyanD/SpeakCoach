@@ -265,3 +265,13 @@ export async function setCachedTtsAudio(hash: string, base64OrDataUrl: string): 
 export function clearMemoryAudioCache(): void {
   memoryAudioCache.clear();
 }
+
+/** Keep prefetched audio in RAM only; it is deliberately not written to disk. */
+export function setMemoryOnlyTtsAudio(hash: string, dataUrl: string): void {
+  if (!dataUrl || dataUrl.length > MAX_CACHE_ITEM_CHARS) return;
+  rememberInMemory(hash, dataUrl);
+}
+
+export function removeMemoryOnlyTtsAudio(hash: string): void {
+  memoryAudioCache.delete(hash);
+}
