@@ -3674,6 +3674,13 @@ body {
 
 
 /* Recording feedback and compact media-style sentence navigation */
+.sh-record-controls .sh-record-action.is-stopping {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--warning);
+  opacity: 1;
+  cursor: wait;
+}
 .sh-record-controls .sh-record-action.is-recording,
 .ielts-timer-banner:has(.ielts-recording-label) {
   border-color: var(--danger);
