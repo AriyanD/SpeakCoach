@@ -144,6 +144,8 @@ let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
 let shadowingModelPlaybackToken = 0;
 let shadowingIsStopping = false;
 let shadowingPrefetchWindowKey = '';
+let shadowingPrefetchBatchKey = '';
+let shadowingPrefetchStarted = false;
 let shadowingViewGeneration = 0;
 
 function clearShadowingRecordingTimer(): void {
@@ -386,7 +388,7 @@ export function renderShadowingView(
       container.innerHTML = '<section class="card shadowing-main-card"><div class="status-box fail" role="alert">Could not load the sentence library. Please restart the app and try again.</div></section>';
       console.error('[SpeakCoach] Shadowing history initialization failed.', error);
     });
-    return () => { shadowingViewGeneration++; stopAllTts(); clearPreloadedSentenceAudio(); shadowingPrefetchWindowKey = ''; };
+    return () => { shadowingViewGeneration++; stopAllTts(); clearPreloadedSentenceAudio(); shadowingPrefetchWindowKey = ''; shadowingPrefetchBatchKey = ''; shadowingPrefetchStarted = false; };
   }
   const activeHistory = sentenceSetHistory[state.difficulty];
   const activeSet = activeHistory.sets.length ? getActiveShadowingSet(sentenceSetHistory, state.difficulty) : undefined;
@@ -407,25 +409,30 @@ export function renderShadowingView(
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
   const selectedLanguage = getShadowingLanguage(state.languageCode);
-  // Keep only the next 20 sentences in the temporary RAM-only TTS prefetch window.
-  // The window advances in blocks of 20 so navigation within it does not restart requests.
-  const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${Math.floor(state.index / 20)}:${activeSet?.sentences[0]?.text ?? ''}:${state.customDrillText ?? ''}`;
+  // Prefetch starts only after the user begins practising (play or record), and
+  // advances in five-sentence batches at sentence 3, 8, 13, etc.
+  const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${activeSet?.sentences[0]?.text ?? ''}:${state.customDrillText ?? ''}`;
   if (prefetchWindowKey !== shadowingPrefetchWindowKey) {
     shadowingPrefetchWindowKey = prefetchWindowKey;
+    shadowingPrefetchStarted = false;
+    shadowingPrefetchBatchKey = '';
     clearPreloadedSentenceAudio();
-    if (!state.customDrillText && activeSet) {
-      const queue = activeSet.sentences.slice(state.index + 1, state.index + 21);
-      let cursor = 0;
-      const worker = async (): Promise<void> => {
-        while (cursor < queue.length) {
-          const nextSentence = queue[cursor++];
-          await preloadSentenceAudio(nextSentence.text, { locale: selectedLanguage.locale });
-        }
-      };
-      // Two concurrent requests reduce waiting without flooding provider rate limits.
-      void Promise.all([worker(), worker()]);
-    }
   }
+  const startShadowingPrefetch = (): void => {
+    if (!activeSet || state.customDrillText) return;
+    shadowingPrefetchStarted = true;
+    const milestone = state.index < 2 ? 0 : Math.floor((state.index - 2) / 5) + 1;
+    const batchKey = `${prefetchWindowKey}:${milestone}`;
+    if (batchKey === shadowingPrefetchBatchKey) return;
+    // First practice action: sentences 2–6. Later milestones: 6–10, 11–15, etc.
+    const start = milestone === 0 ? state.index + 1 : milestone * 5;
+    const queue = activeSet.sentences.slice(start, start + 5);
+    if (!queue.length) return;
+    shadowingPrefetchBatchKey = batchKey;
+    void (async () => {
+      for (const item of queue) await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
+    })();
+  };
   // The navigation belongs to the same app root as this view. Avoid a global
   // lookup, which can update another mounted app instance (or a stale test root).
   const ieltsNavButton = container.parentElement?.querySelector<HTMLButtonElement>('#nav-ielts') ?? null;
@@ -771,6 +778,7 @@ export function renderShadowingView(
 
   container.querySelector<HTMLButtonElement>('#sh-prev-btn')?.addEventListener('click', async () => {
     state.index = Math.max(0, state.index - 1);
+    if (shadowingPrefetchStarted) startShadowingPrefetch();
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
       await persistCurrentShadowingHistory();
@@ -782,6 +790,7 @@ export function renderShadowingView(
 
   container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', async () => {
     state.index = Math.min(Math.max(0, (activeSet?.sentences.length ?? 1) - 1), state.index + 1);
+    if (shadowingPrefetchStarted) startShadowingPrefetch();
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
       await persistCurrentShadowingHistory();
@@ -800,6 +809,7 @@ export function renderShadowingView(
   const playModelAudio = async (mode: 'normal' | 'slow'): Promise<void> => {
     if (state.activeModelPlayback) return;
     const playbackToken = ++shadowingModelPlaybackToken;
+    startShadowingPrefetch();
     state.activeModelPlayback = mode;
     state.statusMessage = mode === 'normal'
       ? 'Playing model audio at normal speed...'
@@ -855,6 +865,8 @@ export function renderShadowingView(
     }
     const recordButton = container.querySelector<HTMLButtonElement>('#sh-record-btn');
     if (recordButton) recordButton.disabled = true;
+    // User has begun a practice attempt; opportunistic audio prefetch may start now.
+    startShadowingPrefetch();
     // Always reset transcript & previous report to EMPTY on every new recording attempt
     clearAttemptState();
     const sttSlotId = resolveShadowingSttSlotId();
