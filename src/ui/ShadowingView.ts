@@ -18,7 +18,7 @@ import {
 } from '../services/shadowingScorer';
 import { recordLastShadowingAttempt } from '../services/shadowingTelemetry';
 import type { GlobalTierSummary } from '../services/tierManager';
-import { playAudioDataUrl, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
+import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
 import { translateShadowingText } from '../services/translationService';
 import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavVadAnalyzer';
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
@@ -142,6 +142,10 @@ function ensureSentenceSetHistory(): Promise<ShadowingSetHistory> {
 
 let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
 let shadowingModelPlaybackToken = 0;
+let shadowingIsStopping = false;
+let shadowingPrefetchWindowKey = '';
+let shadowingPrefetchBatchKey = '';
+let shadowingPrefetchStarted = false;
 let shadowingViewGeneration = 0;
 
 function clearShadowingRecordingTimer(): void {
@@ -384,7 +388,7 @@ export function renderShadowingView(
       container.innerHTML = '<section class="card shadowing-main-card"><div class="status-box fail" role="alert">Could not load the sentence library. Please restart the app and try again.</div></section>';
       console.error('[SpeakCoach] Shadowing history initialization failed.', error);
     });
-    return () => { shadowingViewGeneration++; stopAllTts(); };
+    return () => { shadowingViewGeneration++; stopAllTts(); clearPreloadedSentenceAudio(); shadowingPrefetchWindowKey = ''; shadowingPrefetchBatchKey = ''; shadowingPrefetchStarted = false; };
   }
   const activeHistory = sentenceSetHistory[state.difficulty];
   const activeSet = activeHistory.sets.length ? getActiveShadowingSet(sentenceSetHistory, state.difficulty) : undefined;
@@ -405,6 +409,30 @@ export function renderShadowingView(
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
   const selectedLanguage = getShadowingLanguage(state.languageCode);
+  // Prefetch starts only after the user begins practising (play or record), and
+  // advances in five-sentence batches at sentence 3, 8, 13, etc.
+  const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${activeSet?.sentences[0]?.text ?? ''}:${state.customDrillText ?? ''}`;
+  if (prefetchWindowKey !== shadowingPrefetchWindowKey) {
+    shadowingPrefetchWindowKey = prefetchWindowKey;
+    shadowingPrefetchStarted = false;
+    shadowingPrefetchBatchKey = '';
+    clearPreloadedSentenceAudio();
+  }
+  const startShadowingPrefetch = (): void => {
+    if (!activeSet || state.customDrillText) return;
+    shadowingPrefetchStarted = true;
+    const milestone = state.index < 2 ? 0 : Math.floor((state.index - 2) / 5) + 1;
+    const batchKey = `${prefetchWindowKey}:${milestone}`;
+    if (batchKey === shadowingPrefetchBatchKey) return;
+    // First practice action: sentences 2–6. Later milestones: 6–10, 11–15, etc.
+    const start = milestone === 0 ? state.index + 1 : milestone * 5;
+    const queue = activeSet.sentences.slice(start, start + 5);
+    if (!queue.length) return;
+    shadowingPrefetchBatchKey = batchKey;
+    void (async () => {
+      for (const item of queue) await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
+    })();
+  };
   // The navigation belongs to the same app root as this view. Avoid a global
   // lookup, which can update another mounted app instance (or a stale test root).
   const ieltsNavButton = container.parentElement?.querySelector<HTMLButtonElement>('#nav-ielts') ?? null;
@@ -416,6 +444,7 @@ export function renderShadowingView(
   }
 
   const isRec = audioRecorder.isRecording();
+  const isStopping = shadowingIsStopping;
   const scoringTier = summary.slots.pronunciation_scoring;
   const ttsTier = summary.slots.voice_tts;
   const hasLanguageSentenceSet = activeHistory.sets.length > 0;
@@ -510,8 +539,8 @@ export function renderShadowingView(
 
       <div class="btn-row sh-player-controls" aria-label="Sentence playback controls">
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-prev-btn" aria-label="Previous sentence" title="Previous sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 9 12l10 7z"/></svg></button>
-        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback === 'normal' ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && !state.activeModelPlayback ? '' : 'disabled'} aria-label="Play model at normal speed" title="Play model at normal speed" aria-busy="${state.activeModelPlayback === 'normal'}">
-          ${state.activeModelPlayback === 'normal' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
+        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback === 'normal' ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'normal') ? '' : 'disabled'} aria-label="${state.activeModelPlayback === 'normal' ? 'Pause model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback === 'normal' ? 'Pause playback' : 'Play model at normal speed'}" aria-busy="${state.activeModelPlayback === 'normal'}">
+          ${state.activeModelPlayback === 'normal' ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM15 5h4v14h-4z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
         </button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && !state.activeModelPlayback ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
@@ -525,8 +554,8 @@ export function renderShadowingView(
       </div>
 
       <div class="btn-row sh-record-controls">
-        <button type="button" class="btn btn-primary sh-record-action ${isRec ? 'is-recording' : ''}" id="sh-record-btn" ${hasSentence ? '' : 'disabled'} aria-label="${isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
-          ${isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : 'Record Repetition'}
+        <button type="button" class="btn btn-primary sh-record-action ${isRec ? 'is-recording' : ''} ${isStopping ? 'is-stopping' : ''}" id="sh-record-btn" ${hasSentence && !isStopping ? '' : 'disabled'} aria-label="${isStopping ? 'Finishing recording' : isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
+          ${isStopping ? 'Wait…' : isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : 'Record Repetition'}
         </button>
         <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
       </div>
@@ -749,6 +778,7 @@ export function renderShadowingView(
 
   container.querySelector<HTMLButtonElement>('#sh-prev-btn')?.addEventListener('click', async () => {
     state.index = Math.max(0, state.index - 1);
+    if (shadowingPrefetchStarted) startShadowingPrefetch();
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
       await persistCurrentShadowingHistory();
@@ -760,6 +790,7 @@ export function renderShadowingView(
 
   container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', async () => {
     state.index = Math.min(Math.max(0, (activeSet?.sentences.length ?? 1) - 1), state.index + 1);
+    if (shadowingPrefetchStarted) startShadowingPrefetch();
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
       await persistCurrentShadowingHistory();
@@ -778,6 +809,7 @@ export function renderShadowingView(
   const playModelAudio = async (mode: 'normal' | 'slow'): Promise<void> => {
     if (state.activeModelPlayback) return;
     const playbackToken = ++shadowingModelPlaybackToken;
+    startShadowingPrefetch();
     state.activeModelPlayback = mode;
     state.statusMessage = mode === 'normal'
       ? 'Playing model audio at normal speed...'
@@ -806,6 +838,14 @@ export function renderShadowingView(
   };
 
   container.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.addEventListener('click', () => {
+    if (state.activeModelPlayback === 'normal') {
+      shadowingModelPlaybackToken++;
+      stopAllTts();
+      state.activeModelPlayback = null;
+      state.statusMessage = 'Model playback paused.';
+      renderShadowingView(container, summary);
+      return;
+    }
     void playModelAudio('normal');
   });
 
@@ -825,6 +865,8 @@ export function renderShadowingView(
     }
     const recordButton = container.querySelector<HTMLButtonElement>('#sh-record-btn');
     if (recordButton) recordButton.disabled = true;
+    // User has begun a practice attempt; opportunistic audio prefetch may start now.
+    startShadowingPrefetch();
     // Always reset transcript & previous report to EMPTY on every new recording attempt
     clearAttemptState();
     const sttSlotId = resolveShadowingSttSlotId();
@@ -838,15 +880,15 @@ export function renderShadowingView(
         return;
       }
       clearShadowingRecordingTimer();
-      // Keep the 60-second safety limit internal: no visible countdown in Shadowing.
+      // A 30-second ceiling comfortably covers long practice sentences while preventing runaway recording.
       // Trigger the same stop-and-score flow the user would invoke manually.
       shadowingRecordingTimeout = setTimeout(() => {
         shadowingRecordingTimeout = null;
         container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.click();
-      }, 60_000);
+      }, 30_000);
       state.statusMessage = isOnlineStt
-        ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score".'
-        : 'Listening via device/browser speech recognition. The browser may use its own network speech service; SpeakCoach does not upload raw audio in this mode. Speak clearly, then tap "Stop & Score".';
+        ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score". Recording stops automatically after 30 seconds.'
+        : 'Listening via device/browser speech recognition. The browser may use its own network speech service; SpeakCoach does not upload raw audio in this mode. Recording stops automatically after 30 seconds.';
     } catch (err) {
       if (viewGeneration !== shadowingViewGeneration) return;
       state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
@@ -856,14 +898,25 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.addEventListener('click', async () => {
+    if (shadowingIsStopping) return;
+    shadowingIsStopping = true;
     clearShadowingRecordingTimer();
+    const visibleStopButton = container.querySelector<HTMLButtonElement>('#sh-record-btn');
+    if (visibleStopButton) {
+      visibleStopButton.disabled = true;
+      visibleStopButton.classList.add('is-stopping');
+      visibleStopButton.textContent = 'Wait…';
+      visibleStopButton.setAttribute('aria-label', 'Finishing recording');
+    }
     const rec = await audioRecorder.stop().catch((error) => {
       if (viewGeneration === shadowingViewGeneration) {
+        shadowingIsStopping = false;
         state.statusMessage = `Could not stop recording: ${error instanceof Error ? error.message : String(error)}`;
         renderShadowingView(container, summary);
       }
       return null;
     });
+    shadowingIsStopping = false;
     if (!rec || viewGeneration !== shadowingViewGeneration) return;
     state.lastRecording = rec;
 
@@ -998,6 +1051,9 @@ export function renderShadowingView(
     shadowingModelPlaybackToken++;
     state.activeModelPlayback = null;
     stopAllTts();
+    clearPreloadedSentenceAudio();
+    shadowingPrefetchWindowKey = '';
+    shadowingIsStopping = false;
     if (audioRecorder.isRecording()) {
       void audioRecorder.stop().catch((error) => {
         console.warn('[SpeakCoach] Could not stop Shadowing recording during navigation cleanup.', error);
@@ -1008,6 +1064,9 @@ export function renderShadowingView(
 
 export async function pauseShadowingRecordingForBackground(): Promise<void> {
   clearShadowingRecordingTimer();
+  clearPreloadedSentenceAudio();
+  shadowingPrefetchWindowKey = '';
+  shadowingIsStopping = false;
   shadowingModelPlaybackToken++;
   const wasPlayingModelAudio = state.activeModelPlayback !== null;
   state.activeModelPlayback = null;

@@ -158,8 +158,10 @@ export function computeAudioCacheHash(params: {
   voiceOrModel: string;
   rate: number;
   text: string;
+  endpoint?: string;
+  accountFingerprint?: string;
 }): string {
-  const input = `${params.providerId}|${params.voiceOrModel.trim()}|${params.rate.toFixed(
+  const input = `${params.providerId}|${params.endpoint ?? ''}|${params.accountFingerprint ?? ''}|${params.voiceOrModel.trim()}|${params.rate.toFixed(
     2
   )}|${params.text.trim()}`;
   // Deterministic 64-bit FNV-1a twin hash in hex
@@ -264,4 +266,14 @@ export async function setCachedTtsAudio(hash: string, base64OrDataUrl: string): 
 
 export function clearMemoryAudioCache(): void {
   memoryAudioCache.clear();
+}
+
+/** Keep prefetched audio in RAM only; it is deliberately not written to disk. */
+export function setMemoryOnlyTtsAudio(hash: string, dataUrl: string): void {
+  if (!dataUrl || dataUrl.length > MAX_CACHE_ITEM_CHARS) return;
+  rememberInMemory(hash, dataUrl);
+}
+
+export function removeMemoryOnlyTtsAudio(hash: string): void {
+  memoryAudioCache.delete(hash);
 }
