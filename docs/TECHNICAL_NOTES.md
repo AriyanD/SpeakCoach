@@ -4,6 +4,8 @@ SpeakCoach is an Android app for English shadowing and IELTS Speaking practice. 
 
 ## Important accuracy and privacy notes
 
+- **Android compatibility:** SpeakCoach requires Android 6.0 (API 23) or newer. Android 5.1 (API 22) and older are outside the supported range. Android API keys use AES-256-GCM backed by Android Keystore; the retired API-22 RSA-wrapped AES fallback is not used.
+
 - **AI feedback is for practice, not an official IELTS result.** Online model-generated bands are estimates. They are not certified examiner scores.
 - **No prewritten IELTS question bank ships in the production app.** New sessions, replacements and refreshed question sets require online AI generation. Previously generated sets may be saved and reused locally; the retired sample bank exists only as a test fixture.
 - **Pronunciation is not currently assigned an IELTS band.** Android/Whisper speech-recognition confidence is not a valid measure of IELTS pronunciation quality. The app keeps pronunciation unassessed rather than inventing a band.

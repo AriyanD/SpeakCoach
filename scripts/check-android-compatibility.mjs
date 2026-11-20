@@ -35,7 +35,7 @@ if (!capacitorConfig.includes(`appId: '${expectedApplicationId}'`)) failures.pus
 if (versionCode < 1) failures.push(`Android versionCode must be a positive integer (found ${versionCode})`);
 if (androidVersion !== pkg.version || appVersion !== pkg.version) failures.push(`package.json, Android versionName and APP_VERSION must match (package=${pkg.version}, Android=${androidVersion}, app=${appVersion})`);
 
-if (minSdk !== 22) failures.push(`minSdkVersion must remain 22 to preserve Android 5.1+ support (found ${minSdk})`);
+if (minSdk !== 23) failures.push(`minSdkVersion must be 23 (Android 6.0+) because Android 5.1/API 22 and older are unsupported (found ${minSdk})`);
 if (compileSdk !== 34) failures.push(`compileSdkVersion must remain 34 while staying on Capacitor 6 (found ${compileSdk})`);
 if (targetSdk !== 34) failures.push(`targetSdkVersion must remain 34 while staying on Capacitor 6 (found ${targetSdk})`);
 
@@ -52,4 +52,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('Android compatibility check passed: minSdk 22 (Android 5.1+), Capacitor 6, compile/target SDK 34.');
+console.log('Android compatibility check passed: minSdk 23 (Android 6.0+), Capacitor 6, compile/target SDK 34.');
