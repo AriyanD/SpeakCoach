@@ -19,6 +19,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
+import java.security.spec.MGF1ParameterSpec;
 import java.security.SecureRandom;
 import java.util.Calendar;
 
@@ -26,6 +27,8 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
 import javax.security.auth.x500.X500Principal;
 
@@ -36,7 +39,11 @@ public class SecureKeyPlugin extends Plugin {
     private static final String AES_KEY_ALIAS = "SpeakCoachMasterKeyV1";
     private static final String API22_RSA_KEY_ALIAS = "SpeakCoachMasterRsaKeyV1";
     private static final String AES_TRANSFORMATION = "AES/GCM/NoPadding";
-    private static final String RSA_TRANSFORMATION = "RSA/ECB/PKCS1Padding";
+    private static final String RSA_TRANSFORMATION = "RSA/ECB/OAEPPadding";
+    // Android Keystore uses SHA-1 for OAEP MGF1; keep this explicit so both sides match.
+    private static final OAEPParameterSpec RSA_OAEP_PARAMETERS = new OAEPParameterSpec(
+            "SHA-256", "MGF1", new MGF1ParameterSpec("SHA-1"), PSource.PSpecified.DEFAULT
+    );
     private static final String API22_PAYLOAD_PREFIX = "rsa1:";
     private static final int GCM_TAG_LENGTH = 128;
     private static final int API22_AES_KEY_BYTES = 32;
@@ -98,7 +105,7 @@ public class SecureKeyPlugin extends Plugin {
             throw new IllegalStateException("The Android Keystore RSA public key is unavailable.");
         }
         Cipher rsaCipher = Cipher.getInstance(RSA_TRANSFORMATION);
-        rsaCipher.init(Cipher.ENCRYPT_MODE, certificate.getPublicKey());
+        rsaCipher.init(Cipher.ENCRYPT_MODE, certificate.getPublicKey(), RSA_OAEP_PARAMETERS);
         return rsaCipher.doFinal(rawAesKey);
     }
 
@@ -109,7 +116,7 @@ public class SecureKeyPlugin extends Plugin {
             throw new IllegalStateException("The Android Keystore RSA private key is missing or unavailable. Restore API keys from a SpeakCoach AI Settings backup.");
         }
         Cipher rsaCipher = Cipher.getInstance(RSA_TRANSFORMATION);
-        rsaCipher.init(Cipher.DECRYPT_MODE, (java.security.PrivateKey) storedKey);
+        rsaCipher.init(Cipher.DECRYPT_MODE, (java.security.PrivateKey) storedKey, RSA_OAEP_PARAMETERS);
         byte[] rawAesKey = rsaCipher.doFinal(wrappedAesKey);
         if (rawAesKey.length != API22_AES_KEY_BYTES) {
             throw new IllegalStateException("The wrapped API 22 encryption key has an invalid length.");
