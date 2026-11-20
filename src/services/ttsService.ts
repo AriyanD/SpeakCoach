@@ -26,6 +26,7 @@ let activePlaybackGeneration = 0;
 let temporaryCacheGeneration = 0;
 const temporaryCacheHashes = new Set<string>();
 const prefetchTasks = new Map<string, Promise<void>>();
+let prefetchQueueTail: Promise<void> = Promise.resolve();
 
 export function stopAllTts(): void {
   activePlaybackGeneration++;
@@ -88,7 +89,9 @@ export async function synthesizeOnlineNeuralAudio(
     providerId: slotCfg.providerId,
     voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${locale}`,
     rate,
-    text
+    text,
+    endpoint: slotCfg.baseUrl?.trim() ?? '',
+    accountFingerprint: apiKey
   });
 
   const cached = await getCachedTtsAudio(hash);
@@ -600,8 +603,9 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
   if (existing) return existing;
 
   const generation = temporaryCacheGeneration;
-  const task = (async () => {
+  const task = prefetchQueueTail.then(async () => {
     try {
+      if (generation !== temporaryCacheGeneration) return;
       const configs = await loadAllSlotsConfig();
       await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) =>
         synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, undefined, locale, true, generation)
@@ -611,7 +615,8 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
     } finally {
       prefetchTasks.delete(taskKey);
     }
-  })();
+  });
+  prefetchQueueTail = task.catch(() => {});
   prefetchTasks.set(taskKey, task);
   return task;
 }
