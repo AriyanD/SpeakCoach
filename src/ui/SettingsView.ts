@@ -567,6 +567,25 @@ export async function renderSettingsView(
             ${SLOT_ORDER.map((slotId) => `<li data-quick-setup-slot="${slotId}"><span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\d+\.\s*/, ''))}</span><span class="card-subtitle">Not checked</span></li>`).join('')}
           </ul>
           <div id="quick-setup-status" class="status-box info" role="status" aria-live="polite">Quick Setup fills both API slots automatically. It keeps API 2 as a fallback; Voice/TTS has no Groq-compatible backup. Connections are checked sequentially. Missing API keys leave those providers unverified.</div>
+          <div class="quick-custom-provider">
+            <label class="form-label"><input type="checkbox" id="quick-custom-enabled" /> Use custom URL and model</label>
+            <div id="quick-custom-panel" hidden>
+              <p class="card-subtitle">Enter a provider's base URL and API key, then fetch its model list or type a model ID manually. SpeakCoach will test each feature with its actual request format (TTS, STT, generation, evaluation and translation) before offering to apply the configuration. Tests may consume API quota.</p>
+              <div class="form-grid">
+                <div class="form-field"><label class="form-label" for="quick-custom-url">Provider base URL</label><input type="url" class="form-input" id="quick-custom-url" placeholder="https://api.example.com/v1" autocomplete="url" /></div>
+                <div class="form-field"><label class="form-label" for="quick-custom-key">API key</label><input type="password" class="form-input" id="quick-custom-key" placeholder="Paste API key" autocomplete="off" /></div>
+                <div class="form-field"><label class="form-label" for="quick-custom-model">Model ID</label><input type="text" class="form-input" id="quick-custom-model" placeholder="Enter or fetch a model ID" autocomplete="off" /></div>
+              </div>
+              <div class="btn-row">
+                <button type="button" class="btn btn-secondary" id="quick-custom-fetch-models">Fetch models</button>
+                <button type="button" class="btn btn-primary" id="quick-custom-test">Test capabilities</button>
+                <button type="button" class="btn btn-secondary" id="quick-custom-apply" disabled>Apply to compatible slots</button>
+              </div>
+              <div id="quick-custom-models" class="model-picker-options" hidden></div>
+              <div id="quick-custom-status" class="status-box info" role="status" aria-live="polite">No custom provider tested yet.</div>
+              <ul id="quick-custom-results" class="quick-setup-checklist"></ul>
+            </div>
+          </div>
         </div>
       </div>
       <div class="settings-api-group-heading">
@@ -886,6 +905,177 @@ export async function renderSettingsView(
       quickSetupButton.disabled = false;
       quickSetupButton.textContent = 'Set up recommended providers';
     }
+  });
+
+  const customProviderToggle = container.querySelector<HTMLInputElement>('#quick-custom-enabled');
+  const customProviderPanel = container.querySelector<HTMLElement>('#quick-custom-panel');
+  const customProviderUrl = container.querySelector<HTMLInputElement>('#quick-custom-url');
+  const customProviderKey = container.querySelector<HTMLInputElement>('#quick-custom-key');
+  const customProviderModel = container.querySelector<HTMLInputElement>('#quick-custom-model');
+  const customProviderModels = container.querySelector<HTMLElement>('#quick-custom-models');
+  const customProviderStatus = container.querySelector<HTMLElement>('#quick-custom-status');
+  const customProviderResults = container.querySelector<HTMLElement>('#quick-custom-results');
+  const customProviderFetchButton = container.querySelector<HTMLButtonElement>('#quick-custom-fetch-models');
+  const customProviderTestButton = container.querySelector<HTMLButtonElement>('#quick-custom-test');
+  const customProviderApplyButton = container.querySelector<HTMLButtonElement>('#quick-custom-apply');
+  const customTestResults = new Map<SlotId, { config: SlotConfig; result: ConnectionTestResult }>();
+
+  customProviderToggle?.addEventListener('change', () => {
+    if (customProviderPanel) customProviderPanel.hidden = !customProviderToggle.checked;
+  });
+
+  customProviderFetchButton?.addEventListener('click', async () => {
+    const baseUrl = customProviderUrl?.value.trim() ?? '';
+    const apiKey = customProviderKey?.value.trim() ?? '';
+    if (!baseUrl || !apiKey) {
+      if (customProviderStatus) {
+        customProviderStatus.className = 'status-box info';
+        customProviderStatus.textContent = 'Enter the provider base URL and API key first.';
+      }
+      return;
+    }
+    customProviderFetchButton.disabled = true;
+    if (customProviderStatus) customProviderStatus.textContent = 'Fetching available models…';
+    try {
+      const slotId: SlotId = 'llm_generator';
+      const providerId = getCustomProviderIdForSlot(slotId);
+      const preset = getPreset(slotId, providerId);
+      const config: SlotConfig = { slotId, providerId, baseUrl, modelOrVoice: customProviderModel?.value.trim() || preset.defaultModelOrVoice, authStyle: 'bearer' };
+      const response = await fetchAvailableModels(config, apiKey);
+      if (customProviderStatus) {
+        customProviderStatus.className = response.supported && response.models.length ? 'status-box pass' : 'status-box info';
+        customProviderStatus.textContent = response.message;
+      }
+      if (customProviderModels && response.supported && response.models.length) {
+        customProviderModels.innerHTML = response.models.map(model => `<button type="button" class="model-option" data-quick-custom-model="${escapeHtml(model)}">${escapeHtml(model)}</button>`).join('');
+        customProviderModels.hidden = false;
+      }
+    } catch (error) {
+      if (customProviderStatus) {
+        customProviderStatus.className = 'status-box fail';
+        customProviderStatus.textContent = error instanceof Error ? error.message : String(error);
+      }
+    } finally {
+      customProviderFetchButton.disabled = false;
+    }
+  });
+
+  customProviderModels?.addEventListener('click', event => {
+    const option = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-quick-custom-model]');
+    if (!option || !customProviderModel) return;
+    customProviderModel.value = option.dataset.quickCustomModel ?? '';
+    customProviderModels.hidden = true;
+    customTestResults.clear();
+    if (customProviderApplyButton) customProviderApplyButton.disabled = true;
+  });
+
+  customProviderTestButton?.addEventListener('click', async () => {
+    const baseUrl = customProviderUrl?.value.trim() ?? '';
+    const apiKey = customProviderKey?.value.trim() ?? '';
+    const model = customProviderModel?.value.trim() ?? '';
+    if (!baseUrl || !apiKey || !model) {
+      if (customProviderStatus) {
+        customProviderStatus.className = 'status-box info';
+        customProviderStatus.textContent = 'Enter the provider URL, API key and model ID before testing.';
+      }
+      return;
+    }
+    customTestResults.clear();
+    if (customProviderApplyButton) customProviderApplyButton.disabled = true;
+    if (customProviderResults) customProviderResults.innerHTML = '';
+    customProviderTestButton.disabled = true;
+    if (customProviderFetchButton) customProviderFetchButton.disabled = true;
+    if (customProviderStatus) {
+      customProviderStatus.className = 'status-box info';
+      customProviderStatus.textContent = 'Testing six capabilities sequentially. Keep this screen open; some probes may take up to 45 seconds.';
+    }
+    for (const slotId of SLOT_ORDER) {
+      const providerId = getCustomProviderIdForSlot(slotId);
+      const preset = getPreset(slotId, providerId);
+      const config: SlotConfig = {
+        slotId,
+        providerId,
+        baseUrl,
+        modelOrVoice: model,
+        authStyle: 'bearer',
+        customTtsVoice: undefined,
+        speechRate: slotId === 'voice_tts' ? configs.voice_tts.speechRate : undefined
+      };
+      const row = document.createElement('li');
+      row.innerHTML = `<span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\\d+\\.\\s*/, ''))}</span><span class="card-subtitle">Testing…</span>`;
+      customProviderResults?.appendChild(row);
+      try {
+        const result = await testSlotConnection(config, { apiKeyOverride: apiKey, isOnlineOverride: true, recordRuntimeFailure: false });
+        customTestResults.set(slotId, { config, result });
+        const label = row.querySelector<HTMLElement>('span:last-child');
+        if (label) label.textContent = result.message;
+        row.classList.toggle('pass', result.ok && result.tier !== 3);
+        row.classList.toggle('fail', !result.ok || result.tier === 3);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const failed: ConnectionTestResult = {
+          ok: false,
+          slotId,
+          providerId,
+          tier: preset.tier,
+          label: 'Online AI',
+          latencyMs: 0,
+          message: `FAIL — ${message}`
+        };
+        customTestResults.set(slotId, { config, result: failed });
+        const label = row.querySelector<HTMLElement>('span:last-child');
+        if (label) label.textContent = failed.message;
+        row.classList.add('fail');
+      }
+    }
+    const compatible = Array.from(customTestResults.values()).filter(item => item.result.ok && item.result.tier !== 3).length;
+    if (customProviderStatus) {
+      customProviderStatus.className = compatible ? 'status-box pass' : 'status-box fail';
+      customProviderStatus.textContent = `Capability test complete: ${compatible} of ${SLOT_ORDER.length} slots passed. Only passing slots can be applied.`;
+    }
+    if (customProviderApplyButton) customProviderApplyButton.disabled = compatible === 0;
+    customProviderTestButton.disabled = false;
+    if (customProviderFetchButton) customProviderFetchButton.disabled = false;
+  });
+
+  customProviderApplyButton?.addEventListener('click', async () => {
+    const apiKey = customProviderKey?.value.trim() ?? '';
+    const compatible = Array.from(customTestResults.entries()).filter(([, item]) => item.result.ok && item.result.tier !== 3);
+    if (!apiKey || compatible.length === 0) return;
+    const confirmed = await confirmInApp({
+      title: 'Apply this custom provider?',
+      message: `This replaces API 1 settings for ${compatible.length} compatible feature slot(s). Existing API 2 backups will be preserved. Continue?`,
+      confirmLabel: 'Apply to compatible slots',
+      cancelLabel: 'Keep current settings',
+      tone: 'danger'
+    });
+    if (!confirmed) return;
+    customProviderApplyButton.disabled = true;
+    if (customProviderStatus) {
+      customProviderStatus.className = 'status-box info';
+      customProviderStatus.textContent = 'Saving tested provider settings…';
+    }
+    let applied = 0;
+    for (const [slotId, item] of compatible) {
+      try {
+        const config: SlotConfig = { ...item.config, secondary: configs[slotId].secondary };
+        await saveApiKey(slotId, config.providerId, apiKey, 'primary');
+        await saveSlotConfig(config);
+        configs[slotId] = config;
+        const persisted = await saveSlotConnectionTestResult(slotId, item.result);
+        lastTestResults.set(slotId, persisted);
+        applied++;
+      } catch (error) {
+        console.error(`[SpeakCoach] Could not apply custom provider to ${slotId}.`, error);
+      }
+    }
+    if (customProviderStatus) {
+      customProviderStatus.className = applied === compatible.length ? 'status-box pass' : 'status-box info';
+      customProviderStatus.textContent = `Applied to ${applied} of ${compatible.length} compatible slots. Existing API 2 backups were preserved.`;
+    }
+    customProviderApplyButton.disabled = applied === 0;
+    refreshRequiredApiStatus();
+    await _onSettingsUpdated();
   });
 
   const updateStatus = container.querySelector<HTMLElement>('#speakcoach-update-status');
