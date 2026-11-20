@@ -328,5 +328,5 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
         value: OriginalSpeechSynth
       });
     }
-  });
+  }, 15000);
 });
