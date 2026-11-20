@@ -4,7 +4,7 @@
 
 # SpeakCoach
 
-**English shadowing and IELTS Speaking practice for Android — bring your own AI, no backend, your keys stay on your phone.**
+**Multilingual Shadowing and IELTS Speaking practice for Android — bring your own AI, no backend, your keys stay on your phone.**
 
 [English](README.md) · [فارسی](README.fa.md)
 
@@ -24,7 +24,7 @@
 
 ## What is SpeakCoach?
 
-SpeakCoach is a practice coach for people who want to speak English more naturally and prepare for the IELTS Speaking test. It has two main tools:
+SpeakCoach is a practice coach for people who want to practise Shadowing in multiple languages and prepare for the IELTS Speaking test. It has two main tools:
 
 - **Shadowing Trainer** – listen to a sentence, repeat it, and get word-level feedback on what you said and how closely your timing followed the model.
 - **IELTS Speaking** – practise Full test, Part 1, Part 2 (with a preparation timer and notes) or Part 3 using AI-generated question sets, then receive a practice-estimate evaluation.
