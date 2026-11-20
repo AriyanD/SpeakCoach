@@ -11,7 +11,7 @@ SpeakCoach is an Android app for English shadowing and IELTS Speaking practice. 
 - **Offline recognition is device-dependent.** The Android app uses the system `SpeechRecognizer` service and may request offline recognition where configured. Android's `EXTRA_PREFER_OFFLINE` is a preference, not a guarantee; the recognition service installed on the phone may require network access. SpeakCoach does not currently bundle Vosk or a guaranteed offline speech model.
 - **IELTS evaluation requires an online AI API.** If evaluation cannot be completed, the app preserves the recorded answers and transcript in History as pending so the user can retry when an API provider is available. No heuristic offline IELTS score or feedback is generated.
 - **Shadowing scores are approximate.** Word matching, transcript alignment, completeness and timing do not perform phoneme-level pronunciation assessment.
-- **API keys are sensitive.** On Android, keys are stored through the native AES-GCM / Android Keystore integration. Older keys in legacy Preferences/browser storage are migrated only after a secure write is verified. New Android writes do not silently fall back to plaintext storage.
+- **API keys are sensitive.** On Android 6.0+ (API 23+), keys use AES-256-GCM with Android Keystore. On Android 5.1 (API 22), a Keystore-backed RSA key wraps a generated AES-256 key; the credential itself is encrypted/authenticated with AES-GCM. The RSA wrapping uses OAEP with SHA-256 and MGF1-SHA-1 parameters. Stored ciphertext is read back and decrypted before success is reported. This API 22 implementation still needs real device/emulator verification. Older keys in legacy Preferences/browser storage are migrated only after a secure write is verified. New Android writes do not silently fall back to plaintext storage.
 - **AI Settings backup contains API keys in readable JSON.** Keep the exported file private and delete temporary copies securely. Test-data backups do not contain API keys.
 - Android automatic app-data backup is disabled because Keystore-encrypted values cannot be decrypted on a different device without the original Keystore key. Use SpeakCoach's manual backup and restore flow to move settings and data.
 
@@ -26,10 +26,11 @@ Configure each capability independently in Settings:
 | IELTS Speech-to-Text | Transcribe candidate answers | Configured transcription provider | Android system speech recognition where available |
 | IELTS Evaluator | Feedback on Fluency, Lexical Resource and Grammar | Configured LLM provider; bands are practice estimates | No offline IELTS evaluation; incomplete answers are saved for retry |
 | Question & Sentence Generator | Generate IELTS question sets and shadowing material | Configured LLM provider | No built-in IELTS question fallback; previously generated sets remain stored locally |
+| Shadowing Translator | Translate the current Shadowing sentence and selected words | Configured online translation provider | No offline translation; configure a provider |
 
 A successful provider connection test confirms the tested endpoint responded. It does not certify the provider's assessment accuracy or guarantee that every feature is supported by a custom gateway.
 
-## Application identity
+The UI language can be set to English or Persian; translations are provided through the app-language dictionary.\n\n## Application identity
 
 The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The first public release is `1.0.0` (`versionCode` 1). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
 
