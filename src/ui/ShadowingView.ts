@@ -409,7 +409,7 @@ export function renderShadowingView(
   const selectedLanguage = getShadowingLanguage(state.languageCode);
   // Keep only the next 20 sentences in the temporary RAM-only TTS prefetch window.
   // The window advances in blocks of 20 so navigation within it does not restart requests.
-  const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${Math.floor(state.index / 20)}:${activeSet?.sentences[0]?.text ?? ''}`;
+  const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${Math.floor(state.index / 20)}:${activeSet?.sentences[0]?.text ?? ''}:${state.customDrillText ?? ''}`;
   if (prefetchWindowKey !== shadowingPrefetchWindowKey) {
     shadowingPrefetchWindowKey = prefetchWindowKey;
     clearPreloadedSentenceAudio();
