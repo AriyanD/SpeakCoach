@@ -142,6 +142,7 @@ function ensureSentenceSetHistory(): Promise<ShadowingSetHistory> {
 
 let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
 let shadowingModelPlaybackToken = 0;
+let shadowingIsStopping = false;
 let shadowingViewGeneration = 0;
 
 function clearShadowingRecordingTimer(): void {
@@ -416,6 +417,7 @@ export function renderShadowingView(
   }
 
   const isRec = audioRecorder.isRecording();
+  const isStopping = shadowingIsStopping;
   const scoringTier = summary.slots.pronunciation_scoring;
   const ttsTier = summary.slots.voice_tts;
   const hasLanguageSentenceSet = activeHistory.sets.length > 0;
@@ -510,8 +512,8 @@ export function renderShadowingView(
 
       <div class="btn-row sh-player-controls" aria-label="Sentence playback controls">
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-prev-btn" aria-label="Previous sentence" title="Previous sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 9 12l10 7z"/></svg></button>
-        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback === 'normal' ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && !state.activeModelPlayback ? '' : 'disabled'} aria-label="Play model at normal speed" title="Play model at normal speed" aria-busy="${state.activeModelPlayback === 'normal'}">
-          ${state.activeModelPlayback === 'normal' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
+        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback === 'normal' ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'normal') ? '' : 'disabled'} aria-label="${state.activeModelPlayback === 'normal' ? 'Pause model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback === 'normal' ? 'Pause playback' : 'Play model at normal speed'}" aria-busy="${state.activeModelPlayback === 'normal'}">
+          ${state.activeModelPlayback === 'normal' ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM15 5h4v14h-4z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
         </button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && !state.activeModelPlayback ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
@@ -525,8 +527,8 @@ export function renderShadowingView(
       </div>
 
       <div class="btn-row sh-record-controls">
-        <button type="button" class="btn btn-primary sh-record-action ${isRec ? 'is-recording' : ''}" id="sh-record-btn" ${hasSentence ? '' : 'disabled'} aria-label="${isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
-          ${isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : 'Record Repetition'}
+        <button type="button" class="btn btn-primary sh-record-action ${isRec ? 'is-recording' : ''} ${isStopping ? 'is-stopping' : ''}" id="sh-record-btn" ${hasSentence && !isStopping ? '' : 'disabled'} aria-label="${isStopping ? 'Finishing recording' : isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
+          ${isStopping ? 'Wait…' : isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : 'Record Repetition'}
         </button>
         <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
       </div>
@@ -806,6 +808,14 @@ export function renderShadowingView(
   };
 
   container.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.addEventListener('click', () => {
+    if (state.activeModelPlayback === 'normal') {
+      shadowingModelPlaybackToken++;
+      stopAllTts();
+      state.activeModelPlayback = null;
+      state.statusMessage = 'Model playback paused.';
+      renderShadowingView(container, summary);
+      return;
+    }
     void playModelAudio('normal');
   });
 
@@ -838,15 +848,15 @@ export function renderShadowingView(
         return;
       }
       clearShadowingRecordingTimer();
-      // Keep the 60-second safety limit internal: no visible countdown in Shadowing.
+      // A 30-second ceiling comfortably covers long practice sentences while preventing runaway recording.
       // Trigger the same stop-and-score flow the user would invoke manually.
       shadowingRecordingTimeout = setTimeout(() => {
         shadowingRecordingTimeout = null;
         container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.click();
-      }, 60_000);
+      }, 30_000);
       state.statusMessage = isOnlineStt
-        ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score".'
-        : 'Listening via device/browser speech recognition. The browser may use its own network speech service; SpeakCoach does not upload raw audio in this mode. Speak clearly, then tap "Stop & Score".';
+        ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score". Recording stops automatically after 30 seconds.'
+        : 'Listening via device/browser speech recognition. The browser may use its own network speech service; SpeakCoach does not upload raw audio in this mode. Recording stops automatically after 30 seconds.';
     } catch (err) {
       if (viewGeneration !== shadowingViewGeneration) return;
       state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
@@ -856,14 +866,25 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.addEventListener('click', async () => {
+    if (shadowingIsStopping || !audioRecorder.isRecording()) return;
+    shadowingIsStopping = true;
     clearShadowingRecordingTimer();
+    const visibleStopButton = container.querySelector<HTMLButtonElement>('#sh-record-btn');
+    if (visibleStopButton) {
+      visibleStopButton.disabled = true;
+      visibleStopButton.classList.add('is-stopping');
+      visibleStopButton.textContent = 'Wait…';
+      visibleStopButton.setAttribute('aria-label', 'Finishing recording');
+    }
     const rec = await audioRecorder.stop().catch((error) => {
       if (viewGeneration === shadowingViewGeneration) {
+        shadowingIsStopping = false;
         state.statusMessage = `Could not stop recording: ${error instanceof Error ? error.message : String(error)}`;
         renderShadowingView(container, summary);
       }
       return null;
     });
+    shadowingIsStopping = false;
     if (!rec || viewGeneration !== shadowingViewGeneration) return;
     state.lastRecording = rec;
 
