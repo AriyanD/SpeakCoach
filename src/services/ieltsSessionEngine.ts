@@ -1268,6 +1268,7 @@ export class IeltsSessionController {
     this.isProcessingAnswer = false;
     this.isEvaluating = false;
     this.clearAllTimers();
+    clearPreloadedSentenceAudio();
     stopAllTts();
     if (audioRecorder.isRecording()) {
       audioRecorder.stop().catch(() => {});
