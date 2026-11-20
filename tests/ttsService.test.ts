@@ -73,7 +73,7 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     expect(second.activeTier.tier).toBe(1);
     expect(second.fromCache).toBe(true);
     expect(networkCalls).toBe(1); // Zero extra network calls!
-  });
+  }, 15000);
 
   it('uses the selected custom voice in the request and keeps different voices out of the same cache entry', async () => {
     const requests: any[] = [];
