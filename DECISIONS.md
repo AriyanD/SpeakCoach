@@ -12,7 +12,7 @@
 - **Diagnostics**: Request URLs and error details must redact credentials. Diagnostic logs must never contain raw API keys.
 
 ## 3. On-Device Key & Data Storage
-- Android API keys are stored through `keyStore.ts` and the native `SecureKey` plugin. On Android 6.0 (API 23+) AES-256-GCM keys are held in Android Keystore. On Android 5.1 (API 22), a Keystore-backed RSA key wraps a fresh AES-256 key; the API-key payload is encrypted/authenticated with AES-GCM. Persisted writes are read back and decrypted before success is reported. API 22 uses RSA-OAEP with explicit SHA-256 / MGF1-SHA-1 parameters. Runtime verification on an API 22 device/emulator is still required.
+- Android API keys are stored through `keyStore.ts` and the native `SecureKey` plugin using AES-256-GCM with Android Keystore. The minimum supported Android version is Android 6.0 (API 23); Android 5.1 (API 22) and older are not supported. Persisted writes are read back and decrypted before success is reported.
 - Legacy Preferences/localStorage keys may be read and migrated. If migration fails, the old copy is retained to avoid data loss.
 - Browser-only development may use browser storage; it is not equivalent to Android Keystore protection.
 - AI settings backups may contain readable API keys and must be treated as secrets. Test-data backups must not contain API keys.
