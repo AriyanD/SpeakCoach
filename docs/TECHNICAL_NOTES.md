@@ -1,6 +1,6 @@
 # SpeakCoach — Technical notes, release and backup details
 
-SpeakCoach is an Android app for English shadowing and IELTS Speaking practice. It is designed to work without a SpeakCoach-operated backend. When you configure online providers, the app sends the relevant request data directly to the provider you selected.
+SpeakCoach is an Android app for multilingual Shadowing practice and IELTS Speaking practice. It is designed to work without a SpeakCoach-operated backend. When you configure online providers, the app sends the relevant request data directly to the provider you selected.
 
 ## Important accuracy and privacy notes
 
@@ -34,7 +34,7 @@ The UI language can be set to English or Persian; translations are provided thro
 
 ## Application identity
 
-The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The first public release is `1.0.0` (`versionCode` 1). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
+The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The first public release was `1.0.0` (`versionCode` 1); the current application version is `1.0.13` (`versionCode` 13). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
 
 ## In-app updates
 
