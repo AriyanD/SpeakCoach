@@ -133,6 +133,53 @@ describe('Gemini TTS Adapter & PCM-to-WAV Conversion (Task F6)', () => {
     expect(res2.fromCache).toBe(true);
   });
 
+  it('requests a separate slow Gemini TTS generation and reuses only the slow-audio cache entry', async () => {
+    const wavB64 = Buffer.from('RIFF' + 's'.repeat(48)).toString('base64');
+    const slotCfg = {
+      slotId: 'voice_tts' as const,
+      providerId: 'gemini_tts',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-3.8-flash-lite-tts',
+      customTtsVoice: 'Aoede'
+    };
+    let capturedParts: Array<{ text?: string }> = [];
+    let requestCount = 0;
+
+    const slowResult = await synthesizeOnlineNeuralAudio(
+      'This is the exact sentence to practise.',
+      slotCfg,
+      'slow-gemini-key',
+      0.72,
+      async (opts) => {
+        requestCount++;
+        capturedParts = (opts.data as any).contents[0].parts;
+        return {
+          status: 200,
+          headers: {},
+          data: { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/wav', data: wavB64 } }] } }] },
+          url: opts.url
+        };
+      }
+    );
+
+    expect(slowResult.fromCache).toBe(false);
+    expect(capturedParts).toHaveLength(2);
+    expect(capturedParts[0].text).toContain('72% of normal speaking speed');
+    expect(capturedParts[1].text).toBe('This is the exact sentence to practise.');
+
+    const cachedSlowResult = await synthesizeOnlineNeuralAudio(
+      'This is the exact sentence to practise.',
+      slotCfg,
+      'slow-gemini-key',
+      0.72,
+      async () => {
+        throw new Error('The slow variant should be served from its own cache entry');
+      }
+    );
+    expect(cachedSlowResult.fromCache).toBe(true);
+    expect(requestCount).toBe(1);
+  });
+
   it('extracts audio correctly when inlineData is in a non-first response part', async () => {
     const wavB64 = Buffer.from('RIFF' + '1'.repeat(48)).toString('base64');
     const slotCfg = {
