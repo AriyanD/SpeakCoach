@@ -194,7 +194,15 @@ export async function synthesizeOnlineNeuralAudio(
         method: 'POST',
         headers: prepared.headers,
         data: {
-          contents: [{ role: 'user', parts: [{ text }] }],
+          contents: [{
+            role: 'user',
+            parts: rate < 0.999
+              ? [
+                  { text: `Speak the following text slowly and clearly, at approximately ${Math.round(rate * 100)}% of normal speaking speed. Do not speak these instructions. Read the following text exactly, without adding, omitting, or paraphrasing words:` },
+                  { text }
+                ]
+              : [{ text }]
+          }],
           generationConfig: {
             responseModalities: ['AUDIO'],
             speechConfig: { languageCode: locale.split('-')[0].toLowerCase(), voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
@@ -304,7 +312,8 @@ export async function synthesizeOnlineNeuralAudio(
         data: {
           text,
           model_id: modelId,
-          language_code: languageCode
+          language_code: languageCode,
+          ...(rate < 0.999 ? { voice_settings: { speed: Math.max(0.7, Math.min(1.2, rate)) } } : {})
         },
         responseType: 'blob',
         timeoutMs: 15000
