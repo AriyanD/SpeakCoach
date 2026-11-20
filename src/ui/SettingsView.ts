@@ -924,6 +924,17 @@ export async function renderSettingsView(
     if (customProviderPanel) customProviderPanel.hidden = !customProviderToggle.checked;
   });
 
+  [customProviderUrl, customProviderKey, customProviderModel].forEach(field => {
+    field?.addEventListener('input', () => {
+      customTestResults.clear();
+      if (customProviderApplyButton) customProviderApplyButton.disabled = true;
+      if (customProviderStatus) {
+        customProviderStatus.className = 'status-box info';
+        customProviderStatus.textContent = 'Custom provider details changed. Run the capability test again before applying.';
+      }
+    });
+  });
+
   customProviderFetchButton?.addEventListener('click', async () => {
     const baseUrl = customProviderUrl?.value.trim() ?? '';
     const apiKey = customProviderKey?.value.trim() ?? '';
