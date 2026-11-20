@@ -1013,7 +1013,7 @@ export async function renderSettingsView(
         speechRate: slotId === 'voice_tts' ? configs.voice_tts.speechRate : undefined
       };
       const row = document.createElement('li');
-      row.innerHTML = `<span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\\d+\\.\\s*/, ''))}</span><span class="card-subtitle">Testing…</span>`;
+      row.innerHTML = `<span>${escapeHtml(SLOT_DEFINITIONS[slotId].title.replace(/^\d+\.\s*/, ''))}</span><span class="card-subtitle">Testing…</span>`;
       customProviderResults?.appendChild(row);
       try {
         const result = await testSlotConnection(config, { apiKeyOverride: apiKey, isOnlineOverride: true, recordRuntimeFailure: false });
