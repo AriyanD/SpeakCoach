@@ -539,8 +539,8 @@ export function renderShadowingView(
 
       <div class="btn-row sh-player-controls" aria-label="Sentence playback controls">
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-prev-btn" aria-label="Previous sentence" title="Previous sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 9 12l10 7z"/></svg></button>
-        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback === 'normal' ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'normal') ? '' : 'disabled'} aria-label="${state.activeModelPlayback === 'normal' ? 'Pause model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback === 'normal' ? 'Pause playback' : 'Play model at normal speed'}" aria-busy="${state.activeModelPlayback === 'normal'}">
-          ${state.activeModelPlayback === 'normal' ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM15 5h4v14h-4z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
+        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence ? '' : 'disabled'} aria-label="${state.activeModelPlayback ? 'Stop model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback ? 'Stop playback' : 'Play model at normal speed'}" aria-busy="${Boolean(state.activeModelPlayback)}">
+          ${state.activeModelPlayback ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
         </button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && !state.activeModelPlayback ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
@@ -838,11 +838,11 @@ export function renderShadowingView(
   };
 
   container.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.addEventListener('click', () => {
-    if (state.activeModelPlayback === 'normal') {
+    if (state.activeModelPlayback !== null) {
       shadowingModelPlaybackToken++;
       stopAllTts();
       state.activeModelPlayback = null;
-      state.statusMessage = 'Model playback paused.';
+      state.statusMessage = 'Model playback stopped.';
       renderShadowingView(container, summary);
       return;
     }
