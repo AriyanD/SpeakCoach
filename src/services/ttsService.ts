@@ -572,6 +572,25 @@ export async function speakSentenceWithTierFallback(
  * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
  * audio is never persisted to Preferences, localStorage, or the filesystem.
  */
+/** Play a short voice sample using the unsaved TTS slot configuration currently shown in Settings. */
+export async function previewTtsVoice(
+  slotConfig: SlotConfig,
+  apiKey: string,
+  text = 'Hello! This is a short preview of the selected text-to-speech voice.',
+  locale = 'en-US'
+): Promise<void> {
+  const preset = getPreset('voice_tts', slotConfig.providerId);
+  if (preset.tier >= 3) {
+    await speakOfflineNativeTts(text, locale, 1);
+    return;
+  }
+  if (preset.requiresKey && !apiKey.trim()) {
+    throw new Error('Enter an API key before previewing this online voice.');
+  }
+  const result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale);
+  await playAudioDataUrl(result.dataUrl);
+}
+
 export async function preloadSentenceAudio(text: string, options?: { locale?: string }): Promise<void> {
   const normalizedText = text.trim();
   if (!normalizedText) return;
