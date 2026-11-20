@@ -886,7 +886,7 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.addEventListener('click', async () => {
-    if (shadowingIsStopping || !audioRecorder.isRecording()) return;
+    if (shadowingIsStopping) return;
     shadowingIsStopping = true;
     clearShadowingRecordingTimer();
     const visibleStopButton = container.querySelector<HTMLButtonElement>('#sh-record-btn');
