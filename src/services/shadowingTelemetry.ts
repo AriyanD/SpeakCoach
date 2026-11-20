@@ -90,11 +90,14 @@ export async function getLastShadowingAttempt(): Promise<LastShadowingAttempt | 
   return null;
 }
 
-export function clearLastShadowingAttempt(): void {
+export async function clearLastShadowingAttempt(): Promise<void> {
   inMemoryLastAttempt = null;
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem(LAST_ATTEMPT_KEY);
   }
+  // Preferences is the primary store on Android; clear it as well so stale
+  // diagnostics cannot reappear after the browser fallback is cleared.
+  await Preferences.remove({ key: LAST_ATTEMPT_KEY });
 }
 
 
