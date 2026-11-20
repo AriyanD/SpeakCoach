@@ -20,7 +20,7 @@ import {
   type IeltsAnswerInput,
   type IeltsEvaluationResult
 } from './ieltsLlmEvaluator';
-import { speakSentenceWithTierFallback, stopAllTts } from './ttsService';
+import { clearPreloadedSentenceAudio, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from './ttsService';
 import { transcribeWithTier2WhisperOrFallback } from './whisperSttService';
 import { logIeltsSessionEvent } from './ieltsTelemetry';
 import { saveIeltsDraft } from '../storage/ieltsHistoryStore';
@@ -435,6 +435,16 @@ export class IeltsSessionController {
     this.candidateNotes = notes;
   }
 
+  private preloadNextExaminerPrompt(): void {
+    clearPreloadedSentenceAudio();
+    const nextQuestion = this.steps
+      .slice(this.currentStepIndex + 1)
+      .find(candidate => candidate.stepType !== 'part2_prep' && candidate.stepType !== 'part2_talk');
+    if (!nextQuestion) return;
+    const text = nextQuestion.canonicalQuestion?.text || nextQuestion.questionText;
+    if (text?.trim()) void preloadSentenceAudio(text, { locale: 'en-US' });
+  }
+
   public async startStepExaminerPrompt(): Promise<void> {
     if (this.currentStatus === 'evaluating' || this.isEvaluating) {
       return;
@@ -449,11 +459,13 @@ export class IeltsSessionController {
     this.activeVoiceTier = null;
 
     if (step.stepType === 'part2_prep') {
+      this.preloadNextExaminerPrompt();
       this.startPart2PrepCountdown();
       return;
     }
 
     if (step.stepType === 'part2_talk') {
+      this.preloadNextExaminerPrompt();
       await this.startPart2Speech();
       return;
     }
@@ -505,6 +517,9 @@ export class IeltsSessionController {
     }
 
     if (!this.isSessionActive || this.stepRunToken !== token) return;
+
+    // The current prompt has finished; keep only the next examiner question in RAM.
+    this.preloadNextExaminerPrompt();
 
     // Play "Your turn" beep audio cue before candidate speaks
     this.setStatus('cue_tone', null, 'Playing turn cue tone');
@@ -1152,6 +1167,7 @@ export class IeltsSessionController {
   }
 
   public async runEvaluation(): Promise<IeltsEvaluationResult | null> {
+    clearPreloadedSentenceAudio();
     if (this.currentStatus === 'completed' && this.evaluationResult) {
       return this.evaluationResult;
     }
@@ -1553,6 +1569,7 @@ export class IeltsSessionController {
   }
 
   public reset(): void {
+    clearPreloadedSentenceAudio();
     this.stepRunToken++;
     this.isProcessingAnswer = false;
     this.isEvaluating = false;
