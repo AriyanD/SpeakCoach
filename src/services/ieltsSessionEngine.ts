@@ -849,6 +849,7 @@ export class IeltsSessionController {
 
     this.stepRunToken++;
     this.clearAllTimers();
+    clearPreloadedSentenceAudio();
     stopAllTts();
     if (audioRecorder.isRecording()) {
       try { await audioRecorder.stop(); } catch { /* Ignore stop error */ }
@@ -1538,6 +1539,7 @@ export class IeltsSessionController {
   public async pauseForBackground(): Promise<void> {
     if (!this.isSessionActive || this.currentStatus === 'completed' || this.currentStatus === 'idle') return;
 
+    clearPreloadedSentenceAudio();
     this.stepRunToken++;
     this.isProcessingAnswer = false;
     this.clearAllTimers();
