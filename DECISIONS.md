@@ -12,6 +12,8 @@
 - **Diagnostics**: Request URLs and error details must redact credentials. Diagnostic logs must never contain raw API keys.
 
 ## 3. On-Device Key & Data Storage
+- **Android minimum version**: Android 6.0 (API 23). Android 5.1 (API 22) and older are not supported. The minimum SDK is set in `android/variables.gradle` and must remain aligned with the Android Keystore implementation.
+- **Key encryption**: Android API keys use AES-256-GCM through Android Keystore. The API-22 RSA-wrapped AES compatibility fallback is not part of the supported implementation.
 - Android API keys are stored through `keyStore.ts` and the native `SecureKey` plugin, using Android Keystore-backed encryption. A successful write is verified before any legacy copy is removed.
 - Legacy Preferences/localStorage keys may be read and migrated. If migration fails, the old copy is retained to avoid data loss.
 - Browser-only development may use browser storage; it is not equivalent to Android Keystore protection.
