@@ -809,7 +809,9 @@ export function renderShadowingView(
   const playModelAudio = async (mode: 'normal' | 'slow'): Promise<void> => {
     if (state.activeModelPlayback) return;
     const playbackToken = ++shadowingModelPlaybackToken;
-    startShadowingPrefetch();
+    // Slow playback is generated on demand for this sentence only; do not
+    // trigger the normal-speed prefetch queue or spend quota on other sentences.
+    if (mode === 'normal') startShadowingPrefetch();
     state.activeModelPlayback = mode;
     state.statusMessage = mode === 'normal'
       ? 'Playing model audio at normal speed...'
