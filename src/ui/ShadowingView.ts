@@ -1039,6 +1039,9 @@ export function renderShadowingView(
     shadowingModelPlaybackToken++;
     state.activeModelPlayback = null;
     stopAllTts();
+    clearPreloadedSentenceAudio();
+    shadowingPrefetchWindowKey = '';
+    shadowingIsStopping = false;
     if (audioRecorder.isRecording()) {
       void audioRecorder.stop().catch((error) => {
         console.warn('[SpeakCoach] Could not stop Shadowing recording during navigation cleanup.', error);
@@ -1049,6 +1052,9 @@ export function renderShadowingView(
 
 export async function pauseShadowingRecordingForBackground(): Promise<void> {
   clearShadowingRecordingTimer();
+  clearPreloadedSentenceAudio();
+  shadowingPrefetchWindowKey = '';
+  shadowingIsStopping = false;
   shadowingModelPlaybackToken++;
   const wasPlayingModelAudio = state.activeModelPlayback !== null;
   state.activeModelPlayback = null;
