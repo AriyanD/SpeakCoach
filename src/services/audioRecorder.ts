@@ -303,7 +303,7 @@ class AudioRecorderService {
     if (this.webSpeechRecognizer) {
       const recognizer = this.webSpeechRecognizer;
       await new Promise<void>(resolve => {
-        const timeout = setTimeout(resolve, 350);
+        const timeout = setTimeout(resolve, 1200);
         const previousOnEnd = recognizer.onend;
         recognizer.onend = () => {
           clearTimeout(timeout);
