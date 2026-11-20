@@ -28,12 +28,13 @@ Configure each capability independently in Settings:
 | IELTS Speech-to-Text | Transcribe candidate answers | Configured transcription provider | Android system speech recognition where available |
 | IELTS Evaluator | Feedback on Fluency, Lexical Resource and Grammar | Configured LLM provider; bands are practice estimates | No offline IELTS evaluation; incomplete answers are saved for retry |
 | Question & Sentence Generator | Generate IELTS question sets and shadowing material | Configured LLM provider | No built-in IELTS question fallback; previously generated sets remain stored locally |
+| Shadowing Translator | Translate the current Shadowing sentence and selected words | Independently configured online provider | No offline translation; configure an online provider |
 
 A successful provider connection test confirms the tested endpoint responded. It does not certify the provider's assessment accuracy or guarantee that every feature is supported by a custom gateway.
 
 ## Application identity
 
-The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The first public release is `1.0.0` (`versionCode` 1). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
+The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The **initial public release** was `1.0.0` (`versionCode` 1); the current published app version is `1.0.14` (`versionCode` 14). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
 
 ## In-app updates
 
