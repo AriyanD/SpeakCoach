@@ -445,9 +445,12 @@ export function renderShadowingView(
           ${scoringTier.label}
         </span>
       </div>
-      <div class="form-field sh-language-picker-field">
-        <label class="form-label" for="sh-language-select">Practice language</label>
-        <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language" style="max-width:240px;" ${isRec || state.isGeneratingAi ? "disabled" : ""}>
+      <div class="sh-language-picker-field">
+        <label class="sh-language-picker-label" for="sh-language-select">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+          <span>Practice language</span>
+        </label>
+        <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language" ${isRec || state.isGeneratingAi ? "disabled" : ""}>
           ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
         </select>
       </div>
