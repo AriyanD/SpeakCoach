@@ -90,7 +90,7 @@ SpeakCoach is a practice tool, not an exam:
 2. Allow installation from your browser/file manager when Android asks, then open the APK.
 3. Launch SpeakCoach, choose your language and follow the setup guide.
 
-Requires Android; see [docs/DEVICE_TEST_CHECKLIST.md](docs/DEVICE_TEST_CHECKLIST.md) for the manual device test list.
+Requires Android 6.0 (API 23) or newer. Android 5.1 (API 22) and older are not supported. See [docs/DEVICE_TEST_CHECKLIST.md](docs/DEVICE_TEST_CHECKLIST.md) for the manual device test list.
 
 ## Quick start
 
