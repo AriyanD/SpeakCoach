@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+
 // jsdom does not implement real media playback. Simulate a short, successful
 // playback so production code waiting for the media "ended" event can settle.
 Object.defineProperty(HTMLMediaElement.prototype, 'play', {
