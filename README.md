@@ -47,7 +47,7 @@ There is **no SpeakCoach server and no subscription**. You connect your own AI p
 - Interrupted sessions keep your answers so you can retry evaluation later.
 
 ### Flexible AI, with fallbacks
-Five independent provider slots, each with **API 1 → API 2 fallback** and an offline tier where one is possible:
+Six independent provider slots, each with its own configuration and **API 1 → API 2 fallback**; an offline tier is available where supported:
 
 | Slot | What it does | Basic fallback |
 |---|---|---|
@@ -56,6 +56,7 @@ Five independent provider slots, each with **API 1 → API 2 fallback** and an o
 | IELTS Speech-to-Text | Transcribes IELTS answers | Android speech recognition |
 | IELTS Evaluator | Fluency, Lexical Resource, Grammar feedback | None – answers are saved for retry |
 | Question & Sentence Generator | Creates IELTS sets and shadowing sentences | Previously generated sets stay available |
+| Shadowing Translator | Translates the current Shadowing sentence and selected words | No offline translation; configure an online provider |
 
 Supported provider types include OpenAI-compatible endpoints, custom OpenAI-compatible gateways, Azure, ElevenLabs, Google Gemini, Whisper-style transcription (for example Groq) and Android's built-in speech services.
 
@@ -94,7 +95,7 @@ Requires Android; see [docs/DEVICE_TEST_CHECKLIST.md](docs/DEVICE_TEST_CHECKLIST
 ## Quick start
 
 1. **Get an API key.** Free-tier friendly options: [Google AI Studio](https://aistudio.google.com/app/apikey) (Gemini) and [Groq](https://console.groq.com/keys) (Whisper transcription).
-2. In **Settings**, open a slot, choose a provider, paste your key, **Test**, then **Save**. Do the same for the slots you want.
+2. In **Settings**, configure each of the **six slots separately**: choose its provider, enter its API key (and Base URL/model when required), tap **Test**, then **Save**. The six slots are Voice/TTS, Shadowing analysis, IELTS Speech-to-Text, IELTS Evaluator, Question & Sentence Generator, and **Shadowing Translator**. The translator has its own independent API configuration; set it up too if you want sentence/word translation. You can configure API 2 as a fallback inside each slot.
 3. **Shadowing:** pick a topic and level, listen, then record yourself.
 4. **IELTS:** tap *Get new question sets*, choose a mode and start practising. Review the feedback in *Test History*.
 
