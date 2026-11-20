@@ -11,7 +11,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     localStorage.clear();
     await saveSelectedShadowingLanguage('en');
     clearAllRuntimeFailures();
-    clearLastShadowingAttempt();
+    await clearLastShadowingAttempt();
     audioRecorder.setMockRecognizerOutputForTest(null);
     networkMonitor.setOnline(true);
   });
