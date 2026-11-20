@@ -11,6 +11,7 @@ import {
 } from '../services/customEndpointHelper';
 import { fetchAvailableModels } from '../services/modelFetchService';
 import { fetchAvailableTtsVoices } from '../services/ttsVoiceService';
+import { previewTtsVoice } from '../services/ttsService';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { loadApiKeyStrict, saveApiKey } from '../storage/keyStore';
 import { getAppSettingsRecoveryNotices, loadAppSettings, saveAppSettings } from '../storage/appSettings';
@@ -358,8 +359,9 @@ export async function renderSettingsView(
                   <label class="form-label" for="custom-voice-${slotId}">Voice (choose from the available list or enter a custom name)</label>
                   <input type="text" class="form-input" id="custom-voice-${slotId}" value="${escapeHtml(slotCfg.customTtsVoice ?? '')}" placeholder="Choose or enter a voice name" autocomplete="off" />
                   <div class="voice-picker-dropdown">
-                    <button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-voices-btn-${slotId}">Load available voices</button>
+                    <div class="btn-row"><button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-voices-btn-${slotId}">Load available voices</button><button type="button" class="btn btn-secondary" id="preview-voice-btn-${slotId}">Preview voice</button></div>
                     <div class="model-picker-options" id="voices-list-${slotId}" hidden></div>
+                    <div id="preview-voice-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
                     <div id="fetch-voices-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
                   </div>
                 </div>`
@@ -450,8 +452,9 @@ export async function renderSettingsView(
               <label class="form-label" for="secondary-custom-voice-${slotId}">API 2 voice (choose from the available list or enter a custom name)</label>
               <input type="text" class="form-input" id="secondary-custom-voice-${slotId}" value="${escapeHtml(slotCfg.secondary?.customTtsVoice ?? '')}" placeholder="Choose or enter a voice name" autocomplete="off" />
               <div class="voice-picker-dropdown">
-                <button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-voices-btn-${slotId}">Load API 2 voices</button>
+                <div class="btn-row"><button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-voices-btn-${slotId}">Load API 2 voices</button><button type="button" class="btn btn-secondary" id="preview-secondary-voice-btn-${slotId}">Preview API 2 voice</button></div>
                 <div class="model-picker-options" id="secondary-voices-list-${slotId}" hidden></div>
+                <div id="preview-secondary-voice-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
                 <div id="fetch-secondary-voices-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
               </div>
             </div>` : ''}
@@ -1432,6 +1435,71 @@ export async function renderSettingsView(
     };
 
     if (slotId === 'voice_tts') {
+      const previewVoice = async (
+        button: HTMLButtonElement | null,
+        message: HTMLElement | null,
+        buildConfig: () => SlotConfig,
+        getKey: () => string | Promise<string>
+      ): Promise<void> => {
+        if (!button || !message) return;
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          message.hidden = false;
+          message.className = 'settings-fetch-models-message';
+          message.textContent = 'Generating voice preview…';
+          try {
+            await previewTtsVoice(buildConfig(), await getKey());
+            message.textContent = 'Preview finished. The configured voice (or provider default if no voice is selected) was used.';
+          } catch (error) {
+            message.className = 'settings-fetch-models-message error';
+            message.textContent = error instanceof Error ? error.message : String(error);
+          } finally {
+            button.disabled = false;
+          }
+        });
+      };
+      const buildPrimaryTtsConfig = (): SlotConfig => {
+        const selected = getPreset('voice_tts', providerSelect?.value ?? configs.voice_tts.providerId);
+        return {
+          slotId: 'voice_tts',
+          providerId: selected.id,
+          baseUrl: baseUrlInput?.value.trim() || selected.defaultBaseUrl,
+          modelOrVoice: modelInput?.value.trim() || selected.defaultModelOrVoice,
+          authStyle: (authStyleSelect?.value as AuthStyle) || 'bearer',
+          customHeaderName: customHeaderInput?.value.trim() || undefined,
+          customQueryParamName: customQueryInput?.value.trim() || undefined,
+          endpointPathOverride: endpointPathInput?.value.trim() || undefined,
+          customTtsVoice: customVoiceInput?.value.trim() || undefined
+        };
+      };
+      const buildSecondaryTtsConfig = (): SlotConfig => {
+        const providerId = secondaryProviderSelect?.value ?? '';
+        if (!providerId) throw new Error('Choose an API 2 provider first.');
+        const selected = getPreset('voice_tts', providerId);
+        return {
+          slotId: 'voice_tts',
+          providerId: selected.id,
+          baseUrl: secondaryBaseUrlInput?.value.trim() || selected.defaultBaseUrl,
+          modelOrVoice: secondaryModelInput?.value.trim() || selected.defaultModelOrVoice,
+          authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
+          customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
+          customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
+          endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined,
+          customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
+        };
+      };
+      void previewVoice(
+        container.querySelector<HTMLButtonElement>(`#preview-voice-btn-${slotId}`),
+        container.querySelector<HTMLElement>(`#preview-voice-msg-${slotId}`),
+        buildPrimaryTtsConfig,
+        () => keyInput?.value.trim() || readKeyForSettings('voice_tts', providerSelect?.value ?? configs.voice_tts.providerId)
+      );
+      void previewVoice(
+        container.querySelector<HTMLButtonElement>(`#preview-secondary-voice-btn-${slotId}`),
+        container.querySelector<HTMLElement>(`#preview-secondary-voice-msg-${slotId}`),
+        buildSecondaryTtsConfig,
+        () => secondaryKeyInput?.value.trim() || readKeyForSettings('voice_tts', secondaryProviderSelect?.value ?? '', 'secondary')
+      );
       bindVoicePicker(
         fetchVoicesBtn, voicesList, fetchVoicesMsg, customVoiceInput,
         () => {
