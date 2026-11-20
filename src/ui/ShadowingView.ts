@@ -18,7 +18,7 @@ import {
 } from '../services/shadowingScorer';
 import { recordLastShadowingAttempt } from '../services/shadowingTelemetry';
 import type { GlobalTierSummary } from '../services/tierManager';
-import { playAudioDataUrl, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
+import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
 import { translateShadowingText } from '../services/translationService';
 import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavVadAnalyzer';
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
@@ -143,6 +143,7 @@ function ensureSentenceSetHistory(): Promise<ShadowingSetHistory> {
 let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
 let shadowingModelPlaybackToken = 0;
 let shadowingIsStopping = false;
+let shadowingPrefetchWindowKey = '';
 let shadowingViewGeneration = 0;
 
 function clearShadowingRecordingTimer(): void {
@@ -385,7 +386,7 @@ export function renderShadowingView(
       container.innerHTML = '<section class="card shadowing-main-card"><div class="status-box fail" role="alert">Could not load the sentence library. Please restart the app and try again.</div></section>';
       console.error('[SpeakCoach] Shadowing history initialization failed.', error);
     });
-    return () => { shadowingViewGeneration++; stopAllTts(); };
+    return () => { shadowingViewGeneration++; stopAllTts(); clearPreloadedSentenceAudio(); shadowingPrefetchWindowKey = ''; };
   }
   const activeHistory = sentenceSetHistory[state.difficulty];
   const activeSet = activeHistory.sets.length ? getActiveShadowingSet(sentenceSetHistory, state.difficulty) : undefined;
@@ -406,6 +407,18 @@ export function renderShadowingView(
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
   const selectedLanguage = getShadowingLanguage(state.languageCode);
+  // Keep only the next 20 sentences in the temporary RAM-only TTS prefetch window.
+  // The window advances in blocks of 20 so navigation within it does not restart requests.
+  const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${Math.floor(state.index / 20)}`;
+  if (prefetchWindowKey !== shadowingPrefetchWindowKey) {
+    shadowingPrefetchWindowKey = prefetchWindowKey;
+    clearPreloadedSentenceAudio();
+    if (!state.customDrillText && activeSet) {
+      activeSet.sentences.slice(state.index + 1, state.index + 21).forEach((nextSentence) => {
+        void preloadSentenceAudio(nextSentence.text, { locale: selectedLanguage.locale });
+      });
+    }
+  }
   // The navigation belongs to the same app root as this view. Avoid a global
   // lookup, which can update another mounted app instance (or a stale test root).
   const ieltsNavButton = container.parentElement?.querySelector<HTMLButtonElement>('#nav-ielts') ?? null;
