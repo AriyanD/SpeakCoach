@@ -23,6 +23,6 @@ When reporting a vulnerability, include:
 - The potential impact.
 - Any relevant screenshots, logs, or proof of concept.
 
-You can expect an initial response within 7 days. We will review the report, investigate the issue, and let you know whether it is accepted and what steps will be taken next.
+We will review the report, investigate the issue, and communicate our findings and any planned actions through the private reporting channel.
 
 Please allow us reasonable time to investigate and address the issue before publicly disclosing it.
