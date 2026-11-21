@@ -860,9 +860,11 @@ export async function persistSlotAccountTestResult(
     verified: passed,
     testResult
   });
-  if (!passed && current?.verified) {
-    // A normal failed single-account test explicitly invalidates that account.
-    // Batch tests call this only after all accounts pass, preserving old state on failure.
+  if (!passed) {
+    const status = Number(result.message.match(/HTTP\\s+(\\d{3})/i)?.[1]);
+    const healthError = new Error(result.message) as Error & { status?: number };
+    if (Number.isFinite(status) && status > 0) healthError.status = status;
+    await markProviderAccountFailure(slotConfig.slotId, 'secondary', healthError);
   }
 }
 
