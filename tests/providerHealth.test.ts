@@ -39,8 +39,10 @@ describe('per-account provider runtime health', () => {
     expect(await getProviderAccountHealth('voice_tts', 'primary', now + 120_001)).toBeNull();
   });
   it('persists needs-retest state and clears it after a successful account test', async () => {
-    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error('HTTP 404'), { status: 404 }));
-    expect(localStorage.getItem('speakcoach.provider_account_health.v1')).toContain('needs-retest');
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error('Request URL contained ?key=must-not-persist'), { status: 404 }));
+    const persisted = localStorage.getItem('speakcoach.provider_account_health.v1') ?? '';
+    expect(persisted).toContain('needs-retest');
+    expect(persisted).not.toContain('must-not-persist');
     await clearProviderAccountHealth('voice_tts', 'primary');
     expect(await getProviderAccountHealth('voice_tts', 'primary')).toBeNull();
   });
