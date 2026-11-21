@@ -561,7 +561,7 @@ export function renderShadowingView(
       </div>
 
       <div class="btn-row sh-record-controls">
-        <button type="button" class="btn btn-primary sh-record-action ${isRec ? 'is-recording' : ''} ${isStopping ? 'is-stopping' : ''}" id="sh-record-btn" ${hasSentence && !isStopping ? '' : 'disabled'} aria-label="${isStopping ? 'Finishing recording' : isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
+        <button type="button" class="btn btn-record sh-record-action ${isRec ? 'is-recording' : ''} ${isStopping ? 'is-stopping' : ''}" id="sh-record-btn" ${hasSentence && !isStopping ? '' : 'disabled'} aria-label="${isStopping ? 'Finishing recording' : isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
           ${isStopping ? 'Wait…' : isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : 'Record Repetition'}
         </button>
         <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
@@ -648,7 +648,7 @@ export function renderShadowingView(
           <select class="form-select" id="sh-translation-language" ${state.isTranslating ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
         </div>
         <div class="sh-translation-actions">
-          <button type="button" class="btn btn-primary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>Translate</button>
+          <button type="button" class="btn btn-secondary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>Translate</button>
           <button type="button" class="btn btn-secondary sh-grammar-btn" id="sh-grammar-btn" ${state.isTranslating ? 'disabled' : ''}>Explain Grammar</button>
         </div>
       </div>
