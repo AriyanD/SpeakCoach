@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearAllProviderAccountHealth, createProviderVerificationFingerprint } from '../src/services/providerHealth';
+import { clearAllProviderAccountHealth, createProviderVerificationFingerprint, markProviderAccountFailure } from '../src/services/providerHealth';
 import type { SlotConfig, SlotId } from '../src/config/types';
 import { getPreset } from '../src/config/providers';
 import { requestAzurePronunciationAssessment, transcribeWithTier2WhisperOrFallback } from '../src/services/whisperSttService';
 import { generateProbeWavBase64 } from '../src/services/connectionTester';
 import { getSlotAccountReadiness, runWithSlotApiFallback } from '../src/services/apiFallback';
-import { markProviderAccountFailure } from '../src/services/providerHealth';
 import { CONNECTION_VERIFICATION_TTL_MS } from '../src/services/tierManager';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { saveApiKey } from '../src/storage/keyStore';
@@ -89,6 +88,7 @@ describe('Per-slot secondary API fallback', () => {
     await saveSecondarySlotConfig('llm_evaluator', {
       providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice, verified: false
     });
+    await saveApiKey('llm_evaluator', preset.id, 'secondary-key', 'secondary');
     expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/not verified/i);
   });
 
