@@ -5,7 +5,7 @@ import {
   createProviderVerificationFingerprint,
   markProviderAccountFailure
 } from '../src/services/providerHealth';
-import { isWhisperAccountReady } from '../src/services/whisperSttService';
+import { isWhisperAccountReady, transcribeWithTier2WhisperOrFallback } from '../src/services/whisperSttService';
 
 describe('Whisper STT provider verification', () => {
   beforeEach(async () => {
@@ -58,4 +58,16 @@ describe('Whisper STT provider verification', () => {
     await clearProviderAccountHealth('pronunciation_scoring', 'primary');
     await expect(isWhisperAccountReady(params)).resolves.toBe(true);
   });
+
+  it('returns an actionable error instead of a generic empty-recognition result when no online STT provider is verified', async () => {
+    const result = await transcribeWithTier2WhisperOrFallback({
+      slotId: 'pronunciation_scoring',
+      wavBase64: 'UklGRg==',
+      durationMs: 1000,
+      offlineTranscript: ''
+    });
+    expect(result.transcript).toBe('');
+    expect(result.error).toMatch(/not verified|re-test/i);
+  });
+
 });
