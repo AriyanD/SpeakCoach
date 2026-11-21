@@ -39,6 +39,8 @@ export interface AppSettings {
   showTutorialOnStartup: boolean;
   /** Whether the first-run guide has been completed or skipped. */
   onboardingCompleted: boolean;
+  /** Whether upcoming Shadowing sentences may be prefetched through the configured TTS provider. */
+  prefetchShadowingAudio: boolean;
 }
 
 const DEFAULTS: AppSettings = {
@@ -46,7 +48,8 @@ const DEFAULTS: AppSettings = {
   theme: 'system',
   language: null,
   showTutorialOnStartup: true,
-  onboardingCompleted: false
+  onboardingCompleted: false,
+  prefetchShadowingAudio: true
 };
 
 async function getRaw(key: string): Promise<string | null> {
@@ -99,7 +102,8 @@ export async function loadAppSettings(): Promise<AppSettings> {
         : DEFAULTS.theme,
       language: parsed.language === 'en' || parsed.language === 'fa' ? parsed.language : DEFAULTS.language,
       showTutorialOnStartup: typeof parsed.showTutorialOnStartup === 'boolean' ? parsed.showTutorialOnStartup : DEFAULTS.showTutorialOnStartup,
-      onboardingCompleted: typeof parsed.onboardingCompleted === 'boolean' ? parsed.onboardingCompleted : DEFAULTS.onboardingCompleted
+      onboardingCompleted: typeof parsed.onboardingCompleted === 'boolean' ? parsed.onboardingCompleted : DEFAULTS.onboardingCompleted,
+      prefetchShadowingAudio: typeof parsed.prefetchShadowingAudio === 'boolean' ? parsed.prefetchShadowingAudio : DEFAULTS.prefetchShadowingAudio
     };
     try { if (typeof localStorage !== 'undefined') localStorage.setItem(THEME_MIRROR_KEY, settings.theme); } catch { /* Best-effort first-paint hint only. */ }
     return settings;
@@ -116,7 +120,8 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
     theme: settings.theme ?? current.theme,
     language: settings.language !== undefined ? settings.language : current.language,
     showTutorialOnStartup: settings.showTutorialOnStartup ?? current.showTutorialOnStartup,
-    onboardingCompleted: settings.onboardingCompleted ?? current.onboardingCompleted
+    onboardingCompleted: settings.onboardingCompleted ?? current.onboardingCompleted,
+    prefetchShadowingAudio: settings.prefetchShadowingAudio ?? current.prefetchShadowingAudio
   };
   await setRaw(APP_SETTINGS_KEY, JSON.stringify(updated));
   try { if (typeof localStorage !== 'undefined') localStorage.setItem(THEME_MIRROR_KEY, updated.theme); } catch { /* Native Preferences remains the source of truth. */ }
