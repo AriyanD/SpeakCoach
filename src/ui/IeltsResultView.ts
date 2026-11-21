@@ -237,7 +237,7 @@ export function renderIeltsResultView(
         const updated = await retryIeltsEvaluation(record, undefined, { providerChoice });
         renderIeltsResultView(container, updated, callbacks);
         const nextStatus = container.querySelector<HTMLElement>('#result-reevaluation-status');
-        if (nextStatus) { nextStatus.hidden = false; nextStatus.className = 'status-box pass ielts-reevaluation-status'; nextStatus.textContent = `Re-evaluated successfully with ${updated.evaluation?.activeTier?.detailLabel || (providerChoice === 'secondary' ? 'API 2' : providerChoice === 'primary' ? 'API 1' : 'the selected provider')}.`; }
+        if (nextStatus) { nextStatus.hidden = false; nextStatus.className = 'status-box pass ielts-reevaluation-status'; nextStatus.textContent = `Re-evaluated successfully with ${providerChoice === 'secondary' ? 'API 2' : providerChoice === 'primary' ? 'API 1' : (updated.evaluation?.activeTier?.detailLabel || 'the selected provider')}.`; }
       } catch (error) {
         button.disabled = false;
         button.textContent = originalText;
