@@ -77,6 +77,36 @@ describe('Settings credential rendering', () => {
     expect(await loadAllSlotsConfig()).toEqual(current);
   });
 
+  it('renders API 2 model discovery controls for every capability, including Voice/TTS', async () => {
+    const current = await loadAllSlotsConfig();
+    const summary = await resolveGlobalTierSummary(current);
+    const container = document.createElement('div');
+    await renderSettingsView(container, current, summary, async () => {});
+
+    const slotIds = [
+      'voice_tts',
+      'pronunciation_scoring',
+      'ielts_stt',
+      'llm_evaluator',
+      'llm_generator',
+      'llm_translation'
+    ] as const;
+
+    for (const slotId of slotIds) {
+      expect(container.querySelector(`#fetch-secondary-models-btn-${slotId}`), `${slotId} API 2 Fetch models`).not.toBeNull();
+      expect(container.querySelector(`#secondary-models-list-${slotId}`), `${slotId} API 2 model picker`).not.toBeNull();
+      expect(container.querySelector(`#fetch-secondary-models-msg-${slotId}`), `${slotId} API 2 model fetch status`).not.toBeNull();
+      expect(container.querySelector(`#test-secondary-${slotId}`), `${slotId} API 2 connection test`).not.toBeNull();
+      expect(container.querySelector(`#secondary-api-enabled-${slotId}`), `${slotId} API 2 toggle`).not.toBeNull();
+    }
+
+    expect(container.querySelector('#fetch-voices-btn-voice_tts')).not.toBeNull();
+    expect(container.querySelector('#fetch-secondary-voices-btn-voice_tts')).not.toBeNull();
+    expect(container.querySelector('#preview-voice-btn-voice_tts')).not.toBeNull();
+    expect(container.querySelector('#preview-secondary-voice-btn-voice_tts')).not.toBeNull();
+    expect(container.querySelector('.settings-api-divider')).toBeNull();
+  });
+
   it('shows API 2 controls when a saved secondary account exists', async () => {
     const secondaryProvider = 'openai_tts';
     const secondaryPreset = getPreset('voice_tts', secondaryProvider);
