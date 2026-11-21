@@ -7,6 +7,7 @@ describe('Shadowing position-based prefetch scheduler', () => {
     expect(scheduler.reachPosition(0, 20)).toEqual([]);
     const first = scheduler.reachPosition(1, 20);
     expect(first).toEqual([2, 3, 4, 5]);
+    expect(scheduler.reachPosition(5, 20)).toEqual([]); // threshold reached while serial batch is still active
     scheduler.completeBatch(4);
     expect(scheduler.reachPosition(5, 20)).toEqual([6, 7, 8, 9]);
     scheduler.completeBatch(4);
