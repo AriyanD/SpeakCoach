@@ -1865,6 +1865,9 @@ export async function renderSettingsView(
     const fetchSecondaryVoicesMsg = container.querySelector<HTMLElement>(`#fetch-secondary-voices-msg-${slotId}`);
     const secondaryTestBtn = container.querySelector<HTMLButtonElement>(`#test-secondary-${slotId}`);
     const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
+    const secondaryEnabledToggle = container.querySelector<HTMLInputElement>(`#secondary-enabled-${slotId}`);
+    const secondaryContent = container.querySelector<HTMLElement>(`#secondary-api-content-${slotId}`);
+    const primaryResultCaption = container.querySelector<HTMLElement>(`#primary-result-caption-${slotId}`);
     const saveStatus = container.querySelector<HTMLElement>(`#save-status-${slotId}`);
     const saveBtn = container.querySelector<HTMLButtonElement>(`[data-save-slot="${slotId}"]`);
     const testBtn = container.querySelector<HTMLButtonElement>(`[data-test-slot="${slotId}"]`);
@@ -2083,6 +2086,32 @@ export async function renderSettingsView(
       secondaryProviderSelect.value = option.dataset.secondaryProviderId ?? '';
       secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
     });
+    const syncSecondaryVisibility = (): void => {
+      const enabled = !!secondaryEnabledToggle?.checked;
+      if (secondaryContent) secondaryContent.hidden = !enabled;
+      if (secondaryTestBtn) secondaryTestBtn.hidden = !enabled;
+      if (primaryResultCaption) primaryResultCaption.hidden = !enabled;
+      if (secondaryStatus) secondaryStatus.hidden = !enabled;
+      secondaryEnabledToggle?.setAttribute('aria-checked', String(enabled));
+    };
+    secondaryEnabledToggle?.addEventListener('change', () => {
+      if (!secondaryProviderSelect) return;
+      if (secondaryEnabledToggle.checked && !secondaryProviderSelect.value) {
+        const primaryId = providerSelect?.value ?? configs[slotId].providerId;
+        const onlineProviders = def.providers.filter((provider) => provider.tier !== 3);
+        const next = onlineProviders.find((provider) => provider.id !== primaryId) ?? onlineProviders[0];
+        if (next) {
+          secondaryProviderSelect.value = next.id;
+          secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } else if (!secondaryEnabledToggle.checked) {
+        secondaryProviderSelect.value = '';
+        secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      syncSecondaryVisibility();
+    });
+    syncSecondaryVisibility();
+
     secondaryProviderSelect?.addEventListener('change', () => {
       const selected = secondaryProviderSelect.value;
       if (secondaryProviderTrigger) secondaryProviderTrigger.querySelector('span')!.textContent = selected ? getPreset(slotId, selected).name : 'Not configured';
