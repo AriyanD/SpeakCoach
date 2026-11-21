@@ -497,7 +497,9 @@ export async function renderSettingsView(
               </div>
               <p class="card-subtitle">You can copy an API 1 or API 2 key from another capability slot.</p>
             </div>` : ''}
-            <div id="secondary-custom-auth-container-${slotId}" style="${secondaryIsCustom ? '' : 'display:none;'}">
+            <details class="advanced-provider-settings" id="secondary-custom-auth-container-${slotId}" style="${secondaryIsCustom ? '' : 'display:none;'}">
+              <summary>Custom provider authentication and endpoint</summary>
+              <div class="advanced-provider-fields">
             <div class="form-field"><label class="form-label" for="secondary-authstyle-${slotId}">Secondary authentication</label>
               <select class="form-select" id="secondary-authstyle-${slotId}">
                 <option value="bearer" ${(slotCfg.secondary?.authStyle ?? 'bearer') === 'bearer' ? 'selected' : ''}>Bearer</option>
@@ -510,6 +512,8 @@ export async function renderSettingsView(
               <input type="text" class="form-input" id="secondary-custom-query-${slotId}" value="${escapeHtml(slotCfg.secondary?.customQueryParamName ?? '')}" placeholder="api_key" /></div>
             <div class="form-field"><label class="form-label" for="secondary-endpoint-${slotId}">Endpoint path override (optional)</label>
               <input type="text" class="form-input" id="secondary-endpoint-${slotId}" value="${escapeHtml(slotCfg.secondary?.endpointPathOverride ?? '')}" placeholder="/v1/chat/completions" /></div>
+              </div>
+            </details>
             </div>
           </div>
 
