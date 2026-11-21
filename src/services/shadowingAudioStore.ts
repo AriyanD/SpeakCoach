@@ -25,6 +25,8 @@ let index: Index | null = null;
 let initialization: Promise<void> | null = null;
 let activationQueue: Promise<void> = Promise.resolve();
 const ram = new Map<string, string>();
+const playing = new Map<string, number>();
+const deferredSetDeletes = new Map<string, Entry[]>();
 
 function safeId(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
@@ -90,6 +92,27 @@ async function writeFile(path: string, data: string): Promise<void> {
     localStorage.setItem(`speakcoach.shadowing.audio.${path}`, data);
   }
 }
+function hasPlayingAudio(setId: string): boolean {
+  for (const [key, count] of playing) if (count > 0 && key.startsWith(`${setId}:`)) return true;
+  return false;
+}
+export function markActiveSetAudioPlaying(setId: string, hash: string): void {
+  const key = ramKey(setId, hash);
+  playing.set(key, (playing.get(key) ?? 0) + 1);
+}
+export async function releaseActiveSetAudioPlaying(setId: string, hash: string): Promise<void> {
+  const key = ramKey(setId, hash);
+  const count = playing.get(key) ?? 0;
+  if (count <= 1) playing.delete(key); else playing.set(key, count - 1);
+  if (!hasPlayingAudio(setId)) {
+    const pending = deferredSetDeletes.get(setId);
+    if (pending) {
+      deferredSetDeletes.delete(setId);
+      await removeSetFiles(setId, pending);
+    }
+  }
+}
+
 async function removeSetFiles(setId: string, entries: Entry[]): Promise<void> {
   for (const entry of entries) {
     await removeFile(entry.file);
@@ -148,7 +171,10 @@ export function activateShadowingAudioSet(setId: string): Promise<number> {
   const task = activationQueue.then(async () => {
     await ensureInitialized();
     if (activeSetId === setId && index?.setId === setId) return generation;
-    if (index) await removeSetFiles(index.setId, index.entries);
+    if (index) {
+      if (hasPlayingAudio(index.setId)) deferredSetDeletes.set(index.setId, [...index.entries]);
+      else await removeSetFiles(index.setId, index.entries);
+    }
     ram.clear();
     generation++;
     activeSetId = setId;
@@ -215,11 +241,14 @@ export async function persistActiveShadowingAudio(params: {
 export async function clearActiveShadowingAudioStore(): Promise<void> {
   await ensureInitialized();
   generation++;
-  if (index) await removeSetFiles(index.setId, index.entries);
+  if (index) {
+    if (hasPlayingAudio(index.setId)) deferredSetDeletes.set(index.setId, [...index.entries]);
+    else await removeSetFiles(index.setId, index.entries);
+  }
   ram.clear();
   index = activeSetId ? { setId: activeSetId, entries: [] } : null;
   await writeIndex();
 }
 export function resetShadowingAudioStoreForTests(): void {
-  activeSetId = null; generation = 0; index = null; initialization = null; activationQueue = Promise.resolve(); ram.clear();
+  activeSetId = null; generation = 0; index = null; initialization = null; activationQueue = Promise.resolve(); ram.clear(); playing.clear(); deferredSetDeletes.clear();
 }
