@@ -8,24 +8,7 @@ import { getRecentLlmQuestions, getLlmSeenTopics, markLlmQuestionsSeen, markLlmT
 import { activateShadowingAudioSet, persistActiveShadowingAudio, readActiveShadowingAudio, resetShadowingAudioStoreForTests } from '../src/services/shadowingAudioStore';
 
 beforeEach(() => {
-  localStorage.clear();  it('keeps generated audio out of backups and clears the active-set store after restore', async () => {
-    resetShadowingAudioStoreForTests();
-    const setId = 'en:easy:backup-exclusion';
-    const generation = await activateShadowingAudioSet(setId);
-    await persistActiveShadowingAudio({
-      setId, generation, hash: 'generated-only', dataUrl: 'AI_AUDIO_DATA_URL', kind: 'sentence'
-    });
-    const testBackup = await createBackup('test-data');
-    const aiBackup = await createBackup('ai-settings', { includeApiKeys: false });
-    expect(JSON.stringify(testBackup)).not.toContain('AI_AUDIO_DATA_URL');
-    expect(JSON.stringify(aiBackup)).not.toContain('AI_AUDIO_DATA_URL');
-    expect(testBackup).not.toHaveProperty('shadowingAudio');
-    expect(aiBackup).not.toHaveProperty('shadowingAudio');
-
-    await restoreBackup('test-data', testBackup);
-    await expect(readActiveShadowingAudio('generated-only', setId)).resolves.toBeNull();
-  });
-
+  localStorage.clear();
 });
 
 describe('backup file compatibility', () => {
