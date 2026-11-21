@@ -46,6 +46,53 @@ describe('Settings credential rendering', () => {
     expect(container.querySelector('#required-api-status')).not.toBeNull();
     expect(container.querySelector('.settings-api-required-label')?.textContent).toContain('Required');
   });
+  it('keeps API 2 disabled until enabled and clears its draft through the existing Not configured path', async () => {
+    const current = await loadAllSlotsConfig();
+    const summary = await resolveGlobalTierSummary(current);
+    const container = document.createElement('div');
+    await renderSettingsView(container, current, summary, async () => {});
+
+    const toggle = container.querySelector<HTMLInputElement>('#secondary-api-enabled-voice_tts')!;
+    const content = container.querySelector<HTMLElement>('#secondary-api-content-voice_tts')!;
+    const provider = container.querySelector<HTMLSelectElement>('#secondary-provider-voice_tts')!;
+    const testApi2 = container.querySelector<HTMLButtonElement>('#test-secondary-voice_tts')!;
+
+    expect(toggle.checked).toBe(false);
+    expect(content.hidden).toBe(true);
+    expect(provider.value).toBe('');
+    expect(testApi2.hidden).toBe(true);
+
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(content.hidden).toBe(false);
+    expect(provider.value).not.toBe('');
+    expect(provider.value).not.toBe(current.voice_tts.providerId);
+    expect(testApi2.hidden).toBe(false);
+
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(content.hidden).toBe(true);
+    expect(provider.value).toBe('');
+    expect(testApi2.hidden).toBe(true);
+    expect(await loadAllSlotsConfig()).toEqual(current);
+  });
+
+  it('shows API 2 controls when a saved secondary account exists', async () => {
+    const secondaryProvider = 'openai_tts';
+    const secondaryPreset = getPreset('voice_tts', secondaryProvider);
+    await saveSecondarySlotConfig('voice_tts', {
+      providerId: secondaryProvider,
+      baseUrl: secondaryPreset.defaultBaseUrl,
+      modelOrVoice: secondaryPreset.defaultModelOrVoice
+    });
+    const current = await loadAllSlotsConfig();
+    const summary = await resolveGlobalTierSummary(current);
+    const container = document.createElement('div');
+    await renderSettingsView(container, current, summary, async () => {});
+    expect(container.querySelector<HTMLInputElement>('#secondary-api-enabled-voice_tts')?.checked).toBe(true);
+    expect(container.querySelector<HTMLElement>('#secondary-api-content-voice_tts')?.hidden).toBe(false);
+  });
+
   it('preserves an existing Voice/TTS API 2 when Quick Setup has no recommended backup', async () => {
     const secondaryProvider = 'openai_tts';
     const secondaryPreset = getPreset('voice_tts', secondaryProvider);
