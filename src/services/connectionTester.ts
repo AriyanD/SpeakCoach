@@ -960,7 +960,7 @@ export function shouldPersistSlotVerification(
 export function describeConnectionTestFailure(result: ConnectionTestResult): string {
   if (result.ok && result.tier !== 3) return 'Connection passed.';
   const message = result.message || 'Unknown connection-test failure.';
-  const status = Number(message.match(/HTTP\\s+(\\d{3})/i)?.[1]);
+  const status = Number(message.match(/HTTP\s+(\d{3})/i)?.[1]);
   if (status === 401 || status === 403) return `Key rejected (HTTP ${status}). Re-enter the API key in Settings and test again. Details: ${message}`;
   if (status === 404) return `Model or endpoint not found (HTTP 404). Check the model name, base URL and endpoint path. Details: ${message}`;
   if (status === 400) return `Bad request or unsupported capability (HTTP 400). Check the model, request format and whether this provider supports this feature. Details: ${message}`;
