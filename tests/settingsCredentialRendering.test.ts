@@ -98,6 +98,13 @@ describe('Settings credential rendering', () => {
       expect(container.querySelector(`#fetch-secondary-models-msg-${slotId}`), `${slotId} API 2 model fetch status`).not.toBeNull();
       expect(container.querySelector(`#test-secondary-${slotId}`), `${slotId} API 2 connection test`).not.toBeNull();
       expect(container.querySelector(`#secondary-api-enabled-${slotId}`), `${slotId} API 2 toggle`).not.toBeNull();
+      expect(container.querySelector(`#secondary-switch-custom-btn-${slotId}`), `${slotId} API 2 Switch to Custom`).not.toBeNull();
+      expect(container.querySelector(`#secondary-mismatch-warning-${slotId}`), `${slotId} API 2 endpoint warning`).not.toBeNull();
+
+      const toggle = container.querySelector<HTMLInputElement>(`#secondary-api-enabled-${slotId}`)!;
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(container.querySelector(`#secondary-models-list-${slotId}`)?.children.length, `${slotId} API 2 provider suggestions`).toBeGreaterThan(0);
     }
 
     expect(container.querySelector('#fetch-voices-btn-voice_tts')).not.toBeNull();
