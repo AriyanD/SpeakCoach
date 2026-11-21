@@ -294,14 +294,14 @@ export async function resolveSlotTier(
 
   const label = tierToLabel(selectedPreset.tier);
   const degradedAccount = primaryHealth
-    ? { account: 'API 1', health: primaryHealth }
-    : secondaryHealth
-      ? { account: 'API 2', health: secondaryHealth }
+    ? { account: 'API 1', provider: getPreset(slotId, slotConfig.providerId).name, health: primaryHealth }
+    : secondaryHealth && slotConfig.secondary
+      ? { account: 'API 2', provider: getPreset(slotId, slotConfig.secondary.providerId).name, health: secondaryHealth }
       : null;
   const accountHealthReason = degradedAccount
     ? degradedAccount.health.state === 'needs-retest'
-      ? `${degradedAccount.account} needs a successful connection re-test; the alternate account is available.`
-      : `${degradedAccount.account} is cooling down after a temporary provider failure; the alternate account is available.`
+      ? `${degradedAccount.account} (${degradedAccount.provider}) needs a successful connection re-test; the alternate account is available.`
+      : `${degradedAccount.account} (${degradedAccount.provider}) is cooling down after a temporary provider failure; the alternate account is available.`
     : undefined;
   return {
     slotId,
