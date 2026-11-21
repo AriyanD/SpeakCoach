@@ -5,6 +5,7 @@ import { bootstrapApp } from '../src/main';
 import { persistSlotAccountTestResult, shouldPersistSlotVerification, testSlotAccountsSequentially, testSlotConnection } from '../src/services/connectionTester';
 import { synthesizeOnlineNeuralAudio } from '../src/services/ttsService';
 import { networkMonitor } from '../src/services/networkMonitor';
+import { getProviderAccountHealth } from '../src/services/providerHealth';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
 import { saveApiKey } from '../src/storage/keyStore';
 
@@ -109,6 +110,19 @@ describe('Functional Deep Connection Tester', () => {
     expect(calls).toBe(1);
     expect(batch.cancelled).toBe(true);
     expect(batch.results).toHaveLength(1);
+  });
+
+
+  it('re-applies failed secondary provider health after persisting the failed single-test result', async () => {
+    const config = {
+      slotId: 'voice_tts' as const, providerId: 'elevenlabs_tts',
+      baseUrl: 'https://api.elevenlabs.io/v1', modelOrVoice: 'voice-id'
+    };
+    await persistSlotAccountTestResult(config, {
+      ok: false, slotId: 'voice_tts', providerId: 'elevenlabs_tts', tier: 1,
+      label: 'Online AI', latencyMs: 8, message: 'FAIL — HTTP 401 invalid API key'
+    }, 'secondary');
+    await expect(getProviderAccountHealth('voice_tts', 'secondary')).resolves.toMatchObject({ state: 'needs-retest', status: 401 });
   });
 
   it('persists primary connection results through the shared account test path', async () => {
