@@ -7,6 +7,7 @@ const INDEX_KEY = 'speakcoach.shadowing.audio-set-index.v1';
 const ACTIVE_SET_KEY = 'speakcoach.shadowing.audio-active-set.v1';
 const ROOT = 'SpeakCoach/shadowing-audio';
 const MAX_SET_CHARS = 40_000_000;
+const MAX_ACTIVE_SET_RAM_CHARS = 4_000_000;
 
 interface Entry {
   hash: string;
@@ -36,6 +37,20 @@ function filePath(setId: string, hash: string): string {
   return `${ROOT}/${safeId(setId)}/${hash}.txt`;
 }
 function ramKey(setId: string, hash: string): string { return `${setId}:${hash}`; }
+function rememberSetRam(setId: string, hash: string, value: string): void {
+  const key = ramKey(setId, hash);
+  ram.delete(key);
+  if (value.length > MAX_ACTIVE_SET_RAM_CHARS) return;
+  ram.set(key, value);
+  let total = Array.from(ram.values()).reduce((sum, item) => sum + item.length, 0);
+  while (total > MAX_ACTIVE_SET_RAM_CHARS && ram.size > 0) {
+    const oldestKey = ram.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    const oldestValue = ram.get(oldestKey) ?? '';
+    ram.delete(oldestKey);
+    total -= oldestValue.length;
+  }
+}
 
 async function readIndex(): Promise<Index | null> {
   try {
@@ -138,9 +153,18 @@ async function reconcile(): Promise<void> {
   if (!index) return;
   const valid: Entry[] = [];
   for (const entry of index.entries) {
-    const value = await readFile(entry.file);
-    if (value) valid.push({ ...entry, size: value.length });
-    else ram.delete(ramKey(index.setId, entry.hash));
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const stat = await Filesystem.stat({ path: entry.file, directory: Directory.Data });
+        valid.push({ ...entry, size: stat.size ?? entry.size });
+      } catch {
+        ram.delete(ramKey(index.setId, entry.hash));
+      }
+    } else {
+      const value = await readFile(entry.file);
+      if (value) valid.push({ ...entry, size: value.length });
+      else ram.delete(ramKey(index.setId, entry.hash));
+    }
   }
   index.entries = valid;
   if (Capacitor.isNativePlatform()) {
@@ -244,7 +268,7 @@ export async function readActiveShadowingAudio(hash: string, expectedSetId?: str
     await writeIndex();
     return null;
   }
-  ram.set(ramKey(activeSetId, hash), value);
+  rememberSetRam(activeSetId, hash, value);
   return value;
 }
 export async function persistActiveShadowingAudio(params: {
@@ -277,7 +301,7 @@ export async function persistActiveShadowingAudio(params: {
   await writeFile(path, params.dataUrl);
   index.entries = index.entries.filter(entry => entry.hash !== params.hash);
   index.entries.push({ hash: params.hash, file: path, size: params.dataUrl.length, createdAt: Date.now(), kind: params.kind });
-  ram.set(ramKey(params.setId, params.hash), params.dataUrl);
+  rememberSetRam(params.setId, params.hash, params.dataUrl);
   await writeIndex();
   return true;
 }
