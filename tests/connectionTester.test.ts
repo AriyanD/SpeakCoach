@@ -121,7 +121,8 @@ describe('Functional Deep Connection Tester', () => {
       ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
       label: 'Online AI', latencyMs: 12, message: 'PASS — shared test', verificationFingerprint: 'primary-fingerprint'
     };
-    await persistSlotAccountTestResult(config, result, 'primary');
+    const persisted = await persistSlotAccountTestResult(config, result, 'primary');
+    expect(persisted?.timestamp).toBeGreaterThan(0);
     await expect(loadSlotConnectionTestResult('voice_tts')).resolves.toMatchObject({ ok: true, providerId: 'openai_tts', verificationFingerprint: 'primary-fingerprint' });
   });
 
