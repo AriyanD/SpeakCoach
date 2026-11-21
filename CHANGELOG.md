@@ -12,6 +12,12 @@ Notable user-facing changes are recorded here. Release tags and version numbers 
 - Shadowing Trainer keeps Sentence set, practice, recording results, and score details together in a clearer layout.
 - Recorded result words can be replayed directly.
 - The bulk API test action and key-copy controls have clearer, more consistent layouts.
+- Settings → Backup & Restore now has **Test all APIs**: it tests every configured account sequentially (cancellable) and saves a slot's verification only when all its configured online accounts pass.
+- AI voice audio for the active Shadowing sentence set is saved on the device (excluded from backups) so replays are instant, even after restarting the app; it is replaced when you switch sets.
+- Shadowing prefetch now follows your position in the set (groups of four at sentences #2, #6, #10, …) and no longer skips sentences when the first Play happens at the same time.
+- IELTS re-evaluation failures are shown next to the button with a specific reason (API 1/API 2 not verified, test expired, cooling down, missing key, offline provider) and no longer replace a previously valid score.
+- Connection tests are bound to the provider, endpoint, model/voice and key and expire after 30 days; the speech-to-text path now uses the same verification and cooldown rules as voice.
+- The Record button uses its own recording colour; Shadowing shows the score strip directly under it.
 - Settings layouts are more robust on narrow screens and in right-to-left layouts.
 
 ### Compatibility
