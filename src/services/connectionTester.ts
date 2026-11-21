@@ -5,7 +5,8 @@ import { loadApiKey } from '../storage/keyStore';
 import { nativeHttpRequest, SpeakCoachHttpError } from './httpClient';
 import { networkMonitor } from './networkMonitor';
 import { clearSlotRuntimeFailure, markSlotRuntimeFailure } from './tierManager';
-import { clearProviderAccountHealth, createProviderVerificationFingerprint, type ProviderAccount } from './providerHealth';
+import { clearProviderAccountHealth, createProviderVerificationFingerprint, markProviderAccountFailure, type ProviderAccount } from './providerHealth';
+import { loadAllSlotsConfig, saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../storage/localStore';
 import { cleanJsonPayload } from './ieltsLlmEvaluator';
 import { clearGeminiLanguageFailures, normalizeAudioDataUrl, synthesizeOnlineNeuralAudio } from './ttsService';
 import { buildCapacitorMultipartEntries, parseWhisperWordTimestamps, requestAzurePronunciationAssessment } from './whisperSttService';
@@ -816,6 +817,7 @@ export async function testSlotConnection(
         status: failureInfo.status
       });
     }
+    if (options?.account) await markProviderAccountFailure(slotConfig.slotId, options.account, { message: failureMsg, status: failureInfo.status });
     return {
       ok: false,
       slotId: slotConfig.slotId,
@@ -830,4 +832,52 @@ export async function testSlotConnection(
           : `FAIL — ${failureMsg} (${latencyMs} ms). This connection test does not itself activate an offline fallback.`
     };
   }
+}
+
+
+/** Persist a completed probe through the same account-specific path used by Settings. */
+export async function persistSlotAccountTestResult(
+  slotConfig: SlotConfig,
+  result: ConnectionTestResult,
+  account: ProviderAccount
+): Promise<void> {
+  const passed = result.ok && result.tier !== 3;
+  if (account === 'primary') {
+    await saveSlotConnectionTestResult(slotConfig.slotId, { ...result, ok: passed });
+    return;
+  }
+  const all = await loadAllSlotsConfig();
+  const current = all[slotConfig.slotId].secondary;
+  const testResult = {
+    ok: passed,
+    latencyMs: result.latencyMs,
+    message: result.message,
+    testedAt: Date.now(),
+    verificationFingerprint: result.verificationFingerprint
+  };
+  await saveSecondarySlotConfig(slotConfig.slotId, {
+    ...slotConfig,
+    verified: passed,
+    testResult
+  });
+  if (!passed && current?.verified) {
+    // A normal failed single-account test explicitly invalidates that account.
+    // Batch tests call this only after all accounts pass, preserving old state on failure.
+  }
+}
+
+/** Shared single-account probe + persistence path. */
+export async function testAndPersistSlotAccount(
+  slotConfig: SlotConfig,
+  options: {
+    account: ProviderAccount;
+    apiKeyOverride?: string;
+    isOnlineOverride?: boolean;
+    transport?: TransportFn;
+    persist?: boolean;
+  }
+): Promise<ConnectionTestResult> {
+  const result = await testSlotConnection(slotConfig, options);
+  if (options.persist !== false) await persistSlotAccountTestResult(slotConfig, result, options.account);
+  return result;
 }
