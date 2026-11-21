@@ -17,6 +17,7 @@ import {
   type ShadowingScoreReport
 } from '../services/shadowingScorer';
 import { recordLastShadowingAttempt } from '../services/shadowingTelemetry';
+import { loadAppSettings } from '../storage/appSettings';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
 import { translateShadowingText } from '../services/translationService';
@@ -432,17 +433,31 @@ export function renderShadowingView(
       if (queuedEpoch !== shadowingPrefetchEpoch) return;
       for (const item of queue) {
         if (queuedEpoch !== shadowingPrefetchEpoch) return;
+        const settings = await loadAppSettings();
+        if (!settings.prefetchShadowingAudio) return;
         await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
       }
     });
   };
   const startShadowingPrefetch = (): void => {
     if (!activeSet || state.customDrillText) return;
-    enqueueShadowingPrefetch(shadowingPrefetchScheduler.start(activeSet.sentences.length));
+    void loadAppSettings().then(settings => {
+      if (settings.prefetchShadowingAudio) {
+        enqueueShadowingPrefetch(shadowingPrefetchScheduler.start(activeSet.sentences.length));
+      }
+    }).catch(() => {
+      // Fail closed: do not spend provider quota when the preference cannot be read.
+    });
   };
   const recordShadowingPracticeForPrefetch = (): void => {
     if (!activeSet || state.customDrillText) return;
-    enqueueShadowingPrefetch(shadowingPrefetchScheduler.recordPractice(state.index, activeSet.sentences.length));
+    void loadAppSettings().then(settings => {
+      if (settings.prefetchShadowingAudio) {
+        enqueueShadowingPrefetch(shadowingPrefetchScheduler.recordPractice(state.index, activeSet.sentences.length));
+      }
+    }).catch(() => {
+      // Fail closed: do not spend provider quota when the preference cannot be read.
+    });
   };
   // The navigation belongs to the same app root as this view. Avoid a global
   // lookup, which can update another mounted app instance (or a stale test root).
