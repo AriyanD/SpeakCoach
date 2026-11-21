@@ -124,6 +124,7 @@ TypeScript · vanilla DOM UI · Vite · Capacitor 6 (Android) · Vitest · GitHu
 - [Technical notes: release, signing, updates, backups](docs/TECHNICAL_NOTES.md)
 - [Device test checklist](docs/DEVICE_TEST_CHECKLIST.md)
 - [Architecture decisions](DECISIONS.md)
+- [Changelog and upcoming release notes](CHANGELOG.md)
 - [Mobile preview in the browser](MOBILE_PREVIEW.md)
 
 ## Screenshots
