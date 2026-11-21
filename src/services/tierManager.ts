@@ -239,11 +239,19 @@ export async function resolveSlotTier(
   const secondaryUsable = secondaryReady && !secondaryHealth;
 
   if (!primaryUsable && !secondaryUsable && (primaryHealth || secondaryHealth)) {
-    const blocked = [primaryHealth, secondaryHealth].filter(Boolean);
-    const needsRetest = blocked.some(entry => entry?.state === 'needs-retest');
+    const blocked = [
+      primaryHealth ? { account: 'API 1', health: primaryHealth } : null,
+      secondaryHealth ? { account: 'API 2', health: secondaryHealth } : null
+    ].filter((entry): entry is { account: string; health: NonNullable<typeof primaryHealth> } => Boolean(entry));
+    const needsRetest = blocked.some(entry => entry.health.state === 'needs-retest');
+    const details = blocked.map(entry => {
+      if (entry.health.state === 'needs-retest') return `${entry.account} (${entry.health.reason}) needs a successful re-test`;
+      const seconds = Math.max(1, Math.ceil(((entry.health.cooldownUntil ?? Date.now()) - (options?.nowMs ?? Date.now())) / 1000));
+      return `${entry.account} (${entry.health.reason}) is cooling down for about ${seconds}s`;
+    }).join('; ');
     const reason = needsRetest
-      ? 'Provider account needs a successful connection re-test.'
-      : 'Provider account is cooling down after a temporary failure.';
+      ? `${details}. Open Settings → Voice/TTS and re-test the affected API, or configure API 2.`
+      : `${details}. Wait for cooldown to expire or use the alternate API.`;
     return {
       slotId,
       providerId: offlinePreset.id,
