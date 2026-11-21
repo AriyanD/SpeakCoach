@@ -153,6 +153,26 @@ async function prunePersistentAudioCache(index: AudioCacheIndexEntry[]): Promise
   await writeCacheIndex(sorted);
 }
 
+/**
+ * Derives a non-reversible cache namespace from the API key. The raw key is
+ * never passed into the cache-key hash or persisted in the cache index.
+ * Returns null when Web Crypto is unavailable so callers can safely bypass
+ * caching rather than share audio across accounts.
+ */
+export async function createAudioCacheAccountFingerprint(apiKey: string): Promise<string | null> {
+  if (!apiKey) return null;
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+    const digest = await subtle.digest('SHA-256', new TextEncoder().encode(apiKey));
+    return Array.from(new Uint8Array(digest).slice(0, 16))
+      .map(value => value.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return null;
+  }
+}
+
 export function computeAudioCacheHash(params: {
   providerId: string;
   voiceOrModel: string;
