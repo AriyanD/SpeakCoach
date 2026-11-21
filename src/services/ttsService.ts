@@ -644,7 +644,7 @@ export async function previewTtsVoice(
  * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
  * audio is never persisted to Preferences, localStorage, or the filesystem.
  */
-export async function preloadSentenceAudio(text: string, options?: { locale?: string }): Promise<boolean> {
+export async function preloadSentenceAudio(text: string, options?: { locale?: string; transport?: TransportFn }): Promise<boolean> {
   const normalizedText = text.trim();
   if (!normalizedText) return false;
   const locale = normalizeSpeechLocale(options?.locale);
@@ -661,7 +661,7 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
       // Prefetch is opportunistic: never probe an offline/unverified provider.
       if (resolved.tier === 3) return false;
       await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) =>
-        synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, undefined, locale, true, generation)
+        synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, options?.transport, locale, true, generation)
       );
       return true;
     } catch {
