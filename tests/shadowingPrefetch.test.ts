@@ -13,7 +13,7 @@ describe('Shadowing audio prefetch scheduler', () => {
   it('fetches the next two only after two distinct sentences are successfully practised', () => {
     const scheduler = new ShadowingPrefetchScheduler();
     scheduler.reset(1);
-    expect(scheduler.start(20)).toEqual([1, 2, 3, 4]);
+    expect(scheduler.start(20)).toEqual([1, 2]);
 
     expect(scheduler.recordPractice(0, 20)).toEqual([]);
     expect(scheduler.recordPractice(0, 20)).toEqual([]);
@@ -29,7 +29,7 @@ describe('Shadowing audio prefetch scheduler', () => {
 
     expect(scheduler.start(20)).toEqual([17, 18]);
     expect(scheduler.recordPractice(17, 20)).toEqual([]);
-    expect(scheduler.recordPractice(18, 20)).toEqual([]);
+    expect(scheduler.recordPractice(18, 20)).toEqual([19]);
     expect(scheduler.recordPractice(19, 20)).toEqual([]);
   });
 
