@@ -435,7 +435,8 @@ export function renderShadowingView(
         if (queuedEpoch !== shadowingPrefetchEpoch) return;
         const settings = await loadAppSettings();
         if (!settings.prefetchShadowingAudio) return;
-        await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
+        const prefetched = await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
+        if (!prefetched) break;
       }
     });
   };
@@ -1099,9 +1100,6 @@ export function renderShadowingView(
 
 export async function pauseShadowingRecordingForBackground(): Promise<void> {
   clearShadowingRecordingTimer();
-  clearPreloadedSentenceAudio();
-  shadowingPrefetchWindowKey = '';
-  shadowingPrefetchScheduler.reset();
   shadowingIsStopping = false;
   shadowingModelPlaybackToken++;
   const wasPlayingModelAudio = state.activeModelPlayback !== null;
