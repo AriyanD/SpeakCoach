@@ -66,12 +66,20 @@ async function persist(): Promise<void> {
   }
 }
 
-function getStatus(error: unknown): { status?: number; retryAfterMs?: number; reason: string } {
+function getStatus(error: unknown): { status?: number; retryAfterMs?: number; reason: string; networkFailure: boolean } {
   const candidate = error && typeof error === 'object' ? error as Record<string, unknown> : {};
   const status = typeof candidate.status === 'number' ? candidate.status : undefined;
   const retryAfterMs = typeof candidate.retryAfterMs === 'number' ? candidate.retryAfterMs : undefined;
-  const reason = error instanceof Error ? error.message : String(error);
-  return { status, retryAfterMs, reason };
+  const rawReason = error instanceof Error ? error.message : String(error);
+  const networkFailure = /timeout|timed out|network/i.test(rawReason);
+  // Persist only a safe classification, never raw provider messages or request URLs
+  // that may contain API keys (for example, Gemini's key query parameter).
+  const reason = status !== undefined
+    ? `HTTP ${status}`
+    : networkFailure
+      ? 'Provider network request timed out or failed.'
+      : 'Provider request failed.';
+  return { status, retryAfterMs, reason, networkFailure };
 }
 
 export async function getProviderAccountHealth(
@@ -98,13 +106,13 @@ export async function markProviderAccountFailure(
   now = Date.now()
 ): Promise<void> {
   await hydrate();
-  const { status, retryAfterMs, reason } = getStatus(error);
+  const { status, retryAfterMs, reason, networkFailure } = getStatus(error);
   if ([400, 401, 403, 404].includes(status ?? -1)) {
     health.set(key(slotId, account), { state: 'needs-retest', reason, status, updatedAt: now });
     await persist();
     return;
   }
-  if (status === 429 || (status !== undefined && status >= 500) || status === 0 || /timeout|timed out|network/i.test(reason)) {
+  if (status === 429 || (status !== undefined && status >= 500) || status === 0 || networkFailure) {
     const duration = Math.max(1000, Math.min(10 * 60 * 1000, retryAfterMs ?? 90_000));
     health.set(key(slotId, account), {
       state: 'cooldown', reason, status, updatedAt: now, cooldownUntil: now + duration
