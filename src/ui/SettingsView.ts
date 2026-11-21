@@ -1425,11 +1425,13 @@ export async function renderSettingsView(
   wireBackup('ai-settings');
   wireBackup('test-data');
 
-  testAllApisButton = container.querySelector<HTMLButtonElement>('#test-all-apis-btn');
+  const testAllButton = container.querySelector<HTMLButtonElement>('#test-all-apis-btn');
+  testAllApisButton = testAllButton;
   let testAllApisRunning = false;
   let cancelTestAllApis = false;
-  testAllApisButton?.addEventListener('click', async () => {
-    if (testAllApisRunning) { cancelTestAllApis = true; testAllApisButton.textContent = 'Cancelling…'; return; }
+  testAllButton?.addEventListener('click', async () => {
+    if (!testAllButton) return;
+    if (testAllApisRunning) { cancelTestAllApis = true; testAllButton.textContent = 'Cancelling…'; return; }
     if (settingsProviderTestRunning) return;
     if (!backupStatus) return;
     if (!networkMonitor.isOnline()) {
@@ -1449,12 +1451,12 @@ export async function renderSettingsView(
     testAllApisRunning = true;
     settingsProviderTestRunning = true;
     cancelTestAllApis = false;
-    testAllApisButton.textContent = 'Cancel tests';
+    testAllButton.textContent = 'Cancel tests';
     const singleTestButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('.settings-test-button'));
     const importButtons = ['#import-ai-backup', '#import-test-backup'].map(selector => container.querySelector<HTMLButtonElement>(selector)).filter((button): button is HTMLButtonElement => !!button);
     const previousDisabled = [...singleTestButtons, ...importButtons].map(button => button.disabled);
     [...singleTestButtons, ...importButtons].forEach(button => { button.disabled = true; });
-    if (testAllApisButton) testAllApisButton.disabled = false;
+    if (testAllApisButton) testAllButton.disabled = false;
     const reports: string[] = [];
     let savedSlots = 0;
     let notSavedSlots = 0;
@@ -1568,8 +1570,8 @@ export async function renderSettingsView(
     } finally {
       testAllApisRunning = false;
       settingsProviderTestRunning = false;
-      testAllApisButton.textContent = 'Test all APIs';
-      testAllApisButton.disabled = !hasConfiguredOnlineAccount;
+      testAllButton.textContent = 'Test all APIs';
+      testAllButton.disabled = !hasConfiguredOnlineAccount;
       [...singleTestButtons, ...importButtons].forEach((button, index) => { button.disabled = previousDisabled[index]; });
     }
   });
