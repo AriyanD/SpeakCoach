@@ -369,7 +369,10 @@ export async function evaluateIeltsWithTierFallback(params: {
     slotCfg.secondary?.verified &&
     getPreset('llm_evaluator', slotCfg.secondary.providerId).tier < 3
   );
-  if (resolved.tier === 3 && !hasVerifiedOnlineSecondary) {
+  // For an explicitly selected account, let the fallback layer report its
+  // precise readiness reason (missing key, expired verification, health state).
+  // Keep the concise setup guard for Automatic when no online account is ready.
+  if (resolved.tier === 3 && !hasVerifiedOnlineSecondary && (params.providerChoice ?? 'auto') === 'auto') {
     throw new IeltsApiRequiredError();
   }
 
