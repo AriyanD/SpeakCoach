@@ -520,6 +520,11 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     networkMonitor.setOnline(false);
     vi.stubGlobal('Audio', undefined);
     try {
+      await expect(preloadSentenceAudio(sentence, {
+        transport,
+        shadowingSetAudio: { setId, generation: restoredGeneration, kind: 'sentence' }
+      })).resolves.toBe(true);
+      expect(calls).toBe(1);
       const result = await speakSentenceWithTierFallback(sentence, {
         transport,
         shadowingSetAudio: { setId, generation: restoredGeneration, kind: 'sentence' }
