@@ -976,7 +976,7 @@ export function renderShadowingView(
     state.recognizedTranscript = rawRecognized;
     state.recognizedConfidence = rec.offlineConfidence;
     state.recognizedAlternatives = rec.offlineAlternatives;
-    state.recognizerError = rec.recognizerError;
+    state.recognizerError = sttOutcome.error ?? rec.recognizerError;
     if (rec.recognizerError && isSpeechApiRelatedError(rec.recognizerError)) {
       reopenSpeechApiNoticeForError(rec.recognizerError);
     }
@@ -984,9 +984,11 @@ export function renderShadowingView(
     // Never fall back to reference text! If recognizer returned empty/null/error, DO NOT score.
     if (!rawRecognized) {
       state.lastReport = null;
-      state.emptyAttemptError = rec.recognizerError
-        ? `Nothing was recognized, try again (${rec.recognizerError}).`
-        : 'Nothing was recognized, try again.';
+      state.emptyAttemptError = sttOutcome.error
+        ? `${sttOutcome.error} Retry the recording or use the device recognizer.`
+        : rec.recognizerError
+          ? `Nothing was recognized, try again (${rec.recognizerError}).`
+          : 'Nothing was recognized, try again.';
 
       await recordLastShadowingAttempt({
         referenceText: targetText,
