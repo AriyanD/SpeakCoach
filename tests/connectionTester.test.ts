@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createDefaultSlotConfig } from '../src/config/providers';
 import type { ConnectionTestResult } from '../src/config/types';
 import { bootstrapApp } from '../src/main';
-import { testSlotConnection } from '../src/services/connectionTester';
+import { persistSlotAccountTestResult, testSlotConnection } from '../src/services/connectionTester';
 import { synthesizeOnlineNeuralAudio } from '../src/services/ttsService';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
@@ -32,6 +32,9 @@ const validGeneratorProbe = {
 };
 import {
   loadSlotConnectionTestResult,
+  loadAllSlotsConfig,
+  saveSlotConfig,
+  saveSecondarySlotConfig,
   saveSlotConnectionTestResult
 } from '../src/storage/localStore';
 
@@ -40,6 +43,36 @@ describe('Functional Deep Connection Tester', () => {
     localStorage.clear();
     clearAllRuntimeFailures();
     networkMonitor.setOnline(true);
+  });
+
+
+  it('persists primary connection results through the shared account test path', async () => {
+    const config = createDefaultSlotConfig('voice_tts');
+    config.providerId = 'openai_tts';
+    config.baseUrl = 'https://api.openai.com/v1';
+    config.modelOrVoice = 'tts-1:alloy';
+    await saveSlotConfig(config);
+    const result: ConnectionTestResult = {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 12, message: 'PASS — shared test'
+    };
+    await persistSlotAccountTestResult(config, result, 'primary');
+    await expect(loadSlotConnectionTestResult('voice_tts')).resolves.toMatchObject({ ok: true, providerId: 'openai_tts' });
+  });
+
+  it('persists secondary verification snapshots through the same shared path', async () => {
+    const config = {
+      slotId: 'voice_tts' as const, providerId: 'elevenlabs_tts',
+      baseUrl: 'https://api.elevenlabs.io/v1', modelOrVoice: 'voice-id'
+    };
+    const result: ConnectionTestResult = {
+      ok: true, slotId: 'voice_tts', providerId: 'elevenlabs_tts', tier: 1,
+      label: 'Online AI', latencyMs: 18, message: 'PASS — shared secondary test'
+    };
+    await persistSlotAccountTestResult(config, result, 'secondary');
+    const stored = (await loadAllSlotsConfig()).voice_tts.secondary;
+    expect(stored?.verified).toBe(true);
+    expect(stored?.testResult).toMatchObject({ ok: true, message: 'PASS — shared secondary test' });
   });
 
   it('passes immediately for Tier 3 offline providers without needing a key or internet', async () => {
