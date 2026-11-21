@@ -134,6 +134,7 @@ TypeScript · رابط کاربری DOM خالص · Vite · Capacitor 6 (اند�
 - [یادداشت‌های فنی: انتشار، امضا، به‌روزرسانی، پشتیبان‌گیری](docs/TECHNICAL_NOTES.md)
 - [فهرست تست روی دستگاه](docs/DEVICE_TEST_CHECKLIST.md)
 - [تصمیم‌های معماری](DECISIONS.md)
+- [تغییرات و یادداشت‌های انتشار بعدی](CHANGELOG.md)
 - [پیش‌نمایش موبایل در مرورگر](MOBILE_PREVIEW.md)
 
 ## اسکرین‌شات‌ها
