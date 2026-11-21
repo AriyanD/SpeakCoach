@@ -528,7 +528,7 @@ export function renderShadowingView(
         <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
       </details>
       
-      ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate.</div>` : ''}
+      ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate. <button type="button" class="btn btn-primary" id="sh-empty-generate-btn">Generate now</button></div>` : ''}
 
       ${scoringTier.tier === 3 ? `<details class="offline-quality-notice shadowing-offline-notice" aria-label="Offline pronunciation accuracy notice">
         <summary><strong>Pronunciation accuracy notice</strong><span class="offline-quality-learn-more">Learn more</span></summary>
@@ -615,7 +615,7 @@ export function renderShadowingView(
         </div>
       </details>'}
 
-      <details class="sh-sentence-set-details" ${(!hasSentence || state.isGeneratingAi || state.aiGenerationError) ? "open" : ""}>
+      <details class="sh-sentence-set-details" ${(!hasLanguageSentenceSet || !hasSentence || state.isGeneratingAi || state.aiGenerationError) ? "open" : ""}>
         <summary><strong>Sentence set</strong><span class="sh-sentence-set-summary">${state.difficulty[0].toUpperCase()+state.difficulty.slice(1)} · Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id)+1 : 0} of ${activeHistory.sets.length} · Change${state.isGeneratingAi ? " · Generating…" : state.aiGenerationError ? " · Error" : ""}</span></summary>
       <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
         <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy">Easy</button>
@@ -681,7 +681,10 @@ export function renderShadowingView(
     container.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.remove();
   }
 
-  container.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.addEventListener('click', () => {
+  container.querySelector<HTMLButtonElement>('#sh-empty-generate-btn')?.addEventListener('click', () => {
+    container.querySelector<HTMLButtonElement>('#sh-generate-ai-btn')?.click();
+  });
+    container.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.addEventListener('click', () => {
     const notice = container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
     if (notice) { notice.hidden = false; notice.open = !notice.open; }
   });
