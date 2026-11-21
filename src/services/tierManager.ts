@@ -285,6 +285,16 @@ export async function resolveSlotTier(
   }
 
   const label = tierToLabel(selectedPreset.tier);
+  const degradedAccount = primaryHealth
+    ? { account: 'API 1', health: primaryHealth }
+    : secondaryHealth
+      ? { account: 'API 2', health: secondaryHealth }
+      : null;
+  const accountHealthReason = degradedAccount
+    ? degradedAccount.health.state === 'needs-retest'
+      ? `${degradedAccount.account} needs a successful connection re-test; the alternate account is available.`
+      : `${degradedAccount.account} is cooling down after a temporary provider failure; the alternate account is available.`
+    : undefined;
   return {
     slotId,
     providerId: selectedPreset.id,
@@ -292,7 +302,8 @@ export async function resolveSlotTier(
     tier: selectedPreset.tier,
     label,
     detailLabel: `${label} (Tier ${selectedPreset.tier} · ${selectedPreset.name})`,
-    isFallback: false
+    isFallback: false,
+    reason: accountHealthReason
   };
 }
 
