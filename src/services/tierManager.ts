@@ -10,6 +10,7 @@ import type {
 import { hasConfiguredApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { networkMonitor } from './networkMonitor';
+import { getProviderAccountHealth } from './providerHealth';
 
 export interface GlobalTierSummary {
   label: TierLabel;
@@ -210,12 +211,35 @@ export async function resolveSlotTier(
     };
   }
 
+  const primaryHealth = await getProviderAccountHealth(slotId, 'primary', options?.nowMs);
+  const secondaryHealth = secondaryReady ? await getProviderAccountHealth(slotId, 'secondary', options?.nowMs) : null;
+  const primaryUsable = primaryVerified && !primaryHealth;
+  const secondaryUsable = secondaryReady && !secondaryHealth;
+
+  if (!primaryUsable && !secondaryUsable && (primaryHealth || secondaryHealth)) {
+    const blocked = [primaryHealth, secondaryHealth].filter(Boolean);
+    const needsRetest = blocked.some(entry => entry?.state === 'needs-retest');
+    const reason = needsRetest
+      ? 'Provider account needs a successful connection re-test.'
+      : 'Provider account is cooling down after a temporary failure.';
+    return {
+      slotId,
+      providerId: offlinePreset.id,
+      providerName: offlinePreset.name,
+      tier: 3,
+      label: 'Basic offline',
+      detailLabel: `Basic offline (${reason})`,
+      isFallback: true,
+      reason
+    };
+  }
+
   // An online provider is not considered active until the user saves its
   // configuration and a test succeeds for that exact provider.
   const verification = await loadSlotConnectionTestResult(slotId);
   const primaryVerified = !!verification && verification.ok &&
     verification.providerId === selectedPreset.id && verification.tier === selectedPreset.tier;
-  if (!primaryVerified && !secondaryReady) {
+  if (!primaryUsable && !secondaryUsable) {
     return {
       slotId,
       providerId: offlinePreset.id,
