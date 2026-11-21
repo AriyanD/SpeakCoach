@@ -355,7 +355,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
       ? `data:audio/wav;base64,${cleanB64}`
       : convertPcmBase64ToWavDataUrl(cleanB64, 24000);
     await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
-    return { dataUrl, fromCache: false };
+    return { dataUrl, fromCache: false, cacheHash: hash };
   }
 
   if (slotCfg.providerId === 'azure_tts') {
@@ -388,7 +388,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error('Empty audio payload from Azure Neural TTS');
     await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
-    return { dataUrl, fromCache: false };
+    return { dataUrl, fromCache: false, cacheHash: hash };
   }
 
   if (slotCfg.providerId === 'elevenlabs_tts') {
@@ -423,7 +423,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error('Empty audio payload from ElevenLabs TTS');
     await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
-    return { dataUrl, fromCache: false };
+    return { dataUrl, fromCache: false, cacheHash: hash };
   }
 
   throw new Error(`Unsupported online TTS provider: ${slotCfg.providerId}`);
