@@ -3990,3 +3990,98 @@ body {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+
+/* API 2 is an explicit opt-in account, not an always-present accordion. */
+.secondary-api-settings {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-primary);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.secondary-api-settings > .secondary-api-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.secondary-api-heading {
+  flex: 1 1 150px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.secondary-api-switch-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  min-height: 44px;
+  max-width: 100%;
+  color: var(--text-primary);
+  font-size: .88rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.secondary-api-switch {
+  width: 42px;
+  height: 24px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.secondary-api-content {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  padding-top: 12px;
+}
+.secondary-api-content[hidden] { display: none !important; }
+.secondary-api-content > .form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+}
+.secondary-api-content .form-field,
+.secondary-api-content input,
+.secondary-api-content select,
+.secondary-api-content .settings-copy-key,
+.secondary-api-content .provider-picker {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.secondary-api-content .settings-copy-key {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.secondary-api-content .settings-copy-key-source { flex: 1 1 140px; }
+.secondary-api-content .settings-copy-key-btn { flex: 0 1 auto; }
+@media (min-width: 680px) {
+  .secondary-api-content > .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 390px) {
+  .secondary-api-settings { padding: 10px; }
+  .secondary-api-switch-label { flex: 1 1 100%; justify-content: space-between; }
+  .secondary-api-content .settings-copy-key-btn { flex: 1 1 100%; }
+}
