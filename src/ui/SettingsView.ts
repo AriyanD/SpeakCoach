@@ -1957,6 +1957,9 @@ export async function renderSettingsView(
     const mismatchWarningBox = container.querySelector<HTMLElement>(`#mismatch-warning-${slotId}`);
     const mismatchWarningText = container.querySelector<HTMLElement>(`#mismatch-warning-text-${slotId}`);
     const switchCustomBtn = container.querySelector<HTMLButtonElement>(`#switch-custom-btn-${slotId}`);
+    const secondaryMismatchWarningBox = container.querySelector<HTMLElement>(`#secondary-mismatch-warning-${slotId}`);
+    const secondaryMismatchWarningText = container.querySelector<HTMLElement>(`#secondary-mismatch-warning-text-${slotId}`);
+    const switchSecondaryCustomBtn = container.querySelector<HTMLButtonElement>(`#secondary-switch-custom-btn-${slotId}`);
 
     const markSlotNotVerified = (message = 'Unsaved or changed settings. Save this slot, then pass the test to activate Online AI.'): void => {
       dismissedVerificationErrors.delete(slotId);
@@ -2214,7 +2217,12 @@ export async function renderSettingsView(
       renderSecondaryModelOptions(selectedPreset.modelSuggestions || [selectedPreset.defaultModelOrVoice]);
       const secondaryCustomAuthContainer = container.querySelector<HTMLElement>(`#secondary-custom-auth-container-${slotId}`);
       if (secondaryCustomAuthContainer) secondaryCustomAuthContainer.style.display = selectedPreset.id.startsWith('custom_openai_') ? '' : 'none';
-      if (secondaryProviderSelect.value !== configs[slotId].secondary?.providerId && secondaryKeyInput) {
+      if (secondaryKeyInput) secondaryKeyInput.disabled = !selectedPreset.requiresKey;
+      if (!selectedPreset.requiresKey && secondaryKeyInput) {
+        secondaryKeyInput.value = '';
+        secondaryKeyInput.placeholder = 'No API key needed';
+      }
+      if (secondaryProviderSelect.value !== configs[slotId].secondary?.providerId && secondaryKeyInput && selectedPreset.requiresKey) {
         secondaryKeyInput.value = '';
         secondaryKeyInput.placeholder = 'Enter second API key';
         void readKeyForSettings(slotId, selectedPreset.id, 'secondary').then((storedKey) => {
@@ -2237,6 +2245,20 @@ export async function renderSettingsView(
     [authStyleSelect].forEach((field) => field?.addEventListener('change', () => {
       markSlotNotVerified('Unsaved changes. Save this slot, then pass test to activate Online AI.');
     }));
+
+    const updateSecondaryMismatchWarning = (): void => {
+      if (!secondaryMismatchWarningBox || !secondaryMismatchWarningText) return;
+      const selectedProviderId = secondaryProviderSelect?.value ?? '';
+      if (!selectedProviderId) { secondaryMismatchWarningBox.style.display = 'none'; return; }
+      const preset = getPreset(slotId, selectedProviderId);
+      const check = detectProviderUrlMismatch({ slotId, providerId: preset.id, baseUrl: secondaryBaseUrlInput?.value.trim() || preset.defaultBaseUrl, endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined });
+      if (check.mismatch) {
+        secondaryMismatchWarningBox.style.display = '';
+        secondaryMismatchWarningText.textContent = check.reason ?? '';
+      } else {
+        secondaryMismatchWarningBox.style.display = 'none';
+      }
+    };
 
     const updateMismatchWarning = () => {
       if (!mismatchWarningBox || !mismatchWarningText) return;
@@ -2261,6 +2283,8 @@ export async function renderSettingsView(
       updateMismatchWarning();
     });
     endpointPathInput?.addEventListener('input', updateMismatchWarning);
+    secondaryBaseUrlInput?.addEventListener('input', updateSecondaryMismatchWarning);
+    secondaryEndpointInput?.addEventListener('input', updateSecondaryMismatchWarning);
 
     // One-click "Switch to Custom (OpenAI-compatible)" preserving current Base URL, model, and API key
     switchCustomBtn?.addEventListener('click', async () => {
