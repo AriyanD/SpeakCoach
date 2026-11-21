@@ -24,6 +24,7 @@ import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavV
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
 import { getCachedModelWordTimings } from '../services/modelTimingService';
 import { generateAiShadowingSentenceBatch } from '../services/shadowingAiGenerator';
+import { ShadowingPrefetchScheduler } from '../services/shadowingPrefetch';
 import { clearDiagnosticsCache } from './DiagnosticsView';
 import { SHADOWING_LANGUAGES, getShadowingLanguage, countShadowingLanguageUnits, type ShadowingLanguageCode } from '../data/shadowingLanguages';
 import { loadShadowingLanguageHistories, saveShadowingLanguageHistories, getShadowingHistoryForLanguage, createShadowingHistoryForLanguage, setShadowingHistoryForLanguage, loadSelectedShadowingLanguage, saveSelectedShadowingLanguage, type ShadowingLanguageHistories } from '../services/shadowingLanguageHistory';
@@ -144,8 +145,9 @@ let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
 let shadowingModelPlaybackToken = 0;
 let shadowingIsStopping = false;
 let shadowingPrefetchWindowKey = '';
-let shadowingPrefetchBatchKey = '';
-let shadowingPrefetchStarted = false;
+let shadowingPrefetchEpoch = 0;
+const shadowingPrefetchScheduler = new ShadowingPrefetchScheduler();
+let shadowingPrefetchQueue: Promise<void> = Promise.resolve();
 let shadowingViewGeneration = 0;
 
 function clearShadowingRecordingTimer(): void {
@@ -388,7 +390,7 @@ export function renderShadowingView(
       container.innerHTML = '<section class="card shadowing-main-card"><div class="status-box fail" role="alert">Could not load the sentence library. Please restart the app and try again.</div></section>';
       console.error('[SpeakCoach] Shadowing history initialization failed.', error);
     });
-    return () => { shadowingViewGeneration++; stopAllTts(); clearPreloadedSentenceAudio(); shadowingPrefetchWindowKey = ''; shadowingPrefetchBatchKey = ''; shadowingPrefetchStarted = false; };
+    return () => { shadowingViewGeneration++; stopAllTts(); clearPreloadedSentenceAudio(); shadowingPrefetchWindowKey = ''; shadowingPrefetchScheduler.reset(); };
   }
   const activeHistory = sentenceSetHistory[state.difficulty];
   const activeSet = activeHistory.sets.length ? getActiveShadowingSet(sentenceSetHistory, state.difficulty) : undefined;
@@ -409,29 +411,38 @@ export function renderShadowingView(
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
   const selectedLanguage = getShadowingLanguage(state.languageCode);
-  // Prefetch starts only after the user begins practising (play or record), and
-  // advances in five-sentence batches at sentence 3, 8, 13, etc.
+  // Start prefetch on the first normal-play or recording action. Fetch four
+  // future sentences, then another four only after two distinct sentences
+  // have been successfully practised and scored.
   const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${activeSet?.sentences[0]?.text ?? ''}:${state.customDrillText ?? ''}`;
   if (prefetchWindowKey !== shadowingPrefetchWindowKey) {
     shadowingPrefetchWindowKey = prefetchWindowKey;
-    shadowingPrefetchStarted = false;
-    shadowingPrefetchBatchKey = '';
+    shadowingPrefetchEpoch++;
+    shadowingPrefetchScheduler.reset(state.index + 1);
     clearPreloadedSentenceAudio();
   }
+  const enqueueShadowingPrefetch = (indices: number[]): void => {
+    if (!activeSet || !indices.length) return;
+    const queue = indices.map(index => activeSet.sentences[index]).filter((item): item is ShadowingSentence => Boolean(item));
+    if (!queue.length) return;
+    // Serialize batches so quick progress cannot create overlapping API bursts.
+    // Discard queued work from a previous language/sentence-set context.
+    const queuedEpoch = shadowingPrefetchEpoch;
+    shadowingPrefetchQueue = shadowingPrefetchQueue.then(async () => {
+      if (queuedEpoch !== shadowingPrefetchEpoch) return;
+      for (const item of queue) {
+        if (queuedEpoch !== shadowingPrefetchEpoch) return;
+        await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
+      }
+    });
+  };
   const startShadowingPrefetch = (): void => {
     if (!activeSet || state.customDrillText) return;
-    shadowingPrefetchStarted = true;
-    const milestone = state.index < 2 ? 0 : Math.floor((state.index - 2) / 5) + 1;
-    const batchKey = `${prefetchWindowKey}:${milestone}`;
-    if (batchKey === shadowingPrefetchBatchKey) return;
-    // First practice action: sentences 2–6. Later milestones: 6–10, 11–15, etc.
-    const start = milestone === 0 ? state.index + 1 : milestone * 5;
-    const queue = activeSet.sentences.slice(start, start + 5);
-    if (!queue.length) return;
-    shadowingPrefetchBatchKey = batchKey;
-    void (async () => {
-      for (const item of queue) await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
-    })();
+    enqueueShadowingPrefetch(shadowingPrefetchScheduler.start(activeSet.sentences.length));
+  };
+  const recordShadowingPracticeForPrefetch = (): void => {
+    if (!activeSet || state.customDrillText) return;
+    enqueueShadowingPrefetch(shadowingPrefetchScheduler.recordPractice(state.index, activeSet.sentences.length));
   };
   // The navigation belongs to the same app root as this view. Avoid a global
   // lookup, which can update another mounted app instance (or a stale test root).
@@ -539,8 +550,8 @@ export function renderShadowingView(
 
       <div class="btn-row sh-player-controls" aria-label="Sentence playback controls">
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-prev-btn" aria-label="Previous sentence" title="Previous sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 9 12l10 7z"/></svg></button>
-        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback === 'normal' ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'normal') ? '' : 'disabled'} aria-label="${state.activeModelPlayback === 'normal' ? 'Pause model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback === 'normal' ? 'Pause playback' : 'Play model at normal speed'}" aria-busy="${state.activeModelPlayback === 'normal'}">
-          ${state.activeModelPlayback === 'normal' ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM15 5h4v14h-4z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
+        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence ? '' : 'disabled'} aria-label="${state.activeModelPlayback ? 'Stop model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback ? 'Stop playback' : 'Play model at normal speed'}" aria-busy="${Boolean(state.activeModelPlayback)}">
+          ${state.activeModelPlayback ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
         </button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && !state.activeModelPlayback ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
@@ -778,7 +789,6 @@ export function renderShadowingView(
 
   container.querySelector<HTMLButtonElement>('#sh-prev-btn')?.addEventListener('click', async () => {
     state.index = Math.max(0, state.index - 1);
-    if (shadowingPrefetchStarted) startShadowingPrefetch();
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
       await persistCurrentShadowingHistory();
@@ -790,7 +800,6 @@ export function renderShadowingView(
 
   container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', async () => {
     state.index = Math.min(Math.max(0, (activeSet?.sentences.length ?? 1) - 1), state.index + 1);
-    if (shadowingPrefetchStarted) startShadowingPrefetch();
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
       await persistCurrentShadowingHistory();
@@ -809,7 +818,9 @@ export function renderShadowingView(
   const playModelAudio = async (mode: 'normal' | 'slow'): Promise<void> => {
     if (state.activeModelPlayback) return;
     const playbackToken = ++shadowingModelPlaybackToken;
-    startShadowingPrefetch();
+    // Slow playback is generated on demand for this sentence only; do not
+    // trigger the normal-speed prefetch queue or spend quota on other sentences.
+    if (mode === 'normal') startShadowingPrefetch();
     state.activeModelPlayback = mode;
     state.statusMessage = mode === 'normal'
       ? 'Playing model audio at normal speed...'
@@ -838,11 +849,11 @@ export function renderShadowingView(
   };
 
   container.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.addEventListener('click', () => {
-    if (state.activeModelPlayback === 'normal') {
+    if (state.activeModelPlayback !== null) {
       shadowingModelPlaybackToken++;
       stopAllTts();
       state.activeModelPlayback = null;
-      state.statusMessage = 'Model playback paused.';
+      state.statusMessage = 'Model playback stopped.';
       renderShadowingView(container, summary);
       return;
     }
@@ -1019,6 +1030,7 @@ export function renderShadowingView(
     clearDiagnosticsCache();
 
     state.statusMessage = `Scored recognizer output ("${rawRecognized}") against reference.`;
+    recordShadowingPracticeForPrefetch();
     renderShadowingView(container, summary);
   });
 
@@ -1053,6 +1065,7 @@ export function renderShadowingView(
     stopAllTts();
     clearPreloadedSentenceAudio();
     shadowingPrefetchWindowKey = '';
+    shadowingPrefetchScheduler.reset();
     shadowingIsStopping = false;
     if (audioRecorder.isRecording()) {
       void audioRecorder.stop().catch((error) => {
@@ -1066,6 +1079,7 @@ export async function pauseShadowingRecordingForBackground(): Promise<void> {
   clearShadowingRecordingTimer();
   clearPreloadedSentenceAudio();
   shadowingPrefetchWindowKey = '';
+  shadowingPrefetchScheduler.reset();
   shadowingIsStopping = false;
   shadowingModelPlaybackToken++;
   const wasPlayingModelAudio = state.activeModelPlayback !== null;

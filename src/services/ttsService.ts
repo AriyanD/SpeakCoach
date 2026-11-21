@@ -194,7 +194,15 @@ export async function synthesizeOnlineNeuralAudio(
         method: 'POST',
         headers: prepared.headers,
         data: {
-          contents: [{ role: 'user', parts: [{ text }] }],
+          contents: [{
+            role: 'user',
+            parts: rate < 0.999
+              ? [
+                  { text: `Speak the following text slowly and clearly, at approximately ${Math.round(rate * 100)}% of normal speaking speed. Do not speak these instructions. Read the following text exactly, without adding, omitting, or paraphrasing words:` },
+                  { text }
+                ]
+              : [{ text }]
+          }],
           generationConfig: {
             responseModalities: ['AUDIO'],
             speechConfig: { languageCode: locale.split('-')[0].toLowerCase(), voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
@@ -304,7 +312,8 @@ export async function synthesizeOnlineNeuralAudio(
         data: {
           text,
           model_id: modelId,
-          language_code: languageCode
+          language_code: languageCode,
+          ...(rate < 0.999 ? { voice_settings: { speed: Math.max(0.7, Math.min(1.2, rate)) } } : {})
         },
         responseType: 'blob',
         timeoutMs: 15000
@@ -540,7 +549,10 @@ export async function speakSentenceWithTierFallback(
         return true;
       }
       usedCache = fromCache;
-      await playAudioDataUrl(dataUrl, rate, 30000, options?.onPlaybackStart);
+      // The requested rate has already been applied during online synthesis
+      // (provider speed setting or Gemini slow-speaking prompt). Playing the
+      // generated file at the same reduced rate would slow it twice.
+      await playAudioDataUrl(dataUrl, 1.0, 30000, options?.onPlaybackStart);
       return true;
     },
     async (fallbackTier) => {
@@ -571,10 +583,6 @@ export async function speakSentenceWithTierFallback(
 }
 
 
-/**
- * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
- * audio is never persisted to Preferences, localStorage, or the filesystem.
- */
 /** Play a short voice sample using the unsaved TTS slot configuration currently shown in Settings. */
 export async function previewTtsVoice(
   slotConfig: SlotConfig,
@@ -590,10 +598,15 @@ export async function previewTtsVoice(
   if (preset.requiresKey && !apiKey.trim()) {
     throw new Error('Enter an API key before previewing this online voice.');
   }
-  const result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale);
+  // Voice previews are disposable; keep them in bounded RAM rather than the persistent cache.
+  const result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true);
   await playAudioDataUrl(result.dataUrl);
 }
 
+/**
+ * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
+ * audio is never persisted to Preferences, localStorage, or the filesystem.
+ */
 export async function preloadSentenceAudio(text: string, options?: { locale?: string }): Promise<void> {
   const normalizedText = text.trim();
   if (!normalizedText) return;
