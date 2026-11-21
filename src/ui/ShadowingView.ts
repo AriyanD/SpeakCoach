@@ -725,7 +725,11 @@ export function renderShadowingView(
       state.activeModelPlayback = null;
       stopAllTts();
       try {
-        const result = await speakSentenceWithTierFallback(word, { locale: selectedLanguage.locale });
+        const audioContext = await audioSetContextPromise;
+        const result = await speakSentenceWithTierFallback(word, {
+          locale: selectedLanguage.locale,
+          shadowingSetAudio: audioContext ? { ...audioContext, kind: 'extra' } : undefined
+        });
         state.statusMessage = `Played “${word}” via ${result.activeTier.detailLabel}.`;
       } catch (error) {
         reopenSpeechApiNoticeForError(error);
@@ -839,7 +843,7 @@ export function renderShadowingView(
       const res = await speakSentenceWithTierFallback(targetText, {
         rate,
         locale: selectedLanguage.locale,
-        shadowingSetAudio: audioContext ? { ...audioContext, kind: rate === 1 ? 'sentence' : 'extra' } : undefined,
+        shadowingSetAudio: audioContext ? { ...audioContext, kind: state.customDrillText || rate !== 1 ? 'extra' : 'sentence' } : undefined,
         onPlaybackStart: () => {
           if (playbackToken !== shadowingModelPlaybackToken) return;
           state.statusMessage = mode === 'normal' ? 'Playing model audio at normal speed…' : 'Playing model audio slowly…';
