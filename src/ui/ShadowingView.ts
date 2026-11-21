@@ -1061,7 +1061,7 @@ export function renderShadowingView(
     });
     clearDiagnosticsCache();
 
-    state.statusMessage = `Scored recognizer output ("${rawRecognized}") against reference.`;
+    state.statusMessage = `${sttOutcome.error ? `${sttOutcome.error} ` : ''}Scored recognizer output ("${rawRecognized}") against reference.`;
     startShadowingPrefetch();
     renderShadowingView(container, summary);
   });
