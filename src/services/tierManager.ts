@@ -240,14 +240,14 @@ export async function resolveSlotTier(
 
   if (!primaryUsable && !secondaryUsable && (primaryHealth || secondaryHealth)) {
     const blocked = [
-      primaryHealth ? { account: 'API 1', health: primaryHealth } : null,
-      secondaryHealth ? { account: 'API 2', health: secondaryHealth } : null
-    ].filter((entry): entry is { account: string; health: NonNullable<typeof primaryHealth> } => Boolean(entry));
+      primaryHealth ? { account: 'API 1', provider: getPreset(slotId, slotConfig.providerId).name, health: primaryHealth } : null,
+      secondaryHealth && slotConfig.secondary ? { account: 'API 2', provider: getPreset(slotId, slotConfig.secondary.providerId).name, health: secondaryHealth } : null
+    ].filter((entry): entry is { account: string; provider: string; health: NonNullable<typeof primaryHealth> } => Boolean(entry));
     const needsRetest = blocked.some(entry => entry.health.state === 'needs-retest');
     const details = blocked.map(entry => {
-      if (entry.health.state === 'needs-retest') return `${entry.account} (${entry.health.reason}) needs a successful re-test`;
+      if (entry.health.state === 'needs-retest') return `${entry.account} (${entry.provider}; ${entry.health.reason}) needs a successful re-test`;
       const seconds = Math.max(1, Math.ceil(((entry.health.cooldownUntil ?? Date.now()) - (options?.nowMs ?? Date.now())) / 1000));
-      return `${entry.account} (${entry.health.reason}) is cooling down for about ${seconds}s`;
+      return `${entry.account} (${entry.provider}; ${entry.health.reason}) is cooling down for about ${seconds}s`;
     }).join('; ');
     const reason = needsRetest
       ? `${details}. Open Settings → Voice/TTS and re-test the affected API, or configure API 2.`
