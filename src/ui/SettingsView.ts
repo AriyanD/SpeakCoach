@@ -1495,6 +1495,8 @@ export async function renderSettingsView(
       backupStatus.textContent = 'Preparing sequential connection tests…';
       for (const slotId of SLOT_ORDER) {
         if (cancelTestAllApis) break;
+        if (completedAccounts > 0) await new Promise(resolve => window.setTimeout(resolve, 350));
+        if (cancelTestAllApis) break;
         const slotTitle = SLOT_DEFINITIONS[slotId].title.replace(/^\\d+\\.\\s*/, '');
         const accounts: Array<{ account: 'primary' | 'secondary'; config: SlotConfig; key: string; providerName: string }> = [];
         const skippedAccounts: string[] = [];
