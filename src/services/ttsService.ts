@@ -583,10 +583,6 @@ export async function speakSentenceWithTierFallback(
 }
 
 
-/**
- * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
- * audio is never persisted to Preferences, localStorage, or the filesystem.
- */
 /** Play a short voice sample using the unsaved TTS slot configuration currently shown in Settings. */
 export async function previewTtsVoice(
   slotConfig: SlotConfig,
@@ -602,10 +598,15 @@ export async function previewTtsVoice(
   if (preset.requiresKey && !apiKey.trim()) {
     throw new Error('Enter an API key before previewing this online voice.');
   }
-  const result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale);
+  // Voice previews are disposable; keep them in bounded RAM rather than the persistent cache.
+  const result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true);
   await playAudioDataUrl(result.dataUrl);
 }
 
+/**
+ * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
+ * audio is never persisted to Preferences, localStorage, or the filesystem.
+ */
 export async function preloadSentenceAudio(text: string, options?: { locale?: string }): Promise<void> {
   const normalizedText = text.trim();
   if (!normalizedText) return;
