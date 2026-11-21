@@ -27,6 +27,7 @@ describe('Per-slot secondary API fallback', () => {
   beforeEach(async () => {
     localStorage.clear();
     await clearAllProviderAccountHealth();
+    networkMonitor.setOnline(true);
   });
 
   const slotFallbackCases: Array<{
