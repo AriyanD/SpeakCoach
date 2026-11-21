@@ -40,6 +40,11 @@ public class UpdateInstallerPlugin extends Plugin {
 
     @PluginMethod
     public void installApk(PluginCall call) {
+        if (Build.VERSION.SDK_INT < 23) {
+            call.reject("This update requires Android 6.0 (API 23) or newer. Android 5.1 and older are not supported.");
+            return;
+        }
+
         String suppliedPath = call.getString("path");
         String expectedSha256 = call.getString("sha256");
         if (suppliedPath == null || suppliedPath.trim().isEmpty()) {
