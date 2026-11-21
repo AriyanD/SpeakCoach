@@ -365,7 +365,7 @@ export async function renderSettingsView(
               ${preset.requiresKey ? '' : 'disabled'}
             />
             ${preset.requiresKey && copyKeyOptionsHtml ? \`
-              <div class="form-field settings-copy-key-field">
+              <div class="settings-copy-key-field">
                 <label class="form-label" for="copy-key-source-${slotId}">Or copy from</label>
                 <select class="form-select provider-native-select" id="copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${copyKeyOptionsHtml}</select>
                 <div class="settings-copy-key">
@@ -533,8 +533,10 @@ export async function renderSettingsView(
               </div>
               <p class="card-subtitle">You can copy an API 1 or API 2 key from another capability slot.</p>
             </div>` : ''}
-            <div id="secondary-custom-auth-container-${slotId}" style="${secondaryIsCustom ? '' : 'display:none;'}">
-            <div class="form-field"><label class="form-label" for="secondary-authstyle-${slotId}">Secondary authentication</label>
+            <details class="advanced-provider-settings" id="secondary-custom-auth-container-${slotId}" style="${secondaryIsCustom ? '' : 'display:none;'}">
+              <summary>Advanced authentication & endpoint</summary>
+              <div class="advanced-provider-fields">
+            <div class="form-field"><label class="form-label" for="secondary-authstyle-${slotId}">Authentication</label>
               <select class="form-select" id="secondary-authstyle-${slotId}">
                 <option value="bearer" ${(slotCfg.secondary?.authStyle ?? 'bearer') === 'bearer' ? 'selected' : ''}>Bearer</option>
                 <option value="custom_header" ${slotCfg.secondary?.authStyle === 'custom_header' ? 'selected' : ''}>Custom header</option>
@@ -547,7 +549,8 @@ export async function renderSettingsView(
             <div class="form-field"><label class="form-label" for="secondary-endpoint-${slotId}">Endpoint path override (optional)</label>
               <input type="text" class="form-input" id="secondary-endpoint-${slotId}" value="${escapeHtml(slotCfg.secondary?.endpointPathOverride ?? '')}" placeholder="/v1/chat/completions" /></div>
             </div>
-          </div>
+              </div>
+            </details>
           </div>
         </section>
 
