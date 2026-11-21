@@ -847,6 +847,7 @@ export async function persistSlotAccountTestResult(
   account: ProviderAccount
 ): Promise<PersistedConnectionTestResult | null> {
   const passed = result.ok && result.tier !== 3;
+  if (passed) await clearProviderAccountHealth(slotConfig.slotId, account);
   if (account === 'primary') {
     return await saveSlotConnectionTestResult(slotConfig.slotId, { ...result, ok: passed });
   }
