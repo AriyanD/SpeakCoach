@@ -885,3 +885,60 @@ export async function testAndPersistSlotAccount(
   if (options.persist !== false) await persistSlotAccountTestResult(slotConfig, result, options.account);
   return result;
 }
+
+
+export interface SlotAccountTestTarget {
+  account: ProviderAccount;
+  config: SlotConfig;
+  apiKeyOverride?: string;
+}
+
+export interface SequentialSlotAccountTestResult {
+  account: ProviderAccount;
+  config: SlotConfig;
+  result: ConnectionTestResult;
+}
+
+/** Run account probes serially, continue after per-account failures, and stop cleanly on cancellation. */
+export async function testSlotAccountsSequentially(
+  targets: SlotAccountTestTarget[],
+  options: {
+    pauseMs?: number;
+    shouldCancel?: () => boolean;
+    onProgress?: (current: number, total: number, target: SlotAccountTestTarget) => void;
+    probe?: (target: SlotAccountTestTarget) => Promise<ConnectionTestResult>;
+  } = {}
+): Promise<{ results: SequentialSlotAccountTestResult[]; cancelled: boolean }> {
+  const results: SequentialSlotAccountTestResult[] = [];
+  for (let index = 0; index < targets.length; index += 1) {
+    if (options.shouldCancel?.()) return { results, cancelled: true };
+    const target = targets[index];
+    options.onProgress?.(index + 1, targets.length, target);
+    let result: ConnectionTestResult;
+    try {
+      result = options.probe
+        ? await options.probe(target)
+        : await testAndPersistSlotAccount(target.config, {
+            account: target.account,
+            apiKeyOverride: target.apiKeyOverride,
+            persist: false
+          });
+    } catch (error) {
+      const preset = getPreset(target.config.slotId, target.config.providerId);
+      result = {
+        ok: false,
+        slotId: target.config.slotId,
+        providerId: target.config.providerId,
+        tier: preset.tier,
+        label: preset.tier === 3 ? 'Basic offline' : 'Online AI',
+        latencyMs: 0,
+        message: `FAIL — ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+    results.push({ account: target.account, config: target.config, result });
+    if (index < targets.length - 1 && (options.pauseMs ?? 0) > 0 && !options.shouldCancel?.()) {
+      await new Promise(resolve => window.setTimeout(resolve, options.pauseMs));
+    }
+  }
+  return { results, cancelled: Boolean(options.shouldCancel?.()) };
+}
