@@ -34,7 +34,6 @@ import {
   loadSlotConnectionTestResult,
   loadAllSlotsConfig,
   saveSlotConfig,
-  saveSecondarySlotConfig,
   saveSlotConnectionTestResult
 } from '../src/storage/localStore';
 
