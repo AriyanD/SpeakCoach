@@ -308,10 +308,17 @@ export async function setCachedTtsAudio(hash: string, base64OrDataUrl: string): 
   await prunePersistentAudioCache(next);
 }
 
-export async function removeTtsAudioCacheEntry(hash: string): Promise<void> {
-  await removePersistentAudio(hash);
+export async function removeTtsAudioCacheEntries(hashes: string[]): Promise<void> {
+  const uniqueHashes = Array.from(new Set(hashes));
+  for (const hash of uniqueHashes) await removePersistentAudio(hash);
+  if (!uniqueHashes.length) return;
+  const removed = new Set(uniqueHashes);
   const index = await readCacheIndex();
-  await writeCacheIndex(index.filter(item => item.hash !== hash));
+  await writeCacheIndex(index.filter(item => !removed.has(item.hash)));
+}
+
+export async function removeTtsAudioCacheEntry(hash: string): Promise<void> {
+  await removeTtsAudioCacheEntries([hash]);
 }
 
 export function clearMemoryAudioCache(): void {
