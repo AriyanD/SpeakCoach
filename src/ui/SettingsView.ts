@@ -150,8 +150,8 @@ export async function renderSettingsView(
     const secondarySameModelAsPrimary = !!slotCfg.secondary && slotCfg.secondary.providerId === slotCfg.providerId && slotCfg.secondary.modelOrVoice.trim() === slotCfg.modelOrVoice.trim();
     const secondaryTestResult = slotCfg.secondary?.testResult;
     const accountHealth = accountHealthBySlot.get(slotId);
-    const primaryAccountReady = lastTest?.ok === true && lastTest.tier !== 3;
-    const secondaryAccountReady = !!slotCfg.secondary && slotCfg.secondary.verified === true && secondaryTestResult?.ok === true;
+    const primaryAccountReady = lastTest?.ok === true && lastTest.tier !== 3 && !accountHealth?.primary;
+    const secondaryAccountReady = !!slotCfg.secondary && slotCfg.secondary.verified === true && secondaryTestResult?.ok === true && !accountHealth?.secondary;
     const bothConfiguredApisReady = !!slotCfg.secondary && primaryAccountReady && secondaryAccountReady;
     const mixedApiReadiness = !!slotCfg.secondary && primaryAccountReady !== secondaryAccountReady;
     let slotStatus = apiRequiredOfflineSelected
