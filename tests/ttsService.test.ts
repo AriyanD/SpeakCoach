@@ -83,6 +83,45 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     expect(networkCalls).toBe(1); // Zero extra network calls!
   });
 
+
+  it('persists generated audio from every supported online TTS provider into the active set', async () => {
+    const mp3 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA';
+    const providers = [
+      { providerId: 'openai_tts', baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'tts-1:alloy' },
+      { providerId: 'azure_tts', baseUrl: 'https://eastus.tts.speech.microsoft.com', modelOrVoice: 'en-US-JennyNeural' },
+      { providerId: 'elevenlabs_tts', baseUrl: 'https://api.elevenlabs.io/v1', modelOrVoice: 'voice-id:eleven_multilingual_v2' },
+      { providerId: 'gemini_tts', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', modelOrVoice: 'gemini-2.5-flash-preview-tts', customTtsVoice: 'Puck' }
+    ] as const;
+
+    for (const config of providers) {
+      const setId = `en:easy:provider-${config.providerId}`;
+      const generation = await activateShadowingAudioSet(setId);
+      const transport = async (opts: { url: string }) => ({
+        url: opts.url,
+        status: 200,
+        headers: {},
+        data: config.providerId === 'gemini_tts'
+          ? { candidates: [{ content: { parts: [{ inlineData: { data: 'UklGRg==', mimeType: 'audio/wav' } }] } }] }
+          : mp3
+      });
+      const result = await synthesizeOnlineNeuralAudio(
+        `Persist audio for ${config.providerId}.`,
+        { slotId: 'voice_tts', ...config },
+        `key-${config.providerId}`,
+        1,
+        transport,
+        'en-US',
+        false,
+        undefined,
+        false,
+        15000,
+        { setId, generation, kind: 'sentence' }
+      );
+      expect(result.persistedToActiveSet, config.providerId).toBe(true);
+      await expect(readActiveShadowingAudio(result.cacheHash, setId)).resolves.toBeTruthy();
+    }
+  });
+
   it('uses the selected custom voice in the request and keeps different voices out of the same cache entry', async () => {
     const requests: any[] = [];
     const transport = async (opts: any) => {
