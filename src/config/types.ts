@@ -82,4 +82,5 @@ export interface ConnectionTestResult {
   label: TierLabel;
   latencyMs: number;
   message: string;
+  verificationFingerprint?: string;
 }
