@@ -23,6 +23,7 @@ let activeSetId: string | null = null;
 let generation = 0;
 let index: Index | null = null;
 let initialization: Promise<void> | null = null;
+let activationQueue: Promise<void> = Promise.resolve();
 const ram = new Map<string, string>();
 
 function safeId(value: string): string {
@@ -94,6 +95,14 @@ async function reconcile(): Promise<void> {
   index.entries = valid;
   if (Capacitor.isNativePlatform()) {
     try {
+      const rootListing = await Filesystem.readdir({ path: ROOT, directory: Directory.Data });
+      for (const item of rootListing.files ?? []) {
+        if (item.type === 'directory' && item.name !== safeId(index.setId)) {
+          try { await Filesystem.rmdir({ path: `${ROOT}/${item.name}`, directory: Directory.Data, recursive: true }); } catch { /* best-effort orphan cleanup */ }
+        }
+      }
+    } catch { /* root directory may not exist yet */ }
+    try {
       const listing = await Filesystem.readdir({ path: `${ROOT}/${safeId(index.setId)}`, directory: Directory.Data });
       const expected = new Set(valid.map(entry => entry.file.split('/').pop()));
       for (const item of listing.files ?? []) {
@@ -120,17 +129,21 @@ async function ensureInitialized(): Promise<void> {
   await initialization;
 }
 
-export async function activateShadowingAudioSet(setId: string): Promise<number> {
-  await ensureInitialized();
-  if (activeSetId === setId && index?.setId === setId) return generation;
-  if (index) await removeSetFiles(index.setId, index.entries);
-  ram.clear();
-  generation++;
-  activeSetId = setId;
-  index = { setId, entries: [] };
-  await Preferences.set({ key: ACTIVE_SET_KEY, value: setId });
-  await writeIndex();
-  return generation;
+export function activateShadowingAudioSet(setId: string): Promise<number> {
+  const task = activationQueue.then(async () => {
+    await ensureInitialized();
+    if (activeSetId === setId && index?.setId === setId) return generation;
+    if (index) await removeSetFiles(index.setId, index.entries);
+    ram.clear();
+    generation++;
+    activeSetId = setId;
+    index = { setId, entries: [] };
+    await Preferences.set({ key: ACTIVE_SET_KEY, value: setId });
+    await writeIndex();
+    return generation;
+  });
+  activationQueue = task.then(() => {}, () => {});
+  return task;
 }
 export async function getActiveShadowingAudioSet(): Promise<{ setId: string | null; generation: number }> {
   await ensureInitialized();
@@ -187,11 +200,12 @@ export async function persistActiveShadowingAudio(params: {
 }
 export async function clearActiveShadowingAudioStore(): Promise<void> {
   await ensureInitialized();
+  generation++;
   if (index) await removeSetFiles(index.setId, index.entries);
   ram.clear();
   index = activeSetId ? { setId: activeSetId, entries: [] } : null;
   await writeIndex();
 }
 export function resetShadowingAudioStoreForTests(): void {
-  activeSetId = null; generation = 0; index = null; initialization = null; ram.clear();
+  activeSetId = null; generation = 0; index = null; initialization = null; activationQueue = Promise.resolve(); ram.clear();
 }
