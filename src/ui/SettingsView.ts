@@ -212,7 +212,7 @@ export async function renderSettingsView(
         : `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
     const showVoiceInput = slotId === 'voice_tts' && preset.id !== 'android_native_tts';
     const mismatchInfo = detectProviderUrlMismatch(slotCfg);
-    const secondaryMismatchInfo = secondaryPreset ? detectProviderUrlMismatch({ slotId, providerId: secondaryPreset.id, baseUrl: slotCfg.secondary?.baseUrl || secondaryPreset.defaultBaseUrl, endpointPathOverride: slotCfg.secondary?.endpointPathOverride }) : { mismatch: false };
+    const secondaryMismatchInfo = secondaryPreset ? detectProviderUrlMismatch({ slotId, providerId: secondaryPreset.id, baseUrl: slotCfg.secondary?.baseUrl || secondaryPreset.defaultBaseUrl, endpointPathOverride: slotCfg.secondary?.endpointPathOverride }) : { mismatch: false, reason: undefined as string | undefined };
 
     const optionsHtml = def.providers
       .map(
@@ -2208,8 +2208,9 @@ export async function renderSettingsView(
         if (secondaryModelInput) secondaryModelInput.value = '';
         if (secondaryCustomVoiceInput) secondaryCustomVoiceInput.value = '';
         if (secondaryCustomVoiceContainer) secondaryCustomVoiceContainer.style.display = 'none';
-        if (secondaryKeyInput) secondaryKeyInput.value = '';
+        if (secondaryKeyInput) { secondaryKeyInput.value = ''; secondaryKeyInput.disabled = true; secondaryKeyInput.placeholder = 'Choose a provider first'; }
         renderSecondaryModelOptions([]);
+        updateSecondaryMismatchWarning();
         if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Not configured'; }
         return;
       }
@@ -2236,6 +2237,7 @@ export async function renderSettingsView(
       if (secondaryModelInput) secondaryModelInput.value = selectedPreset.defaultModelOrVoice;
       if (secondaryCustomVoiceInput) secondaryCustomVoiceInput.value = '';
       if (secondaryCustomVoiceContainer) secondaryCustomVoiceContainer.style.display = selectedPreset.id === 'android_native_tts' ? 'none' : '';
+      updateSecondaryMismatchWarning();
       if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Changes not tested'; }
     });
     [secondaryProviderSelect, secondaryBaseUrlInput, secondaryModelInput, secondaryCustomVoiceInput, secondaryKeyInput, secondaryAuthSelect, secondaryHeaderInput, secondaryQueryInput, secondaryEndpointInput].forEach((field) => {
