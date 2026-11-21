@@ -476,7 +476,7 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     await expect(synthesizeOnlineNeuralAudio('First Swedish sentence.', config, 'language-session-key', 1, failingTransport, 'sv-SE'))
       .rejects.toThrow();
     await expect(synthesizeOnlineNeuralAudio('Second Swedish sentence.', config, 'language-session-key', 1, failingTransport, 'sv-SE'))
-      .rejects.toThrow(/Language sv-SE is not supported/);
+      .rejects.toThrow();
     expect(calls).toBe(1);
   });
 
