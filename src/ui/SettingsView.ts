@@ -1500,14 +1500,14 @@ export async function renderSettingsView(
         const skippedAccounts: string[] = [];
         const primaryConfig = configs[slotId];
         const primaryPreset = getPreset(slotId, primaryConfig.providerId);
-        if (primaryPreset.tier === 3) skippedAccounts.push('API 1 skipped — offline provider');
-        else if (primaryPreset.requiresKey && !keysBySlot[slotId].trim()) skippedAccounts.push('API 1 skipped — API key missing');
+        if (primaryPreset.tier === 3) skippedAccounts.push(`API 1 (${primaryPreset.name}) skipped — offline provider`);
+        else if (primaryPreset.requiresKey && !keysBySlot[slotId].trim()) skippedAccounts.push(`API 1 (${primaryPreset.name}) skipped — API key missing`);
         else accounts.push({ account: 'primary', config: primaryConfig, key: keysBySlot[slotId], providerName: primaryPreset.name });
         const secondarySaved = configs[slotId].secondary;
         if (secondarySaved) {
           const secondaryPreset = getPreset(slotId, secondarySaved.providerId);
-          if (secondaryPreset.tier === 3) skippedAccounts.push('API 2 skipped — offline provider');
-          else if (secondaryPreset.requiresKey && !secondaryKeysBySlot[slotId].trim()) skippedAccounts.push('API 2 skipped — API key missing');
+          if (secondaryPreset.tier === 3) skippedAccounts.push(`API 2 (${secondaryPreset.name}) skipped — offline provider`);
+          else if (secondaryPreset.requiresKey && !secondaryKeysBySlot[slotId].trim()) skippedAccounts.push(`API 2 (${secondaryPreset.name}) skipped — API key missing`);
           else accounts.push({ account: 'secondary', config: { slotId, ...secondarySaved }, key: secondaryKeysBySlot[slotId], providerName: secondaryPreset.name });
         } else skippedAccounts.push('API 2 skipped — not configured');
         if (!accounts.length) {
@@ -1531,7 +1531,7 @@ export async function renderSettingsView(
             shouldCancel: () => cancelTestAllApis,
             onProgress: (_current, _total, item) => {
               completedAccounts += 1;
-              backupStatus.textContent = `Testing ${completedAccounts} of ${Math.max(plannedAccounts, completedAccounts)}: ${slotTitle} — ${item.account === 'primary' ? 'API 1' : 'API 2'}…`;
+              backupStatus.textContent = `Testing ${completedAccounts} of ${Math.max(plannedAccounts, completedAccounts)}: ${slotTitle} — ${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name})…`;
             }
           }
         );
@@ -1555,7 +1555,7 @@ export async function renderSettingsView(
               } };
             }
             savedSlots += 1;
-            reports.push(`<li class="pass"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} PASS`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Saved</strong></li>`);
+            reports.push(`<li class="pass"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) PASS`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Saved</strong></li>`);
           } catch (saveError) {
             try {
               if (previousPrimary) await saveSlotConnectionTestResult(slotId, previousPrimary);
@@ -1572,8 +1572,8 @@ export async function renderSettingsView(
           }
         } else {
           notSavedSlots += 1;
-          const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} failed: ${escapeHtml(redactKeys(describeConnectionTestFailure(item.result)))}`).join(' · ');
-          reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Not saved</strong>. ${reasons}. Previous verification preserved.</li>`);
+          const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) failed: ${escapeHtml(redactKeys(describeConnectionTestFailure(item.result)))}`).join(' · ');
+          reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Not saved</strong>. ${reasons}. Previous verification preserved.</li>`);
         }
 
         const primaryResult = lastTestResults.get(slotId);
@@ -1592,14 +1592,14 @@ export async function renderSettingsView(
           primaryStatus.style.display = '';
           const result = tested.find(item => item.account === 'primary')!.result;
           primaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
-          primaryStatus.textContent = `API 1: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
+          primaryStatus.textContent = `API 1 (${getPreset(slotId, result.providerId).name}): ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
         }
         const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
         if (secondaryStatus && tested.some(item => item.account === 'secondary')) {
           secondaryStatus.style.display = '';
           const result = tested.find(item => item.account === 'secondary')!.result;
           secondaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
-          secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
+          secondaryStatus.textContent = `API 2 (${getPreset(slotId, result.providerId).name}): ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
         }
         for (const account of ['primary', 'secondary'] as const) {
           if (tested.some(item => item.account === account)) continue;
