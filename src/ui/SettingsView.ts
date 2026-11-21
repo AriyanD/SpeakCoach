@@ -1445,7 +1445,7 @@ export async function renderSettingsView(
       message: 'Connection probes send real requests and may use a small amount of API quota. Tests run sequentially. A slot is saved only if every configured online account in that slot passes; otherwise its previous verification remains unchanged.',
       confirmLabel: 'Test all APIs',
       cancelLabel: 'Cancel',
-      tone: 'info'
+      tone: 'normal'
     });
     if (!confirmed) return;
 
