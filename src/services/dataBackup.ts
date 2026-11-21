@@ -15,6 +15,7 @@ import { exportIeltsHistorySnapshot, importIeltsHistorySnapshot } from '../stora
 import { SEEN_LLM_TOPICS_KEY, RECENT_LLM_QUESTIONS_KEY, getSeenQuestions, getRecentLlmQuestions, restoreLlmGenerationMemory, saveSeenQuestions } from './ieltsQuestionTracker';
 import { getLastShadowingAttempt, restoreLastShadowingAttempt } from './shadowingTelemetry';
 import { exportIeltsQuestionSetSnapshot, importIeltsQuestionSetSnapshot } from './ieltsQuestionSetStore';
+import { clearActiveShadowingAudioStore } from './shadowingAudioStore';
 
 export type BackupKind = 'ai-settings' | 'test-data';
 const BACKUP_VERSION = 2;
@@ -283,6 +284,9 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
       // Imported provider configurations must be tested again; never restore a
       // stale "connected" badge from the source device.
       for (const slotId of SLOT_ORDER) await clearSlotConnectionTestResult(slotId);
+      // Audio is device-local derived cache, never part of a backup. Imported
+      // provider credentials/configuration must not reuse previously generated files.
+      await clearActiveShadowingAudioStore();
       return;
     } catch (error) {
       const originalMessage = error instanceof Error ? error.message : String(error);
@@ -346,6 +350,9 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
     if (payload.lastShadowingAttempt !== undefined) {
       await restoreLastShadowingAttempt(payload.lastShadowingAttempt ?? null);
     }
+    // Test-data restore can change the user's practice context; keep generated
+    // AI audio out of backups and clear the active-set files after a successful import.
+    await clearActiveShadowingAudioStore();
   } catch (error) {
     const originalMessage = error instanceof Error ? error.message : String(error);
     const rollbackErrors: string[] = [];
