@@ -590,8 +590,9 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     verification: { ok: primaryTest.ok, providerId: primaryTest.providerId, tier: primaryTest.tier, testedAt: primaryTest.timestamp, verificationFingerprint: primaryTest.verificationFingerprint }
   }) : false;
   const primaryHealth = await getProviderAccountHealth(requestedSlotId, 'primary');
-  if (primaryHealth) verificationNotices.push(`API 1 is ${primaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${primaryHealth.reason}`);
-  else if (!primaryVerified) verificationNotices.push('API 1 needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.');
+  const primaryProviderName = getPreset(requestedSlotId, primary.providerId).name;
+  if (primaryHealth) verificationNotices.push(`API 1 (${primaryProviderName}) is ${primaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${primaryHealth.reason}`);
+  else if (!primaryVerified) verificationNotices.push(`API 1 (${primaryProviderName}) needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.`);
   if (primaryVerified && compatibleProviderIds.has(primary.providerId) && getPreset(requestedSlotId, primary.providerId).tier !== 3) {
     candidates.push({ slotId: requestedSlotId, config: primary, account: 'primary' });
   }
@@ -610,8 +611,9 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
       }
     });
     const secondaryHealth = await getProviderAccountHealth(requestedSlotId, 'secondary');
-    if (secondaryHealth) secondaryVerificationNotice = `API 2 is ${secondaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${secondaryHealth.reason}`;
-    else if (!secondaryVerified) secondaryVerificationNotice = 'API 2 needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.';
+    const secondaryProviderName = getPreset(requestedSlotId, secondary.providerId).name;
+    if (secondaryHealth) secondaryVerificationNotice = `API 2 (${secondaryProviderName}) is ${secondaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${secondaryHealth.reason}`;
+    else if (!secondaryVerified) secondaryVerificationNotice = `API 2 (${secondaryProviderName}) needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.`;
     if (secondaryVerified && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
       candidates.push({ slotId: requestedSlotId, config: secondaryConfig, account: 'secondary' });
     }
@@ -681,7 +683,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   transport: params.transport
                 });
           if (!res.transcript.trim()) {
-            errors.push(`${candidateSlotId}/${candidate.account} (${candidateCfg.providerId}): the provider returned an empty transcription.`);
+            errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): the provider returned an empty transcription.`);
             continue;
           }
           await clearProviderAccountHealth(candidateSlotId, candidate.account);
@@ -695,7 +697,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
           return { transcript: res.transcript, words: res.words, error: fallbackNotice };
         } catch (error) {
           await markProviderAccountFailure(candidateSlotId, candidate.account, error);
-          errors.push(`${candidateSlotId}/${candidate.account} (${candidateCfg.providerId}): ${error instanceof Error ? error.message : String(error)}`);
+          errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): ${error instanceof Error ? error.message : String(error)}`);
         }
       }
       if (secondaryVerificationNotice) errors.push(secondaryVerificationNotice);
