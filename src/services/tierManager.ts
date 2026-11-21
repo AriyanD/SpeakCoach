@@ -265,15 +265,40 @@ export async function resolveSlotTier(
   }
 
   if (!primaryUsable && !secondaryUsable) {
+    const now = options?.nowMs ?? Date.now();
+    const primaryVerificationStale = !!verification?.ok && (
+      verification.providerId !== selectedPreset.id ||
+      verification.tier !== selectedPreset.tier ||
+      !currentFingerprint ||
+      verification.verificationFingerprint !== currentFingerprint ||
+      now - verification.timestamp >= CONNECTION_VERIFICATION_TTL_MS
+    );
+    const secondaryConfig = slotConfig.secondary;
+    const secondaryTest = secondaryConfig?.testResult;
+    const secondaryVerificationStale = !!secondaryConfig?.verified && !!secondaryTest?.ok && (
+      !secondaryPreset ||
+      secondaryTest.verificationFingerprint !== await createProviderVerificationFingerprint(
+        { slotId, ...secondaryConfig },
+        secondaryPreset.requiresKey ? await loadApiKey(slotId, secondaryPreset.id, 'secondary') : ''
+      ) ||
+      now - secondaryTest.testedAt >= CONNECTION_VERIFICATION_TTL_MS
+    );
+    const staleAccounts = [
+      primaryVerificationStale ? `API 1 (${selectedPreset.name})` : '',
+      secondaryVerificationStale && secondaryPreset ? `API 2 (${secondaryPreset.name})` : ''
+    ].filter(Boolean);
+    const reason = staleAccounts.length
+      ? `${staleAccounts.join(' and ')} verification expired or no longer matches the saved key/provider/model/voice. Re-test the affected API in Settings → Voice/TTS. ${getProviderVerificationInstructions(slotId)}`
+      : `Provider has not passed a successful test. ${getProviderVerificationInstructions(slotId)}`;
     return {
       slotId,
       providerId: offlinePreset.id,
       providerName: offlinePreset.name,
       tier: 3,
       label: 'Basic offline',
-      detailLabel: 'Basic offline (Provider not verified — save settings and pass the test)',
+      detailLabel: `Basic offline (${reason})`,
       isFallback: true,
-      reason: `Provider has not passed a successful test. ${getProviderVerificationInstructions(slotId)}`
+      reason
     };
   }
 
