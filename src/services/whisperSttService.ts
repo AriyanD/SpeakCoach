@@ -675,7 +675,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
       const words = cleanOffline
         ? buildSpokenTokensFromTranscript(cleanOffline, params.durationMs, validOfflineConf, params.languageCode ?? 'en')
         : [];
-      return { transcript: cleanOffline, words, error: providerFailureMessage || (cleanOffline ? undefined : 'No speech was recognized by the online provider or device recognizer. Please retry or use the offline recognizer.') };
+      return { transcript: cleanOffline, words, error: providerFailureMessage || 'Online speech API is not verified or its 30-day verification expired. Re-test the provider, or retry with the device recognizer.' };
     }
   );
   const usedPreset = getPreset(usedSlotId, usedProviderId);
