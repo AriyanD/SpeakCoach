@@ -20,11 +20,12 @@ export async function getSlotAccountReadiness(
 ): Promise<SlotAccountReadiness> {
   if (!networkMonitor.isOnline()) return { usable: false, reason: 'the device is offline. Connect to the internet and try again.' };
   const all = await loadAllSlotsConfig();
-  const saved = account === 'primary' ? all[slotId] : all[slotId].secondary;
-  if (!saved) return { usable: false, reason: account === 'primary' ? 'no provider is configured. Choose a provider in Settings.' : 'no API 2 provider is configured.' };
+  const primaryConfig = all[slotId];
+  const secondaryConfig = all[slotId].secondary;
+  if (account === 'secondary' && !secondaryConfig) return { usable: false, reason: 'no API 2 provider is configured.' };
   const config: SlotConfig = account === 'primary'
-    ? saved
-    : { slotId, ...saved };
+    ? primaryConfig
+    : { slotId, ...secondaryConfig! };
   const preset = getPreset(slotId, config.providerId);
   const label = account === 'primary' ? 'API 1' : 'API 2';
   if (preset.tier === 3) return { usable: false, reason: 'this account uses the offline provider and cannot perform online IELTS evaluation.', config };
@@ -43,8 +44,8 @@ export async function getSlotAccountReadiness(
     if (!fingerprint || test.verificationFingerprint !== fingerprint) return { usable: false, reason: 'the saved verification no longer matches the API key, model or URL. Run Test API 1 again in Settings.', config };
     if (Date.now() - test.timestamp >= CONNECTION_VERIFICATION_TTL_MS) return { usable: false, reason: 'the connection test expired (older than 30 days). Open Settings > API 1 and run Test again.', config };
   } else {
-    const test = saved.testResult;
-    if (!saved.verified || !test?.ok) return { usable: false, reason: test?.message ? `the connection test did not pass: ${test.message} Open Settings > API 2 and run Test again.` : 'API 2 is configured but not verified. Open Settings > API 2 and run Test again.', config };
+    const test = secondaryConfig?.testResult;
+    if (!secondaryConfig?.verified || !test?.ok) return { usable: false, reason: test?.message ? `the connection test did not pass: ${test.message} Open Settings > API 2 and run Test again.` : 'API 2 is configured but not verified. Open Settings > API 2 and run Test again.', config };
     const fingerprint = await createProviderVerificationFingerprint(config, key);
     if (!fingerprint || !test.verificationFingerprint || test.verificationFingerprint !== fingerprint) return { usable: false, reason: 'the saved verification no longer matches the API key, model or URL. Run Test API 2 again in Settings.', config };
     if (Date.now() - test.testedAt >= CONNECTION_VERIFICATION_TTL_MS) return { usable: false, reason: 'the connection test expired (older than 30 days). Open Settings > API 2 and run Test again.', config };
