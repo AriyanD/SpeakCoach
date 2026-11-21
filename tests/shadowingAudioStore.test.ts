@@ -5,7 +5,8 @@ import {
   getActiveShadowingAudioSet,
   persistActiveShadowingAudio,
   readActiveShadowingAudio,
-  resetShadowingAudioStoreForTests
+  resetShadowingAudioStoreForTests,
+  selectActiveSetAudioEvictions
 } from '../src/services/shadowingAudioStore';
 
 describe('durable active-set AI audio store', () => {
@@ -65,4 +66,15 @@ describe('durable active-set AI audio store', () => {
     await expect(readActiveShadowingAudio('generated')).resolves.toBeNull();
     expect(localStorage.getItem('speakcoach.user-recording.fixture')).toBe('user-recording');
   });
+  it('evicts slow/replay extras before sentence audio and never selects sentence entries', () => {
+    const entries = [
+      { hash: 'sentence-1', size: 60, createdAt: 1, kind: 'sentence' as const },
+      { hash: 'slow-1', size: 30, createdAt: 2, kind: 'extra' as const },
+      { hash: 'word-1', size: 25, createdAt: 3, kind: 'extra' as const },
+      { hash: 'sentence-2', size: 50, createdAt: 4, kind: 'sentence' as const }
+    ];
+    expect(selectActiveSetAudioEvictions(entries, 40, 170)).toEqual(['slow-1']);
+    expect(selectActiveSetAudioEvictions(entries, 100, 170)).toEqual(['slow-1', 'word-1']);
+  });
+
 });
