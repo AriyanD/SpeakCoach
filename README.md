@@ -16,11 +16,15 @@
 
 <img src="docs/screenshots/overview-light.png" alt="SpeakCoach screens: Shadowing, IELTS, history and settings" width="100%">
 
-### ☕ [If SpeakCoach helps you, buy me a coffee](https://www.coffeebede.com/ariyand)
+<br>
+
+<a href="https://www.coffeebede.com/ariyand"><img src="https://img.shields.io/badge/%E2%98%95_Buy_me_a_coffee-B45309?style=for-the-badge" alt="Buy me a coffee" height="52"></a>
+
+<sub>SpeakCoach is free, has no server and no subscription. If it helps your practice, a coffee keeps it going. 💜</sub>
 
 </div>
 
-> Screenshots were captured from the app UI with **clearly fictional sample data** (sample question sets and one sample result). No real provider or account is shown.
+> Screenshots were captured from the app UI with **clearly fictional sample data** (sample question sets and one sample IELTS result). The Shadowing score was produced with simulated speech-recognition output and no provider connected. No real provider or account is shown.
 
 ## What is SpeakCoach?
 
@@ -35,15 +39,17 @@ There is **no SpeakCoach server and no subscription**. You connect your own AI p
 
 ### Shadowing
 - Built-in multilingual sentence library by **language**, **topic** and **difficulty** (Easy / Medium / Hard).
-- **AI-generated sentences** on demand, optionally on a topic you choose.
-- Playback with **speed control**, word-by-word alignment and timing, and replay of your own recording where available.
+- **AI-generated sentence sets** (20 sentences) on demand, optionally on a topic you choose, with a **history** you can step back through.
+- Playback with **speed control** (normal and 0.72×), word-by-word alignment and timing, and replay of your own recording where available.
+- A **compact score strip** right under the Record button: overall score, colour-coded word chips (tap a word to hear it) and details below.
 - Approximate scores for pronunciation, fluency, pace and completeness, with weak words highlighted for a quick retry.
+- **Fast replays:** AI voice audio for the active set is saved on your phone, so sentences you already heard play again instantly, even after restarting the app. Upcoming sentences are fetched in the background in groups of four as you progress (can be switched off in Settings to save quota).
 
 ### IELTS Speaking
 - Modes: **Full test, Part 1, Part 2, Part 3**.
 - **AI-generated question sets** (optional topic or random topic), reusable and restorable, with an undo for the last generation.
 - Part 2 **preparation countdown and notes**.
-- **History and trends**, per-criterion feedback, corrections, vocabulary upgrades, and **re-evaluation** with a chosen provider.
+- **History and trends**, per-criterion feedback, corrections, vocabulary upgrades, and **re-evaluation** with Automatic, API 1 only or API 2 only. A failed re-evaluation shows its reason on the spot and never overwrites a score you already have.
 - Interrupted sessions keep your answers so you can retry evaluation later.
 
 ### Flexible AI, with fallbacks
@@ -57,6 +63,8 @@ Six independent provider slots, each with its own configuration and **API 1 → 
 | IELTS Evaluator | Fluency, Lexical Resource, Grammar feedback | None – answers are saved for retry |
 | Question & Sentence Generator | Creates IELTS sets and shadowing sentences | Previously generated sets stay available |
 | Shadowing Translator | Translates the current Shadowing sentence and selected words | No offline translation; configure an online provider |
+
+API 2 is an **opt-in backup account** per slot. A connection test is tied to the exact provider, endpoint, model/voice and key, and stays valid for 30 days; when an API needs a re-test, is cooling down after a rate limit, or the app falls back to the offline tier, SpeakCoach tells you why instead of failing silently. **Settings → Backup & Restore → Test all APIs** re-tests every configured account in one go and saves a slot only when all its configured online accounts pass.
 
 Supported provider types include OpenAI-compatible endpoints, custom OpenAI-compatible gateways, Azure, ElevenLabs, Google Gemini, Whisper-style transcription (for example Groq) and Android's built-in speech services.
 
@@ -72,6 +80,7 @@ Supported provider types include OpenAI-compatible endpoints, custom OpenAI-comp
 - API keys are stored with **Android Keystore (AES-GCM)** and are never silently downgraded to plaintext.
 - Android automatic cloud backup is disabled; use the manual backup instead.
 - Microphone and TTS are released when the app goes to the background.
+- Saved AI voice audio is a device-local cache for the active sentence set only (budgeted at roughly 30 MB); it is replaced when you switch sets, is never included in backups, and your own microphone recordings are never stored in it.
 
 ## Honest limitations
 
@@ -95,7 +104,7 @@ Requires Android 6.0 (API 23) or newer. Android 5.1 (API 22) and older are not s
 ## Quick start
 
 1. **Get an API key.** Free-tier friendly options: [Google AI Studio](https://aistudio.google.com/app/apikey) (Gemini) and [Groq](https://console.groq.com/keys) (Whisper transcription).
-2. In **Settings**, configure each of the **six slots separately**: choose its provider, enter its API key (and Base URL/model when required), tap **Test**, then **Save**. The six slots are Voice/TTS, Shadowing analysis, IELTS Speech-to-Text, IELTS Evaluator, Question & Sentence Generator, and **Shadowing Translator**. The translator has its own independent API configuration; set it up too if you want sentence/word translation. You can configure API 2 as a fallback inside each slot.
+2. In **Settings**, configure each of the **six slots separately**: choose its provider, enter its API key (and Base URL/model when required), tap **Test**, then **Save**. The six slots are Voice/TTS, Shadowing analysis, IELTS Speech-to-Text, IELTS Evaluator, Question & Sentence Generator, and **Shadowing Translator**. The translator has its own independent API configuration; set it up too if you want sentence/word translation. You can enable API 2 as a fallback inside each slot. After restoring a backup, or when a test is older than 30 days, use **Settings → Backup & Restore → Test all APIs** to re-check everything at once.
 3. **Shadowing:** pick a topic and level, listen, then record yourself.
 4. **IELTS:** tap *Get new question sets*, choose a mode and start practising. Review the feedback in *Test History*.
 
@@ -133,16 +142,34 @@ TypeScript · vanilla DOM UI · Vite · Capacitor 6 (Android) · Vitest · GitHu
 |:--:|:--:|:--:|
 | <img src="docs/screenshots/light-01-language.png" width="240" alt="Language selection"> | <img src="docs/screenshots/light-02-setup-guide.png" width="240" alt="Setup guide"> | <img src="docs/screenshots/light-03-shadowing.png" width="240" alt="Shadowing Trainer"> |
 
-| IELTS | Test history (sample) | Settings |
+| Shadowing score | IELTS | Test history (sample) |
 |:--:|:--:|:--:|
-| <img src="docs/screenshots/light-04-ielts.png" width="240" alt="IELTS Speaking"> | <img src="docs/screenshots/light-05-ielts-history.png" width="240" alt="IELTS history with sample result"> | <img src="docs/screenshots/light-06-settings.png" width="240" alt="AI provider settings"> |
+| <img src="docs/screenshots/light-03b-shadowing-result.png" width="240" alt="Shadowing practice with word-level score"> | <img src="docs/screenshots/light-04-ielts.png" width="240" alt="IELTS Speaking with question sets"> | <img src="docs/screenshots/light-05-ielts-history.png" width="240" alt="IELTS history with sample result and re-evaluation"> |
+
+| Settings | Backup & Test all APIs |
+|:--:|:--:|
+| <img src="docs/screenshots/light-06-settings.png" width="240" alt="AI provider settings"> | <img src="docs/screenshots/light-07-settings-backup.png" width="240" alt="Backup and restore with Test all APIs"> |
 
 <details>
 <summary>Dark theme</summary>
 
 <img src="docs/screenshots/overview-dark.png" alt="SpeakCoach in dark theme" width="100%">
 
+| Shadowing | Shadowing score | Backup & Test all APIs |
+|:--:|:--:|:--:|
+| <img src="docs/screenshots/dark-03-shadowing.png" width="240" alt="Shadowing Trainer, dark theme"> | <img src="docs/screenshots/dark-03b-shadowing-result.png" width="240" alt="Shadowing score, dark theme"> | <img src="docs/screenshots/dark-07-settings-backup.png" width="240" alt="Backup and Test all APIs, dark theme"> |
+
 </details>
+
+## Support the project ☕
+
+SpeakCoach is free and built in spare time. If it helps your practice and you would like to support further development:
+
+<p align="center">
+  <a href="https://www.coffeebede.com/ariyand"><img src="https://img.shields.io/badge/%E2%98%95_Buy_me_a_coffee-B45309?style=for-the-badge" alt="Buy me a coffee" height="52"></a>
+</p>
+
+Support is entirely optional. Starring the repository, reporting bugs and sharing the app with a friend help just as much. 💜
 
 ## License
 
