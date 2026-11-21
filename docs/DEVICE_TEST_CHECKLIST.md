@@ -65,6 +65,7 @@ These checks require a real Android device. CI unit tests and APK compilation do
 - [ ] Simulate HTTP 400/401/403/404 for API 1 and confirm it is marked Needs re-test and skipped while a healthy API 2 can still be used. Confirm the status survives force-close/relaunch.
 - [ ] Simulate HTTP 429 with Retry-After; confirm that account is skipped until the cooldown expires, without blocking a healthy alternate account.
 - [ ] Background and resume Shadowing after prefetch completes; confirm still-valid prefetched audio is reused rather than generated again. Change language/sentence set and confirm old entries are discarded.
+- [ ] Change the TTS provider, model/voice, or API key in Settings; confirm previously prefetched audio and queued work are invalidated before the next playback.
 - [ ] On a slow connection, confirm interactive Gemini TTS times out sooner than the explicit connection test. Confirm an unsupported Gemini language/model failure is not repeated for every sentence during the same app session.
 - [ ] Play long Hard sentences while prefetch is enabled; confirm ordinary playback cache activity does not evict the reserved prefetched-audio budget.
 
