@@ -9,6 +9,7 @@ import {
 } from '../config/providers';
 import type { AllSlotsConfig, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
 import { clearAllRuntimeFailures, clearSlotRuntimeFailure } from '../services/tierManager';
+import { clearProviderAccountHealth, createProviderVerificationFingerprint } from '../services/providerHealth';
 import { createProviderVerificationFingerprint } from '../services/providerHealth';
 
 const SLOTS_CONFIG_KEY = 'speakcoach.slots.config.v1';
