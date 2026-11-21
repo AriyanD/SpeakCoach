@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { clearAllProviderAccountHealth } from '../src/services/providerHealth';
 import type { SlotConfig, SlotId } from '../src/config/types';
 import { getPreset } from '../src/config/providers';
 import { requestAzurePronunciationAssessment, transcribeWithTier2WhisperOrFallback } from '../src/services/whisperSttService';
@@ -20,8 +21,9 @@ const primaryConfig: SlotConfig = {
 };
 
 describe('Per-slot secondary API fallback', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await clearAllProviderAccountHealth();
   });
 
   const slotFallbackCases: Array<{
