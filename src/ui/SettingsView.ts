@@ -273,7 +273,7 @@ export async function renderSettingsView(
                 <span>${escapeHtml(preset.name)}</span><span class="provider-picker-chevron">⌄</span>
               </button>
               <div class="provider-picker-options" id="provider-options-${slotId}" hidden>
-                <p class="card-subtitle provider-picker-help">After selecting a provider and adding its API key, tap <strong>Test API 1</strong> below. Wait for a successful result before using online features. Test API 2 separately for a secondary provider.</p>
+                <p class="card-subtitle provider-picker-help">After selecting a provider and adding its API key, tap <strong>Test API 1</strong> below. Wait for a successful result before using online features.</p>
                 ${def.providers.map((p) => `<button type="button" class="provider-picker-option ${p.id === preset.id ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
               </div>
             </div>
@@ -448,7 +448,7 @@ export async function renderSettingsView(
           <p class="card-subtitle secondary-api-help">Use a separate provider or account for backup. The same gateway and model may not provide an independent fallback. TTS requires text → audio; STT requires audio → text.</p>
           ${secondarySameModelAsPrimary ? `<div class="status-box info" role="note"><strong>API 2 uses the same provider and model as API 1.</strong> It may still have a separate key or quota, but it is not a different model or an independent model capability.</div>` : ''}
           <div class="form-grid">
-            <div class="form-field"><label class="form-label" for="secondary-provider-${slotId}">Secondary provider</label>
+            <div class="form-field"><label class="form-label" for="secondary-provider-${slotId}">Provider</label>
               <select class="form-select provider-native-select" id="secondary-provider-${slotId}" aria-hidden="true" tabindex="-1">
                 <option value="">Not configured</option>
                 ${def.providers.filter((p) => p.tier !== 3).map((p) => `<option value="${escapeHtml(p.id)}" ${slotCfg.secondary?.providerId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
@@ -461,32 +461,32 @@ export async function renderSettingsView(
                 </div>
               </div>
             </div>
-            <div class="form-field"><label class="form-label" for="secondary-baseurl-${slotId}">Secondary Base URL</label>
+            <div class="form-field"><label class="form-label" for="secondary-baseurl-${slotId}">Base URL</label>
               <input type="url" class="form-input" id="secondary-baseurl-${slotId}" value="${escapeHtml(slotCfg.secondary?.baseUrl || secondaryPreset?.defaultBaseUrl || '')}" placeholder="https://api.example.com/v1" /></div>
             <div class="form-field">
               <div class="settings-field-heading">
-                <label class="form-label" for="secondary-model-${slotId}">Secondary model / voice</label>
-                ${slotId === 'voice_tts' ? '' : `<button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-models-btn-${slotId}">Fetch API 2 models</button>`}
+                <label class="form-label" for="secondary-model-${slotId}">Model / voice</label>
+                ${slotId === 'voice_tts' ? '' : `<button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-models-btn-${slotId}">Fetch models</button>`}
               </div>
               <input type="text" class="form-input" id="secondary-model-${slotId}" value="${escapeHtml(slotCfg.secondary?.modelOrVoice ?? '')}" placeholder="${escapeHtml(secondaryPreset?.defaultModelOrVoice ?? 'Model name')}" />
               ${secondaryIsCustom ? `<p class="card-subtitle">Custom API 2 model ID is free text; suggestions do not limit what you can enter. Use the exact ID and audio endpoint supported by that gateway.</p>` : ''}
-              ${slotId === 'voice_tts' ? '' : `<div class="model-picker-dropdown"><button type="button" class="model-picker-trigger" aria-expanded="false">Browse API 2 models</button><div class="model-picker-options" id="secondary-models-list-${slotId}" hidden></div></div><div id="fetch-secondary-models-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>`}
+              ${slotId === 'voice_tts' ? '' : `<div class="model-picker-dropdown"><button type="button" class="model-picker-trigger" aria-expanded="false">Browse available models</button><div class="model-picker-options" id="secondary-models-list-${slotId}" hidden></div></div><div id="fetch-secondary-models-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>`}
             </div>
             ${slotId === 'voice_tts' ? `<div class="form-field" id="secondary-tts-voice-container-${slotId}" style="${secondaryPreset && secondaryPreset.id !== 'android_native_tts' ? '' : 'display:none;'}">
               <label class="form-label" for="secondary-custom-voice-${slotId}">API 2 voice (choose from the available list or enter a custom name)</label>
               <input type="text" class="form-input" id="secondary-custom-voice-${slotId}" value="${escapeHtml(slotCfg.secondary?.customTtsVoice ?? '')}" placeholder="Choose or enter a voice name" autocomplete="off" />
               <div class="voice-picker-dropdown">
-                <div class="btn-row"><button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-voices-btn-${slotId}">Load API 2 voices</button><button type="button" class="btn btn-secondary" id="preview-secondary-voice-btn-${slotId}">Preview API 2 voice</button></div>
+                <div class="btn-row"><button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-voices-btn-${slotId}">Load available voices</button><button type="button" class="btn btn-secondary" id="preview-secondary-voice-btn-${slotId}">Preview voice</button></div>
                 <div class="model-picker-options" id="secondary-voices-list-${slotId}" hidden></div>
                 <div id="preview-secondary-voice-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
                 <div id="fetch-secondary-voices-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
               </div>
             </div>` : ''}
-            <div class="form-field"><label class="form-label" for="secondary-key-${slotId}">API Key (${keyStorageLabel}) — API 2</label>
+            <div class="form-field"><label class="form-label" for="secondary-key-${slotId}">API Key (${keyStorageLabel})</label>
               <input type="password" class="form-input" id="secondary-key-${slotId}" value="" autocomplete="off" placeholder="${secondaryKeysBySlot[slotId] ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.' : 'Enter second API key'}" /></div>
             ${secondaryCopyKeyOptionsHtml ? `
             <div class="form-field">
-              <label class="form-label" for="secondary-copy-key-source-${slotId}">Copy API key from another slot</label>
+              <label class="form-label" for="secondary-copy-key-source-${slotId}">Or copy from</label>
               <div class="settings-copy-key">
                 <select class="form-select provider-native-select" id="secondary-copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${secondaryCopyKeyOptionsHtml}</select>
                 <div class="provider-picker copy-key-provider-picker" id="secondary-copy-key-picker-${slotId}">
