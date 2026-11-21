@@ -43,11 +43,22 @@ These checks require a real Android device. CI unit tests and APK compilation do
 
 ## 5. Shadowing and visual regression
 - [ ] Test normal Play, Slow Play, Record, Stop & Score, retry, and weak-word practice; verify visible loading/pressed states and no double actions.
+- [ ] Confirm Stop immediately ends both normal and slow model playback; pressing Play afterwards starts the sentence from the beginning.
+- [ ] Confirm Slow Play requests a separately generated slow version of the selected sentence and does not prefetch other sentences.
+- [ ] Confirm TTS prefetch starts only after the first normal-play/record action, initially queues up to four upcoming sentences, and queues the next batch only after two distinct sentences have been successfully practised and scored.
+- [ ] Change language or sentence set while prefetch is queued; verify stale queued batches are discarded and do not generate audio for the previous set.
+- [ ] Check that failed prefetch does not lock playback to offline TTS; pressing Play on that sentence should attempt online TTS again before falling back.
+- [ ] Monitor provider usage/quota and memory on a long session; confirm prefetched audio is RAM-only and remains within the bounded cache.
+- [ ] In Settings, preview multiple voices and confirm previews play correctly without creating persistent audio-cache entries.
 - [ ] Confirm Tier 2/3 feedback is labelled as word-match/timing guidance, not phoneme-level pronunciation assessment.
 - [ ] Check light, dark and system themes on a narrow phone and a larger phone.
 - [ ] Check keyboard-open layout, landscape, large system font, reduced motion, safe areas, and bottom navigation.
 
-## 6. Android Back navigation and bottom navigation
+## 6. Android minimum-version and update compatibility
+- [ ] On Android 6.0 (API 23), install the current APK and verify the app launches, saves settings, records audio, and installs a later signed update.
+- [ ] On Android 5.1 (API 22), verify the current release is not offered as an installable update; the platform cannot install an APK whose minimum SDK is 23. Confirm release notes clearly state Android 6.0+ is required.
+
+## 7. Android Back navigation and bottom navigation
 - [ ] From Diagnostics, press Back; confirm the Settings root is restored at the top. Press Back again; confirm “Press back again to exit.” appears. Press Back once more within two seconds; confirm the app exits.
 - [ ] Repeat the root-to-exit sequence from the IELTS root and Shadowing root independently.
 - [ ] In IELTS, open History and a result; verify Back follows result → history → IELTS test menu, one page per press.
