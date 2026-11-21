@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearAllProviderAccountHealth } from '../src/services/providerHealth';
 import { testSlotConnection } from '../src/services/connectionTester';
 import { base64ToUint8Array, convertPcmBase64ToWavDataUrl, wrapPcm16LeToWavBytes } from '../src/services/pcmWavHelper';
 import { saveApiKey } from '../src/storage/keyStore';
@@ -13,8 +14,9 @@ import {
 import type { HttpOptions, HttpResponse } from '@capacitor/core';
 
 describe('Gemini TTS Adapter & PCM-to-WAV Conversion (Task F6)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await clearAllProviderAccountHealth();
     clearAllRuntimeFailures();
     networkMonitor.setOnline(true);
     stopAllTts();
