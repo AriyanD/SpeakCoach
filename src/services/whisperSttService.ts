@@ -670,6 +670,10 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   language: toWhisperLanguageCode(params.languageLocale ?? `${params.languageCode ?? 'en'}-US`),
                   transport: params.transport
                 });
+          if (!res.transcript.trim()) {
+            errors.push(`${candidateSlotId}/${candidate.account} (${candidateCfg.providerId}): the provider returned an empty transcription.`);
+            continue;
+          }
           await clearProviderAccountHealth(candidateSlotId, candidate.account);
           usedSlotId = candidateSlotId;
           usedProviderId = candidateCfg.providerId;
