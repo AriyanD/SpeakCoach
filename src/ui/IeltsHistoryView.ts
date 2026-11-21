@@ -283,8 +283,15 @@ export async function renderIeltsHistoryView(
             if (inlineStatus) { inlineStatus.className = 'status-box pass history-reevaluation-status'; inlineStatus.textContent = 'Re-evaluation completed.'; }
           } else {
             const updated = await retryIeltsEvaluation(rec, undefined, { providerChoice });
-            if (inlineStatus) { inlineStatus.className = 'status-box pass history-reevaluation-status'; inlineStatus.textContent = `Re-evaluated successfully with ${providerChoice === 'secondary' ? 'API 2' : providerChoice === 'primary' ? 'API 1' : (updated.evaluation?.activeTier?.detailLabel || 'the selected provider')}.`; }
-            callbacks.onSelectResult(updated);
+            await refresh();
+            const refreshedCard = Array.from(container.querySelectorAll<HTMLElement>('.ielts-history-record'))
+              .find(card => card.dataset.recordId === id);
+            const refreshedStatus = refreshedCard?.querySelector<HTMLElement>('.history-reevaluation-status');
+            if (refreshedStatus) {
+              refreshedStatus.hidden = false;
+              refreshedStatus.className = 'status-box pass history-reevaluation-status';
+              refreshedStatus.textContent = `Re-evaluated successfully with ${providerChoice === 'secondary' ? 'API 2' : providerChoice === 'primary' ? 'API 1' : (updated.evaluation?.activeTier?.detailLabel || 'the selected provider')}.`;
+            }
           }
         } catch (error) {
           btn.disabled = false;
