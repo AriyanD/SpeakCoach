@@ -173,7 +173,7 @@ export async function synthesizeOnlineNeuralAudio(
   } catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number((error as { status?: unknown }).status) : undefined;
     if (slotCfg.providerId === 'gemini_tts' && (status === 400 || status === 404)) {
-      geminiLanguageFailures.set(languageFailureKey, error instanceof Error ? error.message : String(error));
+      geminiLanguageFailures.set(languageFailureKey, { message: error instanceof Error ? error.message : String(error), expiresAt: Date.now() + GEMINI_LANGUAGE_FAILURE_TTL_MS });
     }
     throw error;
   } finally {
