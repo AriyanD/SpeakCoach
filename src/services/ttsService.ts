@@ -10,7 +10,7 @@ import { buildCustomEndpointRequest, buildGeminiEndpointRequest } from './custom
 import { runWithSlotApiFallback } from './apiFallback';
 import { convertPcmBase64ToWavDataUrl } from './pcmWavHelper';
 import { countShadowingLanguageUnits } from '../data/shadowingLanguages';
-import { readActiveShadowingAudio, persistActiveShadowingAudio, markActiveSetAudioPlaying, releaseActiveSetAudioPlaying } from './shadowingAudioStore';
+import { getActiveShadowingAudioSet, readActiveShadowingAudio, persistActiveShadowingAudio, markActiveSetAudioPlaying, releaseActiveSetAudioPlaying } from './shadowingAudioStore';
 import { getElevenLabsLanguageCode, normalizeSpeechLocale } from './shadowingSpeechLanguage';
 
 export interface SpeakResult {
@@ -193,7 +193,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
   bypassCache = false,
   requestTimeoutMs = 15000,
   setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
-): Promise<{ dataUrl: string; fromCache: boolean }> {
+): Promise<{ dataUrl: string; fromCache: boolean; cacheHash: string }> {
   const accountFingerprint = await createAudioCacheAccountFingerprint(apiKey);
   // If Web Crypto is unavailable, synthesize normally but bypass cache so
   // audio from separate provider accounts can never share a cache namespace.
@@ -647,6 +647,10 @@ export async function speakSentenceWithTierFallback(
       usedProviderConfig.current = { config: attempt.config, account: attempt.account };
       const { dataUrl, fromCache, cacheHash } = attempt.result;
       activeSetAudioHash = cacheHash;
+      if (options?.shadowingSetAudio) {
+        const activeSet = await getActiveShadowingAudioSet();
+        if (activeSet.setId !== options.shadowingSetAudio.setId || activeSet.generation !== options.shadowingSetAudio.generation) return true;
+      }
       if (activePlaybackGeneration !== playbackGeneration) {
         // Playback was cancelled while network request was pending
         return true;
