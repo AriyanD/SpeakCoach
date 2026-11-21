@@ -3,7 +3,7 @@ import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { APP_VERSION } from '../config/appVersion';
 import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
-import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult, testSlotAccountsSequentially, shouldPersistSlotVerification } from '../services/connectionTester';
+import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult, testSlotAccountsSequentially, shouldPersistSlotVerification, describeConnectionTestFailure } from '../services/connectionTester';
 import { networkMonitor } from '../services/networkMonitor';
 import { getProviderAccountHealth } from '../services/providerHealth';
 import { isOnlineProviderVerified } from '../services/slotConnectionStatus';
@@ -1572,7 +1572,7 @@ export async function renderSettingsView(
           }
         } else {
           notSavedSlots += 1;
-          const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} failed: ${escapeHtml(redactKeys(item.result.message))}`).join(' · ');
+          const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} failed: ${escapeHtml(redactKeys(describeConnectionTestFailure(item.result)))}`).join(' · ');
           reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Not saved</strong>. ${reasons}. Previous verification preserved.</li>`);
         }
 
@@ -1592,14 +1592,14 @@ export async function renderSettingsView(
           primaryStatus.style.display = '';
           const result = tested.find(item => item.account === 'primary')!.result;
           primaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
-          primaryStatus.textContent = `API 1: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.message)} · Tested: ${new Date().toLocaleTimeString()}`;
+          primaryStatus.textContent = `API 1: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
         }
         const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
         if (secondaryStatus && tested.some(item => item.account === 'secondary')) {
           secondaryStatus.style.display = '';
           const result = tested.find(item => item.account === 'secondary')!.result;
           secondaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
-          secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.message)} · Tested: ${new Date().toLocaleTimeString()}`;
+          secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
         }
         for (const account of ['primary', 'secondary'] as const) {
           if (tested.some(item => item.account === account)) continue;
