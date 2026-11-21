@@ -100,6 +100,13 @@ describe('Per-slot secondary API fallback', () => {
       verified: true, testResult: { ok: true, latencyMs: 1, message: 'PASS', testedAt: Date.now() } as any
     });
     expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/fingerprint/i);
+    const secondaryConfig = { slotId: 'llm_evaluator' as const, providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice };
+    const currentFingerprint = await createProviderVerificationFingerprint(secondaryConfig, 'secondary-key');
+    await saveSecondarySlotConfig('llm_evaluator', {
+      providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice,
+      verified: true, testResult: { ok: true, latencyMs: 1, message: 'PASS', verificationFingerprint: currentFingerprint } as any
+    });
+    expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/timestamp|expired/i);
   });
 
   it('reports network offline as an actionable readiness failure', async () => {
