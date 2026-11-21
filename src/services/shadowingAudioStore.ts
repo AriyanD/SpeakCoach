@@ -152,6 +152,27 @@ async function reconcile(): Promise<void> {
   }
   await writeIndex();
 }
+async function removeOrphanSetFiles(): Promise<void> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const rootListing = await Filesystem.readdir({ path: ROOT, directory: Directory.Data });
+      for (const item of rootListing.files ?? []) {
+        if (item.type === 'directory') {
+          try { await Filesystem.rmdir({ path: `${ROOT}/${item.name}`, directory: Directory.Data, recursive: true }); } catch { /* best-effort cleanup */ }
+        }
+      }
+    } catch { /* root directory may not exist */ }
+  } else if (typeof localStorage !== 'undefined') {
+    const prefix = `speakcoach.shadowing.audio.${ROOT}/`;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  }
+}
+
 async function ensureInitialized(): Promise<void> {
   if (!initialization) {
     initialization = (async () => {
@@ -161,7 +182,11 @@ async function ensureInitialized(): Promise<void> {
       index = storedIndex && storedIndex.setId === activeSetId ? storedIndex : null;
       if (storedIndex && storedIndex.setId !== activeSetId) await removeSetFiles(storedIndex.setId, storedIndex.entries);
       if (activeSetId && !index) index = { setId: activeSetId, entries: [] };
-      await reconcile();
+      if (activeSetId) await reconcile();
+      else {
+        await removeOrphanSetFiles();
+        await Preferences.remove({ key: INDEX_KEY });
+      }
     })().catch(error => { initialization = null; throw error; });
   }
   await initialization;
