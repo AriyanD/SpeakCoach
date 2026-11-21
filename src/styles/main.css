@@ -3964,3 +3964,29 @@ body {
   line-height: 1.15;
   text-align: center;
 }
+
+
+/* Keep the Shadowing performance toggle at the edge, not in the copy column. */
+.settings-shadowing-performance-card .appearance-setting {
+  grid-template-columns: minmax(0, 1fr) max-content;
+  column-gap: 14px;
+}
+.settings-shadowing-performance-card .appearance-setting > .form-label[for="shadowing-prefetch-enabled"] {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 7px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* The Sentence set title must remain intact while its status text can wrap. */
+.sh-sentence-set-heading h2 {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.sh-sentence-set-summary {
+  flex: 1 1 0%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
