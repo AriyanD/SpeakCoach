@@ -119,4 +119,22 @@ describe('durable active-set AI audio store', () => {
     expect(localStorage.getItem(orphanKey)).toBeNull();
   });
 
+
+  it('does not delete a replacement entry written under the same set while old audio is still playing', async () => {
+    const setId = 'en:easy:playing-replacement';
+    const generation = await activateShadowingAudioSet(setId);
+    await persistActiveShadowingAudio({
+      setId, generation, hash: 'same-hash', dataUrl: 'old-audio', kind: 'sentence'
+    });
+    markActiveSetAudioPlaying(setId, 'same-hash');
+    await clearActiveShadowingAudioStore();
+    const current = await getActiveShadowingAudioSet();
+    await persistActiveShadowingAudio({
+      setId, generation: current.generation, hash: 'same-hash',
+      dataUrl: 'replacement-audio', kind: 'sentence'
+    });
+    await releaseActiveSetAudioPlaying(setId, 'same-hash');
+    await expect(readActiveShadowingAudio('same-hash', setId)).resolves.toBe('replacement-audio');
+  });
+
 });
