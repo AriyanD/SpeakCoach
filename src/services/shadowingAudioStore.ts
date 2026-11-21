@@ -109,19 +109,23 @@ export async function releaseActiveSetAudioPlaying(setId: string, hash: string):
     const pending = deferredSetDeletes.get(setId);
     if (pending) {
       deferredSetDeletes.delete(setId);
-      await removeSetFiles(setId, pending);
+      await removeSetFiles(setId, pending, true);
     }
   }
 }
 
-async function removeSetFiles(setId: string, entries: Entry[]): Promise<void> {
-  for (const entry of entries) {
+async function removeSetFiles(setId: string, entries: Entry[], preserveCurrentEntries = false): Promise<void> {
+  const currentHashes = preserveCurrentEntries && index?.setId === setId
+    ? new Set(index.entries.map(entry => entry.hash))
+    : new Set<string>();
+  const obsoleteEntries = entries.filter(entry => !currentHashes.has(entry.hash));
+  for (const entry of obsoleteEntries) {
     await removeFile(entry.file);
     ram.delete(ramKey(setId, entry.hash));
     removeTtsAudioFromMemory(entry.hash);
   }
-  await removeTtsAudioCacheEntries(entries.map(entry => entry.hash));
-  if (Capacitor.isNativePlatform()) {
+  await removeTtsAudioCacheEntries(obsoleteEntries.map(entry => entry.hash));
+  if (Capacitor.isNativePlatform() && !(preserveCurrentEntries && index?.setId === setId && index.entries.length > 0)) {
     try { await Filesystem.rmdir({ path: `${ROOT}/${safeId(setId)}`, directory: Directory.Data, recursive: true }); } catch { /* empty or absent */ }
   }
 }
