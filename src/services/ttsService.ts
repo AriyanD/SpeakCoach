@@ -145,7 +145,15 @@ export async function synthesizeOnlineNeuralAudio(
   );
   inFlightAudioRequests.set(hash, request);
   try {
-    return await request;
+    const result = await request;
+    if (slotCfg.providerId === 'gemini_tts') geminiLanguageFailures.delete(languageFailureKey);
+    return result;
+  } catch (error) {
+    const status = error && typeof error === 'object' && 'status' in error ? Number((error as { status?: unknown }).status) : undefined;
+    if (slotCfg.providerId === 'gemini_tts' && (status === 400 || status === 404)) {
+      geminiLanguageFailures.set(languageFailureKey, error instanceof Error ? error.message : String(error));
+    }
+    throw error;
   } finally {
     if (inFlightAudioRequests.get(hash) === request) inFlightAudioRequests.delete(hash);
   }
