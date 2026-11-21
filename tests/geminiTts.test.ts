@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearAllProviderAccountHealth } from '../src/services/providerHealth';
+import { clearAllProviderAccountHealth, createProviderVerificationFingerprint } from '../src/services/providerHealth';
 import { testSlotConnection } from '../src/services/connectionTester';
 import { base64ToUint8Array, convertPcmBase64ToWavDataUrl, wrapPcm16LeToWavBytes } from '../src/services/pcmWavHelper';
 import { saveApiKey } from '../src/storage/keyStore';
@@ -429,16 +429,21 @@ describe('Gemini TTS Adapter & PCM-to-WAV Conversion (Task F6)', () => {
       modelOrVoice: 'gemini-3.8-flash-lite-tts'
     });
     await saveApiKey('voice_tts', 'gemini_tts', 'primary-tts-key');
+    const primaryConfig = { slotId: 'voice_tts' as const, providerId: 'gemini_tts', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', modelOrVoice: 'gemini-3.8-flash-lite-tts' };
+    const primaryFingerprint = await createProviderVerificationFingerprint(primaryConfig, 'primary-tts-key');
     await saveSlotConnectionTestResult('voice_tts', {
       ok: true, slotId: 'voice_tts', providerId: 'gemini_tts', tier: 1,
-      label: 'Online AI', latencyMs: 1, message: 'PASS — primary TTS'
+      label: 'Online AI', latencyMs: 1, message: 'PASS — primary TTS',
+      verificationFingerprint: primaryFingerprint ?? undefined
     });
+    const secondaryConfig = { slotId: 'voice_tts' as const, providerId: 'openai_tts', baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'tts-1:alloy' };
+    const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, 'secondary-tts-key');
     await saveSecondarySlotConfig('voice_tts', {
       providerId: 'openai_tts',
       baseUrl: 'https://api.openai.com/v1',
       modelOrVoice: 'tts-1:alloy',
       verified: true,
-      testResult: { ok: true, latencyMs: 1, message: 'PASS — secondary TTS', testedAt: Date.now() }
+      testResult: { ok: true, latencyMs: 1, message: 'PASS — secondary TTS', testedAt: Date.now(), verificationFingerprint: secondaryFingerprint ?? undefined }
     });
     await saveApiKey('voice_tts', 'openai_tts', 'secondary-tts-key', 'secondary');
 

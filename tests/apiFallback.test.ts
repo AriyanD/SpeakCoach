@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearAllProviderAccountHealth, createProviderVerificationFingerprint } from '../src/services/providerHealth';
+import { clearAllProviderAccountHealth, createProviderVerificationFingerprint, markProviderAccountFailure } from '../src/services/providerHealth';
 import type { SlotConfig, SlotId } from '../src/config/types';
 import { getPreset } from '../src/config/providers';
 import { requestAzurePronunciationAssessment, transcribeWithTier2WhisperOrFallback } from '../src/services/whisperSttService';
 import { generateProbeWavBase64 } from '../src/services/connectionTester';
-import { runWithSlotApiFallback } from '../src/services/apiFallback';
+import { getSlotAccountReadiness, runWithSlotApiFallback } from '../src/services/apiFallback';
+import { CONNECTION_VERIFICATION_TTL_MS } from '../src/services/tierManager';
+import { networkMonitor } from '../src/services/networkMonitor';
 import { saveApiKey } from '../src/storage/keyStore';
 import {
   loadAllSlotsConfig,
@@ -24,6 +26,7 @@ describe('Per-slot secondary API fallback', () => {
   beforeEach(async () => {
     localStorage.clear();
     await clearAllProviderAccountHealth();
+    networkMonitor.setOnline(true);
   });
 
   const slotFallbackCases: Array<{
@@ -38,6 +41,79 @@ describe('Per-slot secondary API fallback', () => {
     { slotId: 'llm_generator', primaryProviderId: 'gemini_gen', secondaryProviderId: 'openai_compat_gen' }
   ];
 
+
+  it('explains a missing API key and an unverified primary provider', async () => {
+    const preset = getPreset('llm_evaluator', 'gemini_eval');
+    const config: SlotConfig = { slotId: 'llm_evaluator', providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice };
+    await saveSlotConfig(config);
+    expect((await getSlotAccountReadiness('llm_evaluator', 'primary')).reason).toMatch(/API key is missing/i);
+    await saveApiKey('llm_evaluator', preset.id, 'test-key');
+    expect((await getSlotAccountReadiness('llm_evaluator', 'primary')).reason).toMatch(/has not passed a connection test/i);
+  });
+
+  it('explains fingerprint mismatch and expired 30-day verification', async () => {
+    const preset = getPreset('llm_evaluator', 'gemini_eval');
+    const config: SlotConfig = { slotId: 'llm_evaluator', providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice };
+    await saveSlotConfig(config);
+    await saveApiKey('llm_evaluator', preset.id, 'test-key');
+    await saveSlotConnectionTestResult('llm_evaluator', {
+      ok: true, slotId: 'llm_evaluator', providerId: preset.id, tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS', verificationFingerprint: 'stale-fingerprint'
+    });
+    expect((await getSlotAccountReadiness('llm_evaluator', 'primary')).reason).toMatch(/no longer matches/i);
+    const fingerprint = await createProviderVerificationFingerprint(config, 'test-key');
+    await saveSlotConnectionTestResult('llm_evaluator', {
+      ok: true, slotId: 'llm_evaluator', providerId: preset.id, tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS', verificationFingerprint: fingerprint ?? undefined,
+      timestamp: Date.now() - CONNECTION_VERIFICATION_TTL_MS - 1000
+    } as any);
+    expect((await getSlotAccountReadiness('llm_evaluator', 'primary')).reason).toMatch(/expired.*30 days/i);
+  });
+
+  it('reports needs-retest and cooldown with remaining seconds for a selected account', async () => {
+    const preset = getPreset('llm_evaluator', 'gemini_eval');
+    const config: SlotConfig = { slotId: 'llm_evaluator', providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice };
+    await saveSlotConfig(config);
+    await saveApiKey('llm_evaluator', preset.id, 'test-key');
+    await markProviderAccountFailure('llm_evaluator', 'primary', Object.assign(new Error('HTTP 401'), { status: 401 }));
+    expect((await getSlotAccountReadiness('llm_evaluator', 'primary')).reason).toMatch(/needs a new connection test/i);
+    await clearAllProviderAccountHealth();
+    await markProviderAccountFailure('llm_evaluator', 'primary', Object.assign(new Error('HTTP 429'), { status: 429 }));
+    expect((await getSlotAccountReadiness('llm_evaluator', 'primary')).reason).toMatch(/cooling down.*seconds/i);
+  });
+
+  it('explains API 2 when it is not configured or its saved verification is missing', async () => {
+    expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/no API 2 provider is configured/i);
+    const preset = getPreset('llm_evaluator', 'openai_compat_eval');
+    await saveSecondarySlotConfig('llm_evaluator', {
+      providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice, verified: false
+    });
+    await saveApiKey('llm_evaluator', preset.id, 'secondary-key', 'secondary');
+    expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/not verified/i);
+    await saveSecondarySlotConfig('llm_evaluator', {
+      providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice,
+      verified: true, testResult: { ok: false, latencyMs: 1, message: 'FAIL', testedAt: Date.now(), verificationFingerprint: 'current' } as any
+    });
+    expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/test did not pass/i);
+    await saveSecondarySlotConfig('llm_evaluator', {
+      providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice,
+      verified: true, testResult: { ok: true, latencyMs: 1, message: 'PASS', testedAt: Date.now() } as any
+    });
+    expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/fingerprint/i);
+    const secondaryConfig = { slotId: 'llm_evaluator' as const, providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice };
+    const currentFingerprint = await createProviderVerificationFingerprint(secondaryConfig, 'secondary-key');
+    await saveSecondarySlotConfig('llm_evaluator', {
+      providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice,
+      verified: true, testResult: { ok: true, latencyMs: 1, message: 'PASS', verificationFingerprint: currentFingerprint } as any
+    });
+    expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/timestamp|expired/i);
+  });
+
+  it('reports network offline as an actionable readiness failure', async () => {
+    networkMonitor.setOnline(false);
+    expect((await getSlotAccountReadiness('llm_evaluator', 'primary')).reason).toMatch(/device is offline/i);
+  });
+
   it.each(slotFallbackCases)('tries API 2 after API 1 fails for $slotId', async ({ slotId, primaryProviderId, secondaryProviderId }) => {
     const primaryPreset = getPreset(slotId, primaryProviderId);
     const secondaryPreset = getPreset(slotId, secondaryProviderId);
@@ -49,6 +125,7 @@ describe('Per-slot secondary API fallback', () => {
     };
     await saveSlotConfig(primaryConfig);
     await saveApiKey(slotId, primaryProviderId, 'primary-key');
+    const primaryFingerprint = await createProviderVerificationFingerprint(primaryConfig, 'primary-key');
     await saveSlotConnectionTestResult(slotId, {
       ok: true,
       slotId,
@@ -56,14 +133,17 @@ describe('Per-slot secondary API fallback', () => {
       tier: primaryPreset.tier,
       label: 'Online AI',
       latencyMs: 10,
-      message: 'PASS — primary verified'
+      message: 'PASS — primary verified',
+      verificationFingerprint: primaryFingerprint ?? undefined
     });
+    const secondaryConfig = { slotId, providerId: secondaryPreset.id, baseUrl: secondaryPreset.defaultBaseUrl, modelOrVoice: secondaryPreset.defaultModelOrVoice };
+    const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, 'secondary-key');
     await saveSecondarySlotConfig(slotId, {
       providerId: secondaryPreset.id,
       baseUrl: secondaryPreset.defaultBaseUrl,
       modelOrVoice: secondaryPreset.defaultModelOrVoice,
       verified: true,
-      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now() }
+      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now(), verificationFingerprint: secondaryFingerprint ?? undefined }
     });
     await saveApiKey(slotId, secondaryProviderId, 'secondary-key', 'secondary');
 
@@ -164,6 +244,7 @@ describe('Per-slot secondary API fallback', () => {
   it('retries a verified secondary provider after a primary HTTP 503', async () => {
     await saveSlotConfig(primaryConfig);
     await saveApiKey('llm_generator', 'gemini_gen', 'primary-key');
+    const primaryFingerprint = await createProviderVerificationFingerprint(primaryConfig, 'primary-key');
     await saveSlotConnectionTestResult('llm_generator', {
       ok: true,
       slotId: 'llm_generator',
@@ -171,8 +252,11 @@ describe('Per-slot secondary API fallback', () => {
       tier: 1,
       label: 'Online AI',
       latencyMs: 12,
-      message: 'PASS — primary verified'
+      message: 'PASS — primary verified',
+      verificationFingerprint: primaryFingerprint ?? undefined
     });
+    const secondaryConfig = { slotId: 'llm_generator' as const, providerId: 'openai_compat_gen', baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'gpt-4o-mini' };
+    const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, 'secondary-key');
     await saveSecondarySlotConfig('llm_generator', {
       providerId: 'openai_compat_gen',
       baseUrl: 'https://api.openai.com/v1',
@@ -182,7 +266,8 @@ describe('Per-slot secondary API fallback', () => {
         ok: true,
         latencyMs: 18,
         message: 'PASS — secondary verified',
-        testedAt: Date.now()
+        testedAt: Date.now(),
+        verificationFingerprint: secondaryFingerprint ?? undefined
       }
     });
     await saveApiKey('llm_generator', 'openai_compat_gen', 'secondary-key', 'secondary');

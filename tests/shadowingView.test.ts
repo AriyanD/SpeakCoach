@@ -16,6 +16,29 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     networkMonitor.setOnline(true);
   });
 
+
+  it('places the practice stage before collapsible sentence-set controls and gives recording its own action style', async () => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    await bootstrapApp(root, 'shadowing');
+    await new Promise(resolve => setTimeout(resolve, 30));
+    const target = root.querySelector('#sh-target-text');
+    const setup = root.querySelector('#sh-generate-ai-btn');
+    const transcript = root.querySelector('.sh-transcript-details');
+    const sentenceSet = root.querySelector('.sh-sentence-set-details');
+    expect(target && setup && target.compareDocumentPosition(setup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sentenceSet).not.toBeNull();
+    expect(sentenceSet?.parentElement?.querySelector('#sh-history-position')).not.toBeNull();
+    expect(transcript).not.toBeNull();
+    expect(root.querySelector('#sh-record-btn')?.classList.contains('btn-record')).toBe(true);
+    expect(root.querySelector('#sh-translate-btn')?.classList.contains('btn-secondary')).toBe(true);
+    const notice = root.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
+    expect(notice?.hidden).toBe(true);
+    root.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.click();
+    expect(notice?.hidden).toBe(false);
+    expect(notice?.open).toBe(true);
+  });
+
   it('starts with offline sentence sets, removes source choice, and reports missing AI configuration', async () => {
     const root = document.createElement('div');
     // ShadowingView updates the shared bottom-navigation element through

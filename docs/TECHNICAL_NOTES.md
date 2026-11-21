@@ -113,3 +113,11 @@ For hands-on Android verification, follow [the device test checklist](docs/DEVIC
 ## Dependency maintenance
 
 The current security baseline uses the latest compatible Capacitor 6 patch line (`6.2.3` for CLI, core and Android), Vite `8.3.8`, and Vitest `4.1.12`. Run `npm audit` for the complete dependency tree and `npm run audit:production` to check production dependencies separately.
+
+
+## IELTS re-evaluation and bulk provider verification
+
+- Manual IELTS re-evaluation failures are shown in a persistent live status area beside the action. A failed retry does not overwrite a previously valid online score or attach `evaluationError` to that scored record.
+- Explicit API 1/API 2 choices report account-specific readiness failures (missing key, unverified or expired test, fingerprint mismatch, runtime needs-retest/cooldown, offline provider) rather than a generic fallback error.
+- Settings uses one shared account probe/persistence path for individual and bulk connection tests. `Test all APIs` runs sequentially and can be cancelled between probes. A slot's verification is committed only when every configured online account in that slot passes; on a failed probe the previous slot verification is retained, while the failed account's runtime health is recorded. TTS probes bypass audio cache.
+- The Shadowing practice controls precede the collapsible sentence-set setup. Transcript/recognition details are below the score report; recording uses a dedicated high-contrast semantic action color.

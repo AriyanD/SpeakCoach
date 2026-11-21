@@ -5,6 +5,7 @@ import {
   type IeltsTestRecord
 } from '../storage/ieltsHistoryStore';
 import { retryIeltsEvaluation } from '../services/ieltsLlmEvaluator';
+import { getSlotAccountReadiness } from '../services/apiFallback';
 import { clearIeltsTelemetry, clearLastIeltsEvaluation, getLastIeltsEvaluation } from '../services/ieltsTelemetry';
 import { confirmInApp } from './confirmDialog';
 
@@ -174,6 +175,7 @@ export async function renderIeltsHistoryView(
                   <option value="secondary">API 2 only — compare model</option>
                 </select>
                 <button type="button" class="btn btn-secondary history-retry-btn" data-id="${escapeHtml(item.id)}">Re-evaluate</button>
+                <div class="status-box info history-reevaluation-status" role="status" aria-live="polite" hidden></div>
               </div>
               ` : ''}
               <button type="button" class="btn ${hasScore ? 'btn-primary' : 'btn-secondary'} history-view-btn" data-id="${escapeHtml(item.id)}">
@@ -248,27 +250,61 @@ export async function renderIeltsHistoryView(
       });
     });
 
+    container.querySelectorAll<HTMLElement>('.ielts-history-record').forEach((card) => {
+      const choice = card.querySelector<HTMLSelectElement>('.history-api-choice');
+      if (!choice) return;
+      void (async () => {
+        for (const account of ['primary', 'secondary'] as const) {
+          const option = choice.querySelector<HTMLOptionElement>(`option[value="${account}"]`);
+          if (!option) continue;
+          const readiness = await getSlotAccountReadiness('llm_evaluator', account);
+          option.disabled = !readiness.usable;
+          option.title = readiness.usable ? '' : readiness.reason;
+          if (!readiness.usable && !option.textContent?.includes('(not ready)')) option.textContent += ' (not ready — test in Settings)';
+        }
+      })();
+    });
+
     container.querySelectorAll<HTMLButtonElement>('.history-retry-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
         const rec = history.find((h) => h.id === id);
         if (!rec) return;
         const recordCard = btn.closest<HTMLElement>('.ielts-history-record');
-        const providerChoice = (recordCard?.querySelector<HTMLSelectElement>('.history-api-choice')?.value || 'auto') as 'auto' | 'primary' | 'secondary';
+        const choiceSelect = recordCard?.querySelector<HTMLSelectElement>('.history-api-choice');
+        const providerChoice = (choiceSelect?.value || 'auto') as 'auto' | 'primary' | 'secondary';
+        const inlineStatus = recordCard?.querySelector<HTMLElement>('.history-reevaluation-status');
         btn.disabled = true;
         btn.textContent = 'Re-evaluating…';
+        if (inlineStatus) { inlineStatus.hidden = false; inlineStatus.className = 'status-box info history-reevaluation-status'; inlineStatus.textContent = 'Re-evaluation in progress…'; }
         try {
           if (providerChoice === 'auto' && callbacks.onRetryEvaluation) {
             await callbacks.onRetryEvaluation(rec);
+            await refresh();
+            const refreshedCard = Array.from(container.querySelectorAll<HTMLElement>('.ielts-history-record'))
+              .find(card => card.dataset.recordId === id);
+            const refreshedStatus = refreshedCard?.querySelector<HTMLElement>('.history-reevaluation-status');
+            if (refreshedStatus) {
+              refreshedStatus.hidden = false;
+              refreshedStatus.className = 'status-box pass history-reevaluation-status';
+              refreshedStatus.textContent = 'Re-evaluation completed.';
+            }
           } else {
             const updated = await retryIeltsEvaluation(rec, undefined, { providerChoice });
-            callbacks.onSelectResult(updated);
+            await refresh();
+            const refreshedCard = Array.from(container.querySelectorAll<HTMLElement>('.ielts-history-record'))
+              .find(card => card.dataset.recordId === id);
+            const refreshedStatus = refreshedCard?.querySelector<HTMLElement>('.history-reevaluation-status');
+            if (refreshedStatus) {
+              refreshedStatus.hidden = false;
+              refreshedStatus.className = 'status-box pass history-reevaluation-status';
+              refreshedStatus.textContent = `Re-evaluated successfully with ${providerChoice === 'secondary' ? 'API 2' : providerChoice === 'primary' ? 'API 1' : (updated.evaluation?.activeTier?.detailLabel || 'the selected provider')}.`;
+            }
           }
         } catch (error) {
           btn.disabled = false;
           btn.textContent = 'Re-evaluate';
-          const notice = recordCard?.querySelector<HTMLElement>('.ielts-history-no-score');
-          if (notice) notice.textContent = error instanceof Error ? error.message : String(error);
+          if (inlineStatus) { inlineStatus.hidden = false; inlineStatus.className = 'status-box fail history-reevaluation-status'; inlineStatus.textContent = error instanceof Error ? error.message : String(error); }
         }
       });
     });

@@ -5,7 +5,9 @@ import { loadApiKey } from '../storage/keyStore';
 import { nativeHttpRequest, SpeakCoachHttpError } from './httpClient';
 import { networkMonitor } from './networkMonitor';
 import { clearSlotRuntimeFailure, markSlotRuntimeFailure } from './tierManager';
-import { clearProviderAccountHealth, createProviderVerificationFingerprint, type ProviderAccount } from './providerHealth';
+import { clearProviderAccountHealth, createProviderVerificationFingerprint, markProviderAccountFailure, type ProviderAccount } from './providerHealth';
+import { saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../storage/localStore';
+import type { PersistedConnectionTestResult } from '../storage/localStore';
 import { cleanJsonPayload } from './ieltsLlmEvaluator';
 import { clearGeminiLanguageFailures, normalizeAudioDataUrl, synthesizeOnlineNeuralAudio } from './ttsService';
 import { buildCapacitorMultipartEntries, parseWhisperWordTimestamps, requestAzurePronunciationAssessment } from './whisperSttService';
@@ -816,6 +818,11 @@ export async function testSlotConnection(
         status: failureInfo.status
       });
     }
+    if (options?.account) {
+      const healthError = new Error(failureMsg) as Error & { status?: number };
+      healthError.status = failureInfo.status;
+      await markProviderAccountFailure(slotConfig.slotId, options.account, healthError);
+    }
     return {
       ok: false,
       slotId: slotConfig.slotId,
@@ -830,4 +837,137 @@ export async function testSlotConnection(
           : `FAIL — ${failureMsg} (${latencyMs} ms). This connection test does not itself activate an offline fallback.`
     };
   }
+}
+
+
+/** Persist a completed probe through the same account-specific path used by Settings. */
+export async function persistSlotAccountTestResult(
+  slotConfig: SlotConfig,
+  result: ConnectionTestResult,
+  account: ProviderAccount
+): Promise<PersistedConnectionTestResult | null> {
+  const passed = result.ok && result.tier !== 3;
+  if (passed) await clearProviderAccountHealth(slotConfig.slotId, account);
+  if (account === 'primary') {
+    return await saveSlotConnectionTestResult(slotConfig.slotId, { ...result, ok: passed });
+  }
+  const testResult = {
+    ok: passed,
+    latencyMs: result.latencyMs,
+    message: result.message,
+    testedAt: Date.now(),
+    verificationFingerprint: result.verificationFingerprint
+  };
+  await saveSecondarySlotConfig(slotConfig.slotId, {
+    ...slotConfig,
+    verified: passed,
+    testResult
+  });
+  if (!passed) {
+    const status = Number(result.message.match(/HTTP\s+(\d{3})/i)?.[1]);
+    const healthError = new Error(result.message) as Error & { status?: number };
+    if (Number.isFinite(status) && status > 0) healthError.status = status;
+    await markProviderAccountFailure(slotConfig.slotId, 'secondary', healthError);
+  }
+  return null;
+}
+
+/** Shared single-account probe + persistence path. */
+export async function testAndPersistSlotAccount(
+  slotConfig: SlotConfig,
+  options: {
+    account: ProviderAccount;
+    apiKeyOverride?: string;
+    isOnlineOverride?: boolean;
+    transport?: TransportFn;
+    persist?: boolean;
+  }
+): Promise<ConnectionTestResult> {
+  const result = await testSlotConnection(slotConfig, options);
+  if (options.persist !== false) await persistSlotAccountTestResult(slotConfig, result, options.account);
+  return result;
+}
+
+
+export interface SlotAccountTestTarget {
+  account: ProviderAccount;
+  config: SlotConfig;
+  apiKeyOverride?: string;
+}
+
+export interface SequentialSlotAccountTestResult {
+  account: ProviderAccount;
+  config: SlotConfig;
+  result: ConnectionTestResult;
+}
+
+/** Run account probes serially, continue after per-account failures, and stop cleanly on cancellation. */
+export async function testSlotAccountsSequentially(
+  targets: SlotAccountTestTarget[],
+  options: {
+    pauseMs?: number;
+    shouldCancel?: () => boolean;
+    onProgress?: (current: number, total: number, target: SlotAccountTestTarget) => void;
+    probe?: (target: SlotAccountTestTarget) => Promise<ConnectionTestResult>;
+  } = {}
+): Promise<{ results: SequentialSlotAccountTestResult[]; cancelled: boolean }> {
+  const results: SequentialSlotAccountTestResult[] = [];
+  for (let index = 0; index < targets.length; index += 1) {
+    if (options.shouldCancel?.()) return { results, cancelled: true };
+    const target = targets[index];
+    options.onProgress?.(index + 1, targets.length, target);
+    let result: ConnectionTestResult;
+    try {
+      result = options.probe
+        ? await options.probe(target)
+        : await testAndPersistSlotAccount(target.config, {
+            account: target.account,
+            apiKeyOverride: target.apiKeyOverride,
+            persist: false
+          });
+    } catch (error) {
+      const preset = getPreset(target.config.slotId, target.config.providerId);
+      result = {
+        ok: false,
+        slotId: target.config.slotId,
+        providerId: target.config.providerId,
+        tier: preset.tier,
+        label: preset.tier === 3 ? 'Basic offline' : 'Online AI',
+        latencyMs: 0,
+        message: `FAIL — ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+    results.push({ account: target.account, config: target.config, result });
+    if (index < targets.length - 1 && (options.pauseMs ?? 0) > 0 && !options.shouldCancel?.()) {
+      await new Promise(resolve => window.setTimeout(resolve, options.pauseMs));
+    }
+  }
+  return { results, cancelled: Boolean(options.shouldCancel?.()) };
+}
+
+
+/** Atomic per-slot policy: only a complete set of successful configured probes may be saved. */
+export function shouldPersistSlotVerification(
+  results: Array<{ result: ConnectionTestResult }>,
+  expectedAccountCount: number
+): boolean {
+  return expectedAccountCount > 0 &&
+    results.length === expectedAccountCount &&
+    results.every(item => item.result.ok && item.result.tier !== 3);
+}
+
+
+/** Turn a raw connection-probe failure into a plain-language cause and next step. */
+export function describeConnectionTestFailure(result: ConnectionTestResult): string {
+  if (result.ok && result.tier !== 3) return 'Connection passed.';
+  const message = result.message || 'Unknown connection-test failure.';
+  const status = Number(message.match(/HTTP\s+(\d{3})/i)?.[1]);
+  if (status === 401 || status === 403) return `Key rejected (HTTP ${status}). Re-enter the API key in Settings and test again. Details: ${message}`;
+  if (status === 404) return `Model or endpoint not found (HTTP 404). Check the model name, base URL and endpoint path. Details: ${message}`;
+  if (status === 400) return `Bad request or unsupported capability (HTTP 400). Check the model, request format and whether this provider supports this feature. Details: ${message}`;
+  if (status === 429) return `Quota or rate limit reached (HTTP 429). Wait for the provider limit to reset, reduce requests, or use API 2. Details: ${message}`;
+  if (status === 408 || /timed?\s*out|timeout/i.test(message)) return `Connection timed out. Check the network and endpoint, wait briefly, then test again or use API 2. Details: ${message}`;
+  if (status >= 500 && status <= 599) return `Provider server error (HTTP ${status}). Wait and retry, or use API 2. Details: ${message}`;
+  if (/network|cors|fetch failed|connection refused|internet/i.test(message)) return `Network or CORS failure. Check the internet connection and provider endpoint, then retry. Details: ${message}`;
+  return `Unclassified connection failure (possibly an app/provider compatibility issue). Keep the previous verification, report this error, and retry after checking the provider settings. Details: ${message}`;
 }

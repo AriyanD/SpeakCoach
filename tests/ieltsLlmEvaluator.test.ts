@@ -2,6 +2,7 @@ import type { HttpOptions, HttpResponse } from '@capacitor/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   buildIeltsEvaluationPrompt,
+  compareIeltsAttempts,
   cleanJsonPayload,
   clearLlmEvaluationTelemetry,
   evaluateIeltsWithTierFallback,
@@ -16,8 +17,9 @@ import { clearIeltsSessionLogs, getIeltsSessionLogs } from '../src/services/ielt
 import { generateIeltsSessionPlan } from './fixtures/legacyIeltsQuestionBank';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
-import { saveApiKey } from '../src/storage/keyStore';
-import { saveSlotConfig, saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../src/storage/localStore';
+import { createProviderVerificationFingerprint } from '../src/services/providerHealth';
+import { loadApiKey, saveApiKey } from '../src/storage/keyStore';
+import { loadAllSlotsConfig, saveSlotConfig, saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../src/storage/localStore';
 import {
   clearIeltsDraft,
   clearIeltsTestHistory,
@@ -32,9 +34,13 @@ import { renderIeltsResultView } from '../src/ui/IeltsResultView';
 
 
 async function verifyEvaluator(providerId: 'openai_compat_eval' | 'gemini_eval'): Promise<void> {
+  const config = (await loadAllSlotsConfig()).llm_evaluator;
+  const apiKey = await loadApiKey('llm_evaluator', providerId);
+  const verificationFingerprint = await createProviderVerificationFingerprint(config, apiKey);
   await saveSlotConnectionTestResult('llm_evaluator', {
     ok: true, slotId: 'llm_evaluator', providerId, tier: 1,
-    label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture',
+    verificationFingerprint: verificationFingerprint ?? undefined
   });
 }
 
@@ -67,6 +73,59 @@ describe('IELTS LLM Evaluator Engine (Stage 3.4 · Tier 1 & Fallback)', () => {
       confidence: 0.90
     }
   ];
+
+
+
+  it('reports actionable readiness reasons for a failed comparison without modifying either scored record', async () => {
+    const previous = await saveIeltsTestResult({
+      id: 'comparison-previous-score',
+      mode: 'part1', timestamp: Date.now() - 1000, overallBand: 6.5,
+      evaluation: { overallBand: 6.5, activeTier: { tier: 1, detailLabel: 'API 1' } } as any,
+      answers: []
+    } as any);
+    const current = await saveIeltsTestResult({
+      id: 'comparison-current-score',
+      mode: 'part1', timestamp: Date.now(), overallBand: 7.0,
+      evaluation: { overallBand: 7.0, activeTier: { tier: 1, detailLabel: 'API 1' } } as any,
+      answers: []
+    } as any);
+    await expect(compareIeltsAttempts(previous, current)).rejects.toThrow(/API 1:.*API 2:/i);
+    const history = await getIeltsTestHistory();
+    expect(history.find(item => item.id === previous.id)?.overallBand).toBe(6.5);
+    expect(history.find(item => item.id === current.id)?.overallBand).toBe(7.0);
+    expect(history.find(item => item.id === previous.id)?.evaluationError).toBeFalsy();
+    expect(history.find(item => item.id === current.id)?.evaluationError).toBeFalsy();
+  });
+
+  it('preserves a valid saved band when a manual provider-specific re-evaluation fails', async () => {
+    const previousEvaluation = {
+      overallBand: 7.5,
+      activeTier: { tier: 1, label: 'Online AI', detailLabel: 'API 1 · OpenAI' }
+    };
+    const record = await saveIeltsTestResult({
+      id: 'existing-valid-band-after-retry',
+      mode: 'part1',
+      overallBand: 7.5,
+      evaluation: previousEvaluation as any,
+      evaluationError: null,
+      answers: [{
+        questionId: 'q1',
+        part: 'part1',
+        questionText: 'Where is your hometown?',
+        transcript: 'My hometown is a coastal city with a busy harbour and several public parks.',
+        durationSec: 18
+      }]
+    } as any);
+
+    await expect(retryIeltsEvaluation(record, undefined, { providerChoice: 'secondary' }))
+      .rejects.toThrow(/API 2 is not ready/i);
+
+    const history = await getIeltsTestHistory();
+    const reopened = history.find(item => item.id === record.id);
+    expect(reopened?.overallBand).toBe(7.5);
+    expect(reopened?.evaluation?.overallBand).toBe(7.5);
+    expect(reopened?.evaluationError).toBeFalsy();
+  });
 
   it('cleanJsonPayload extracts pure JSON from markdown code fences and extraneous text', () => {
     const rawWithFence = '```json\n{\n  "fluencyCoherenceBand": 7.0\n}\n```';
@@ -219,12 +278,14 @@ describe('IELTS LLM Evaluator Engine (Stage 3.4 · Tier 1 & Fallback)', () => {
     });
     await saveApiKey('llm_evaluator', 'gemini_eval', 'primary-evaluator-key');
     await verifyEvaluator('gemini_eval');
+    const secondaryEvaluatorConfig = { slotId: 'llm_evaluator' as const, providerId: 'openai_compat_eval', baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'gpt-4o-mini' };
+    const secondaryEvaluatorFingerprint = await createProviderVerificationFingerprint(secondaryEvaluatorConfig, 'secondary-evaluator-key');
     await saveSecondarySlotConfig('llm_evaluator', {
       providerId: 'openai_compat_eval',
       baseUrl: 'https://api.openai.com/v1',
       modelOrVoice: 'gpt-4o-mini',
       verified: true,
-      testResult: { ok: true, latencyMs: 1, message: 'PASS — API 2', testedAt: Date.now() }
+      testResult: { ok: true, latencyMs: 1, message: 'PASS — API 2', testedAt: Date.now(), verificationFingerprint: secondaryEvaluatorFingerprint ?? undefined }
     });
     await saveApiKey('llm_evaluator', 'openai_compat_eval', 'secondary-evaluator-key', 'secondary');
 

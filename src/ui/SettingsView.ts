@@ -3,7 +3,9 @@ import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { APP_VERSION } from '../config/appVersion';
 import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
-import { testSlotConnection } from '../services/connectionTester';
+import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult, testSlotAccountsSequentially, shouldPersistSlotVerification, describeConnectionTestFailure } from '../services/connectionTester';
+import { networkMonitor } from '../services/networkMonitor';
+import { getProviderAccountHealth } from '../services/providerHealth';
 import { isOnlineProviderVerified } from '../services/slotConnectionStatus';
 import {
   detectProviderUrlMismatch,
@@ -29,6 +31,7 @@ import {
   clearSlotConnectionTestResult,
   loadAllConnectionTestResults,
   loadAllSlotsConfig,
+  loadSlotConnectionTestResult,
   getStorageRecoveryNotices,
   type PersistedConnectionTestResult,
   saveSlotConfig,
@@ -39,6 +42,7 @@ import {
 
 const lastTestResults = new Map<SlotId, ConnectionTestResult>();
 const dismissedVerificationErrors = new Set<SlotId>();
+let settingsProviderTestRunning = false;
 
 function escapeHtml(text: string): string {
   return text
@@ -104,6 +108,12 @@ export async function renderSettingsView(
     llm_generator: configs.llm_generator.secondary ? await readKeyForSettings('llm_generator', configs.llm_generator.secondary.providerId, 'secondary') : '',
     llm_translation: configs.llm_translation.secondary ? await readKeyForSettings('llm_translation', configs.llm_translation.secondary.providerId, 'secondary') : ''
   };
+
+  const hasConfiguredOnlineAccount = SLOT_ORDER.some((slotId) => {
+    const primary = getPreset(slotId, configs[slotId].providerId);
+    const secondary = configs[slotId].secondary ? getPreset(slotId, configs[slotId].secondary!.providerId) : null;
+    return primary.tier !== 3 || Boolean(secondary && secondary.tier !== 3);
+  });
 
   const unreadableApiKeyWarnings = Array.from(keyStorageReadErrors).map((entry) => {
     const [slotIdRaw, providerId, account] = entry.split('|');
@@ -621,8 +631,10 @@ export async function renderSettingsView(
           <button type="button" class="btn btn-secondary" id="export-ai-backup">Export AI settings (with keys)</button>
           <button type="button" class="btn btn-secondary" id="export-ai-backup-no-keys">Export settings only (no keys)</button>
           <button type="button" class="btn btn-secondary" id="import-ai-backup">Import AI settings</button>
+          ${hasConfiguredOnlineAccount ? '<button type="button" class="btn btn-secondary" id="test-all-apis-btn">Test all APIs</button>' : ''}
           <input type="file" id="import-ai-file" accept="application/json,.json" hidden />
         </div>
+        <p class="card-subtitle">Tests run sequentially and may use a small amount of API quota. A slot is marked saved only when every configured online account in that slot passes; otherwise its previous verification is preserved.</p>
       </div>
       <div class="backup-section">
         <strong>Test data &amp; practice history</strong>
@@ -773,6 +785,9 @@ export async function renderSettingsView(
     ];
 
     quickSetupButton.disabled = true;
+    settingsProviderTestRunning = true;
+    const batchButton = container.querySelector<HTMLButtonElement>('#test-all-apis-btn');
+    if (batchButton) batchButton.disabled = true;
     quickSetupButton.textContent = 'Setting up…';
     if (quickSetupStatus) {
       quickSetupStatus.className = 'status-box info';
@@ -856,9 +871,9 @@ export async function renderSettingsView(
           let primaryStatus = 'Primary configured';
           if (primaryKey) {
             try {
-              const result = await testSlotConnection(primaryConfig, { apiKeyOverride: primaryKey, account: 'primary' });
-              const persisted = await saveSlotConnectionTestResult(item.slotId, result);
-              lastTestResults.set(item.slotId, persisted);
+              const result = await testAndPersistSlotAccount(primaryConfig, { apiKeyOverride: primaryKey, account: 'primary' });
+              const persisted = await loadSlotConnectionTestResult(item.slotId);
+              lastTestResults.set(item.slotId, persisted ?? result);
               attempted += 1;
               if (result.ok && result.tier !== 3) { passed += 1; primaryStatus = 'Primary verified'; }
               else primaryStatus = 'Primary test failed';
@@ -900,10 +915,9 @@ export async function renderSettingsView(
             let secondaryStatus = 'API 2 configured — key missing';
             if (secondaryKey) {
               try {
-                const result = await testSlotConnection({ ...secondaryConfigBase, secondary: undefined }, { apiKeyOverride: secondaryKey, account: 'secondary' });
+                const result = await testAndPersistSlotAccount({ ...secondaryConfigBase, secondary: undefined }, { apiKeyOverride: secondaryKey, account: 'secondary' });
                 const testResult = { ok: result.ok && result.tier !== 3, latencyMs: result.latencyMs, message: result.message, testedAt: Date.now(), verificationFingerprint: result.verificationFingerprint };
                 secondaryConfig = { ...secondaryConfig, verified: testResult.ok, testResult };
-                await saveSecondarySlotConfig(item.slotId, secondaryConfig);
                 clearPreloadedSentenceAudio();
                 if (item.slotId === 'voice_tts') {
                   await clearActiveShadowingAudioStore();
@@ -948,6 +962,8 @@ export async function renderSettingsView(
       await _onSettingsUpdated();
     } finally {
       quickSetupButton.disabled = false;
+      settingsProviderTestRunning = false;
+      if (batchButton) batchButton.disabled = false;
       quickSetupButton.textContent = 'Set up recommended providers';
     }
   });
@@ -1040,6 +1056,9 @@ export async function renderSettingsView(
     if (customProviderApplyButton) customProviderApplyButton.disabled = true;
     if (customProviderResults) customProviderResults.innerHTML = '';
     customProviderTestButton.disabled = true;
+    settingsProviderTestRunning = true;
+    const batchButton = container.querySelector<HTMLButtonElement>('#test-all-apis-btn');
+    if (batchButton) batchButton.disabled = true;
     if (customProviderFetchButton) customProviderFetchButton.disabled = true;
     if (customProviderStatus) {
       customProviderStatus.className = 'status-box info';
@@ -1091,6 +1110,8 @@ export async function renderSettingsView(
     }
     if (customProviderApplyButton) customProviderApplyButton.disabled = compatible === 0;
     customProviderTestButton.disabled = false;
+    settingsProviderTestRunning = false;
+    if (batchButton) batchButton.disabled = false;
     if (customProviderFetchButton) customProviderFetchButton.disabled = false;
   });
 
@@ -1290,6 +1311,7 @@ export async function renderSettingsView(
   });
 
   const backupStatus = container.querySelector<HTMLElement>('#backup-status');
+  let testAllApisButton: HTMLButtonElement | null = null;
   const persistSlotDrafts: Partial<Record<SlotId, () => Promise<void>>> = {};
 
   const restoreSelectedBackup = async (
@@ -1312,6 +1334,7 @@ export async function renderSettingsView(
       kind === 'ai-settings' ? '#import-ai-backup' : '#import-test-backup'
     );
     if (importButton) importButton.disabled = true;
+    if (testAllApisButton) testAllApisButton.disabled = true;
     if (backupStatus) {
       backupStatus.className = 'status-box info';
       backupStatus.textContent = 'Reading and validating the selected backup…';
@@ -1333,6 +1356,7 @@ export async function renderSettingsView(
       }
     } finally {
       if (importButton) importButton.disabled = false;
+      if (testAllApisButton) testAllApisButton.disabled = settingsProviderTestRunning || !hasConfiguredOnlineAccount;
     }
   };
 
@@ -1410,6 +1434,199 @@ export async function renderSettingsView(
   };
   wireBackup('ai-settings');
   wireBackup('test-data');
+
+  const testAllButton = container.querySelector<HTMLButtonElement>('#test-all-apis-btn');
+  testAllApisButton = testAllButton;
+  let testAllApisRunning = false;
+  let cancelTestAllApis = false;
+  testAllButton?.addEventListener('click', async () => {
+    if (!testAllButton) return;
+    if (testAllApisRunning) { cancelTestAllApis = true; testAllButton.textContent = 'Cancelling…'; return; }
+    if (settingsProviderTestRunning) return;
+    if (!backupStatus) return;
+    if (!networkMonitor.isOnline()) {
+      backupStatus.className = 'status-box fail';
+      backupStatus.textContent = 'No connection — nothing tested. No verification state was changed.';
+      return;
+    }
+    const confirmed = await confirmInApp({
+      title: 'Test all configured APIs?',
+      message: 'Connection probes send real requests and may use a small amount of API quota. Tests run sequentially. A slot is saved only if every configured online account in that slot passes; otherwise its previous verification remains unchanged.',
+      confirmLabel: 'Test all APIs',
+      cancelLabel: 'Cancel',
+      tone: 'normal'
+    });
+    if (!confirmed) return;
+
+    testAllApisRunning = true;
+    settingsProviderTestRunning = true;
+    cancelTestAllApis = false;
+    testAllButton.textContent = 'Cancel tests';
+    const singleTestButtons = [
+      ...Array.from(container.querySelectorAll<HTMLButtonElement>('.settings-test-button')),
+      container.querySelector<HTMLButtonElement>('#quick-setup-run-btn'),
+      container.querySelector<HTMLButtonElement>('#quick-custom-test')
+    ].filter((button): button is HTMLButtonElement => !!button);
+    const importButtons = ['#import-ai-backup', '#import-test-backup'].map(selector => container.querySelector<HTMLButtonElement>(selector)).filter((button): button is HTMLButtonElement => !!button);
+    const previousDisabled = [...singleTestButtons, ...importButtons].map(button => button.disabled);
+    [...singleTestButtons, ...importButtons].forEach(button => { button.disabled = true; });
+    if (testAllApisButton) testAllButton.disabled = false;
+    const reports: string[] = [];
+    const redactKeys = (message: string): string => {
+      let safe = message;
+      for (const secret of [...Object.values(keysBySlot), ...Object.values(secondaryKeysBySlot)].filter(Boolean)) {
+        safe = safe.split(secret).join('[redacted]').split(encodeURIComponent(secret)).join('[redacted]');
+      }
+      return safe;
+    };
+    let savedSlots = 0;
+    let notSavedSlots = 0;
+    let skippedSlots = 0;
+    let completedAccounts = 0;
+    const plannedAccounts = SLOT_ORDER.reduce((total, slotId) => {
+      const primary = getPreset(slotId, configs[slotId].providerId);
+      const secondary = configs[slotId].secondary ? getPreset(slotId, configs[slotId].secondary!.providerId) : null;
+      return total + Number(primary.tier !== 3 && (!primary.requiresKey || !!keysBySlot[slotId].trim())) +
+        Number(Boolean(secondary && secondary.tier !== 3 && (!secondary.requiresKey || !!secondaryKeysBySlot[slotId].trim())));
+    }, 0);
+
+    try {
+      backupStatus.className = 'status-box info';
+      backupStatus.textContent = 'Preparing sequential connection tests…';
+      for (const slotId of SLOT_ORDER) {
+        if (cancelTestAllApis) break;
+        if (completedAccounts > 0) await new Promise(resolve => window.setTimeout(resolve, 350));
+        if (cancelTestAllApis) break;
+        const slotTitle = SLOT_DEFINITIONS[slotId].title.replace(/^\\d+\\.\\s*/, '');
+        const accounts: Array<{ account: 'primary' | 'secondary'; config: SlotConfig; key: string; providerName: string }> = [];
+        const skippedAccounts: string[] = [];
+        const primaryConfig = configs[slotId];
+        const primaryPreset = getPreset(slotId, primaryConfig.providerId);
+        if (primaryPreset.tier === 3) skippedAccounts.push(`API 1 (${primaryPreset.name}) skipped — offline provider`);
+        else if (primaryPreset.requiresKey && !keysBySlot[slotId].trim()) skippedAccounts.push(`API 1 (${primaryPreset.name}) skipped — API key missing`);
+        else accounts.push({ account: 'primary', config: primaryConfig, key: keysBySlot[slotId], providerName: primaryPreset.name });
+        const secondarySaved = configs[slotId].secondary;
+        if (secondarySaved) {
+          const secondaryPreset = getPreset(slotId, secondarySaved.providerId);
+          if (secondaryPreset.tier === 3) skippedAccounts.push(`API 2 (${secondaryPreset.name}) skipped — offline provider`);
+          else if (secondaryPreset.requiresKey && !secondaryKeysBySlot[slotId].trim()) skippedAccounts.push(`API 2 (${secondaryPreset.name}) skipped — API key missing`);
+          else accounts.push({ account: 'secondary', config: { slotId, ...secondarySaved }, key: secondaryKeysBySlot[slotId], providerName: secondaryPreset.name });
+        } else skippedAccounts.push('API 2 skipped — not configured');
+        if (!accounts.length) {
+          skippedSlots += 1;
+          for (const account of ['primary', 'secondary'] as const) {
+            const statusBox = container.querySelector<HTMLElement>(account === 'primary' ? `#status-${slotId}` : `#secondary-status-${slotId}`);
+            if (statusBox) {
+              statusBox.style.display = '';
+              statusBox.className = 'status-box info';
+              statusBox.textContent = `${account === 'primary' ? 'API 1' : 'API 2'}: ${skippedAccounts.find(reason => reason.startsWith(account === 'primary' ? 'API 1' : 'API 2')) || 'Skipped — not configured'}`;
+            }
+          }
+          reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: ${skippedAccounts.join(' · ')} — <strong>Skipped</strong>; no verification state changed.</li>`);
+          continue;
+        }
+
+        const batch = await testSlotAccountsSequentially(
+          accounts.map(item => ({ account: item.account, config: item.config, apiKeyOverride: item.key })),
+          {
+            pauseMs: 350,
+            shouldCancel: () => cancelTestAllApis,
+            onProgress: (_current, _total, item) => {
+              completedAccounts += 1;
+              backupStatus.textContent = `Testing ${completedAccounts} of ${Math.max(plannedAccounts, completedAccounts)}: ${slotTitle} — ${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name})…`;
+            }
+          }
+        );
+        const tested = batch.results;
+        if (batch.cancelled || cancelTestAllApis) {
+          reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: Cancelled before all configured accounts finished; previous verification preserved.</li>`);
+          break;
+        }
+        const failed = tested.filter(item => !item.result.ok || item.result.tier === 3);
+        if (shouldPersistSlotVerification(tested, accounts.length)) {
+          const previousPrimary = await loadSlotConnectionTestResult(slotId);
+          const previousSecondary = configs[slotId].secondary;
+          const previousLastTest = lastTestResults.get(slotId);
+          try {
+            for (const item of tested) {
+              const persistedResult = await persistSlotAccountTestResult(item.config, item.result, item.account);
+              if (item.account === 'primary' && persistedResult) lastTestResults.set(slotId, persistedResult);
+              else configs[slotId].secondary = { ...item.config, verified: true, testResult: {
+                ok: true, latencyMs: item.result.latencyMs, message: item.result.message,
+                testedAt: Date.now(), verificationFingerprint: item.result.verificationFingerprint
+              } };
+            }
+            savedSlots += 1;
+            reports.push(`<li class="pass"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) PASS`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Saved</strong></li>`);
+          } catch (saveError) {
+            try {
+              if (previousPrimary) await saveSlotConnectionTestResult(slotId, previousPrimary);
+              else await clearSlotConnectionTestResult(slotId);
+              await saveSecondarySlotConfig(slotId, previousSecondary);
+              if (previousLastTest) lastTestResults.set(slotId, previousLastTest);
+              else lastTestResults.delete(slotId);
+              configs[slotId].secondary = previousSecondary;
+            } catch {
+              // Preserve the original storage failure in the report; rollback is best effort.
+            }
+            notSavedSlots += 1;
+            reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: Tests passed, but verification could not be saved: ${escapeHtml(saveError instanceof Error ? saveError.message : String(saveError))}. Previous verification was restored where storage allowed.</li>`);
+          }
+        } else {
+          notSavedSlots += 1;
+          const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) failed: ${escapeHtml(redactKeys(describeConnectionTestFailure(item.result)))}`).join(' · ');
+          reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Not saved</strong>. ${reasons}. Previous verification preserved.</li>`);
+        }
+
+        const primaryResult = lastTestResults.get(slotId);
+        const badge = container.querySelector<HTMLElement>(`#badge-${slotId}`);
+        if (badge) {
+          const failedAccount = failed[0]?.account;
+          const health = failedAccount ? await getProviderAccountHealth(slotId, failedAccount) : null;
+          const onlineVerified = !failed.length && isOnlineProviderVerified(primaryResult, configs[slotId].secondary);
+          const badgeLabel = failed.length ? (health?.state === 'cooldown' ? 'Cooling down' : 'Needs re-test') : onlineVerified ? 'Online AI' : 'Basic offline';
+          badge.className = `tier-badge settings-slot-status ${onlineVerified ? 'online' : 'offline'}`;
+          badge.dataset.slotStatus = failed.length ? (health?.state === 'cooldown' ? 'cooldown' : 'needs-retest') : onlineVerified ? 'online' : 'offline';
+          badge.innerHTML = `<span class="tier-dot"></span>${badgeLabel}`;
+        }
+        const primaryStatus = container.querySelector<HTMLElement>(`#status-${slotId}`);
+        if (primaryStatus && tested.some(item => item.account === 'primary')) {
+          primaryStatus.style.display = '';
+          const result = tested.find(item => item.account === 'primary')!.result;
+          primaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
+          primaryStatus.textContent = `API 1 (${getPreset(slotId, result.providerId).name}): ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
+        }
+        const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
+        if (secondaryStatus && tested.some(item => item.account === 'secondary')) {
+          secondaryStatus.style.display = '';
+          const result = tested.find(item => item.account === 'secondary')!.result;
+          secondaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
+          secondaryStatus.textContent = `API 2 (${getPreset(slotId, result.providerId).name}): ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
+        }
+        for (const account of ['primary', 'secondary'] as const) {
+          if (tested.some(item => item.account === account)) continue;
+          const statusBox = container.querySelector<HTMLElement>(account === 'primary' ? `#status-${slotId}` : `#secondary-status-${slotId}`);
+          if (statusBox) {
+            statusBox.style.display = '';
+            statusBox.className = 'status-box info';
+            statusBox.textContent = `${account === 'primary' ? 'API 1' : 'API 2'}: ${skippedAccounts.find(reason => reason.startsWith(account === 'primary' ? 'API 1' : 'API 2')) || 'Skipped — not configured'}`;
+          }
+        }
+      }
+      backupStatus.className = cancelTestAllApis ? 'status-box info' : notSavedSlots ? 'status-box info' : 'status-box pass';
+      backupStatus.innerHTML = `<strong>${savedSlots} slots saved, ${notSavedSlots} not saved, ${skippedSlots} skipped${cancelTestAllApis ? ' — run cancelled; untested slots unchanged' : ''}.</strong><ul class="test-all-api-report">${reports.join('')}</ul>`;
+    } catch (error) {
+      backupStatus.className = 'status-box fail';
+      backupStatus.textContent = `Test all APIs stopped: ${redactKeys(error instanceof Error ? error.message : String(error))}`;
+    } finally {
+      testAllApisRunning = false;
+      settingsProviderTestRunning = false;
+      testAllButton.textContent = 'Test all APIs';
+      testAllButton.disabled = !hasConfiguredOnlineAccount;
+      [...singleTestButtons, ...importButtons].forEach((button, index) => { button.disabled = previousDisabled[index]; });
+    }
+  });
+
 
   // A safer settings-only export deliberately omits credentials and does not
   // persist or alter the API-key fields currently shown in the form.
@@ -2278,8 +2495,10 @@ export async function renderSettingsView(
 
     secondaryTestBtn?.addEventListener('click', async () => {
       if (!secondaryTestBtn || !secondaryStatus) return;
+      settingsProviderTestRunning = true;
+      if (testAllApisButton) testAllApisButton.disabled = true;
       const providerId = secondaryProviderSelect?.value ?? '';
-      if (!providerId) { secondaryStatus.textContent = 'API 2: Choose a provider first.'; return; }
+      if (!providerId) { secondaryStatus.textContent = 'API 2: Choose a provider first.'; settingsProviderTestRunning = false; if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount; return; }
       const secondaryPreset = getPreset(slotId, providerId);
       const secondaryCfg: SlotConfig = {
         slotId, providerId: secondaryPreset.id,
@@ -2296,7 +2515,7 @@ export async function renderSettingsView(
       secondaryStatus.className = 'status-box info';
       secondaryStatus.textContent = 'API 2: Testing…';
       try {
-        const result = await testSlotConnection(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
+        const result = await testAndPersistSlotAccount(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
         const testResult = {
           ok: result.ok && result.tier !== 3,
           latencyMs: result.latencyMs,
@@ -2317,7 +2536,6 @@ export async function renderSettingsView(
           }
         }
         const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
-        await saveSecondarySlotConfig(slotId, verifiedConfig);
         clearPreloadedSentenceAudio();
         if (slotId === 'voice_tts') {
             await clearActiveShadowingAudioStore();
@@ -2351,7 +2569,7 @@ clearPreloadedSentenceAudio();
           slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
           slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
         }
-      } finally { secondaryTestBtn.disabled = false; refreshRequiredApiStatus(); }
+      } finally { secondaryTestBtn.disabled = false; settingsProviderTestRunning = false; if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount; refreshRequiredApiStatus(); }
     });
 
     saveBtn?.addEventListener('click', async () => {
@@ -2403,6 +2621,8 @@ clearPreloadedSentenceAudio();
 
     testBtn?.addEventListener('click', async () => {
       if (!testBtn || !statusBox) return;
+      settingsProviderTestRunning = true;
+      if (testAllApisButton) testAllApisButton.disabled = true;
       testBtn.disabled = true;
       statusBox.className = 'status-box info';
       dismissedVerificationErrors.delete(slotId);
@@ -2412,9 +2632,9 @@ clearPreloadedSentenceAudio();
       statusBox.textContent = 'API 1: Testing…';
       try {
         const { cfg, key } = await persistCurrentSlot();
-        const result = await testSlotConnection(cfg, { apiKeyOverride: key, account: 'primary' });
-        const persisted = await saveSlotConnectionTestResult(slotId, result);
-        lastTestResults.set(slotId, persisted);
+        const result = await testAndPersistSlotAccount(cfg, { apiKeyOverride: key, account: 'primary' });
+        const persistedResult = await loadSlotConnectionTestResult(slotId);
+        lastTestResults.set(slotId, persistedResult ?? result);
         dismissedVerificationErrors.delete(slotId);
         if (verificationActions) verificationActions.style.display = result.ok ? 'none' : 'flex';
         if (slotBadge) {
@@ -2433,6 +2653,8 @@ clearPreloadedSentenceAudio();
         statusBox.textContent = `API 1: FAIL — ${message}`;
       } finally {
         testBtn.disabled = false;
+        settingsProviderTestRunning = false;
+        if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount;
       }
     });
   }

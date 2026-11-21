@@ -111,6 +111,55 @@ describe('IeltsHistoryView Component & Tab Integration (Stage 4.4)', () => {
     expect(history.length).toBe(0);
   });
 
+
+
+  it('shows failed re-evaluation inline on a scored history card', async () => {
+    await saveIeltsTestResult({
+      id: 'history-scored-inline-failure',
+      mode: 'part1',
+      overallBand: 7.0,
+      evaluation: { ...mockEval, overallBand: 7.0 },
+      answers: [{
+        questionId: 'q1',
+        part: 'part1',
+        questionText: 'Do you work or study?',
+        transcript: 'I work as a university lecturer.',
+        durationSec: 14
+      }]
+    });
+    await renderIeltsHistoryView(container, {
+      onSelectResult: vi.fn(),
+      onBackToTest: vi.fn(),
+      onRetryEvaluation: async () => { throw new Error('API 2 is not ready: test it again.'); }
+    });
+    const card = container.querySelector<HTMLElement>('.ielts-history-record');
+    card?.querySelector<HTMLButtonElement>('.history-retry-btn')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(card?.querySelector('.ielts-history-band')?.textContent?.trim()).toBe('7.0');
+    expect(card?.querySelector('.history-reevaluation-status')?.textContent).toContain('API 2 is not ready');
+  });
+
+  it('renders an independent inline re-evaluation status for scored history records', async () => {
+    await saveIeltsTestResult({
+      id: 'history-scored-inline-status',
+      mode: 'part1',
+      overallBand: 7.0,
+      evaluation: { ...mockEval, overallBand: 7.0 },
+      answers: [{
+        questionId: 'q1',
+        part: 'part1',
+        questionText: 'Do you work or study?',
+        transcript: 'I teach service design at a university.',
+        durationSec: 14
+      }]
+    });
+    await renderIeltsHistoryView(container, { onSelectResult: vi.fn(), onBackToTest: vi.fn() });
+    expect(container.querySelector('.ielts-history-band')?.textContent?.trim()).toBe('7.0');
+    const status = container.querySelector<HTMLElement>('.history-reevaluation-status');
+    expect(status).not.toBeNull();
+    expect(status?.getAttribute('aria-live')).toBe('polite');
+  });
+
   it('uses the three-option re-evaluation menu in history and visually separates bulk deletion', async () => {
     await saveIeltsTestResult({
       id: 'history-reevaluation-menu',

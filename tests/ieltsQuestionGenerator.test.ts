@@ -18,9 +18,10 @@ import {
   getCompactLlmGenerationMemory
 } from '../src/services/ieltsQuestionTracker';
 import { ieltsSessionEngine } from '../src/services/ieltsSessionEngine';
-import { saveSlotConfig, saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../src/storage/localStore';
-import { saveApiKey } from '../src/storage/keyStore';
+import { loadAllSlotsConfig, saveSlotConfig, saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../src/storage/localStore';
+import { loadApiKey, saveApiKey } from '../src/storage/keyStore';
 import { clearAllRuntimeFailures, type GlobalTierSummary } from '../src/services/tierManager';
+import { createProviderVerificationFingerprint } from '../src/services/providerHealth';
 import { networkMonitor } from '../src/services/networkMonitor';
 import type { SlotConfig } from '../src/config/types';
 import * as ttsService from '../src/services/ttsService';
@@ -29,6 +30,9 @@ import { renderIeltsView } from '../src/ui/IeltsView';
 
 
 async function verifyGeneratorSlot(): Promise<void> {
+  const config = (await loadAllSlotsConfig()).llm_generator;
+  const apiKey = await loadApiKey('llm_generator', 'gemini_gen');
+  const verificationFingerprint = await createProviderVerificationFingerprint(config, apiKey);
   await saveSlotConnectionTestResult('llm_generator', {
     ok: true,
     slotId: 'llm_generator',
@@ -36,7 +40,8 @@ async function verifyGeneratorSlot(): Promise<void> {
     tier: 1,
     label: 'Online AI',
     latencyMs: 1,
-    message: 'PASS — test fixture'
+    message: 'PASS — test fixture',
+    verificationFingerprint: verificationFingerprint ?? undefined
   });
 }
 
@@ -295,16 +300,20 @@ describe('IELTS Question Generator (Slot 5 Online AI + Deduplication + Tier Fall
     };
     await saveSlotConfig(primaryConfig);
     await saveApiKey('llm_generator', 'gemini_gen', 'primary-generator-key');
+    const primaryGeneratorFingerprint = await createProviderVerificationFingerprint(primaryConfig, 'primary-generator-key');
     await saveSlotConnectionTestResult('llm_generator', {
       ok: true, slotId: 'llm_generator', providerId: 'gemini_gen', tier: 1,
-      label: 'Online AI', latencyMs: 1, message: 'PASS — primary test'
+      label: 'Online AI', latencyMs: 1, message: 'PASS — primary test',
+      verificationFingerprint: primaryGeneratorFingerprint ?? undefined
     });
+    const secondaryGeneratorConfig = { slotId: 'llm_generator' as const, providerId: 'openai_compat_gen', baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'gpt-4o-mini' };
+    const secondaryGeneratorFingerprint = await createProviderVerificationFingerprint(secondaryGeneratorConfig, 'secondary-generator-key');
     await saveSecondarySlotConfig('llm_generator', {
       providerId: 'openai_compat_gen',
       baseUrl: 'https://api.openai.com/v1',
       modelOrVoice: 'gpt-4o-mini',
       verified: true,
-      testResult: { ok: true, latencyMs: 1, message: 'PASS — secondary test', testedAt: Date.now() }
+      testResult: { ok: true, latencyMs: 1, message: 'PASS — secondary test', testedAt: Date.now(), verificationFingerprint: secondaryGeneratorFingerprint ?? undefined }
     });
     await saveApiKey('llm_generator', 'openai_compat_gen', 'secondary-generator-key', 'secondary');
 

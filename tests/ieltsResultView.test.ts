@@ -91,6 +91,49 @@ describe('IeltsResultView Component (Stage 4.3)', () => {
     clearIeltsTelemetry();
   });
 
+
+
+
+  it('keeps Automatic available and disables API-only choices that are not verified', async () => {
+    renderIeltsResultView(container, mockTestRecord, {
+      onRetake: () => {}, onBackToHistory: () => {}
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const choice = container.querySelector<HTMLSelectElement>('#result-api-choice');
+    expect(choice?.querySelector<HTMLOptionElement>('option[value="auto"]')?.disabled).toBe(false);
+    const primary = choice?.querySelector<HTMLOptionElement>('option[value="primary"]');
+    const secondary = choice?.querySelector<HTMLOptionElement>('option[value="secondary"]');
+    expect(primary?.disabled).toBe(true);
+    expect(secondary?.disabled).toBe(true);
+    expect(primary?.title).toMatch(/connection test|offline|key/i);
+    expect(secondary?.title).toMatch(/API 2|offline|key/i);
+  });
+
+  it('shows a valid stored score even if an older failed retry left stale error metadata', () => {
+    const staleRecord = { ...mockTestRecord, evaluationError: 'Old API 2 retry failed' };
+    renderIeltsResultView(container, staleRecord, {
+      onRetake: () => {}, onBackToHistory: () => {}
+    });
+    expect(container.querySelector('#result-overall-band')?.textContent).toContain('7.5');
+    expect(container.querySelector('#result-failure-reason')).toBeNull();
+    expect(container.querySelector('#result-reevaluation-status')).not.toBeNull();
+  });
+
+  it('shows re-evaluation failures inline without hiding an existing band score', async () => {
+    renderIeltsResultView(container, mockTestRecord, {
+      onRetake: () => {},
+      onBackToHistory: () => {},
+      onRetryEvaluation: async () => { throw new Error('API 2 is not ready: verification expired.'); }
+    });
+    const status = container.querySelector<HTMLElement>('#result-reevaluation-status');
+    expect(status).not.toBeNull();
+    expect(status?.getAttribute('aria-live')).toBe('polite');
+    container.querySelector<HTMLButtonElement>('#result-retry-eval-btn')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(status?.textContent).toContain('API 2 is not ready');
+    expect(container.querySelector('#result-overall-band')?.textContent).toContain('7.5');
+  });
+
   it('renders a three-criterion practice estimate and marks pronunciation as not assessed', () => {
     const onRetake = vi.fn();
     const onBackToHistory = vi.fn();

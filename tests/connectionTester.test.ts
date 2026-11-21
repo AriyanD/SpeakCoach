@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createDefaultSlotConfig } from '../src/config/providers';
 import type { ConnectionTestResult } from '../src/config/types';
 import { bootstrapApp } from '../src/main';
-import { testSlotConnection } from '../src/services/connectionTester';
+import { describeConnectionTestFailure, persistSlotAccountTestResult, shouldPersistSlotVerification, testSlotAccountsSequentially, testSlotConnection } from '../src/services/connectionTester';
 import { synthesizeOnlineNeuralAudio } from '../src/services/ttsService';
 import { networkMonitor } from '../src/services/networkMonitor';
+import { getProviderAccountHealth, markProviderAccountFailure } from '../src/services/providerHealth';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
 import { saveApiKey } from '../src/storage/keyStore';
 
@@ -32,6 +33,8 @@ const validGeneratorProbe = {
 };
 import {
   loadSlotConnectionTestResult,
+  loadAllSlotsConfig,
+  saveSlotConfig,
   saveSlotConnectionTestResult
 } from '../src/storage/localStore';
 
@@ -40,6 +43,146 @@ describe('Functional Deep Connection Tester', () => {
     localStorage.clear();
     clearAllRuntimeFailures();
     networkMonitor.setOnline(true);
+  });
+
+
+
+
+
+  it.each([
+    ['HTTP 401 unauthorized', /Key rejected.*Re-enter/i],
+    ['HTTP 403 forbidden', /Key rejected.*Re-enter/i],
+    ['HTTP 404 model not found', /Model or endpoint not found.*Check the model/i],
+    ['HTTP 400 unsupported capability', /unsupported capability.*Check the model/i],
+    ['HTTP 429 rate limit', /Quota or rate limit.*Wait for the provider/i],
+    ['HTTP 503 server unavailable', /Provider server error.*Wait and retry/i],
+    ['network CORS fetch failed', /Network or CORS failure.*Check the internet/i],
+    ['request timed out', /Connection timed out.*wait briefly/i],
+    ['unexpected internal failure', /Unclassified connection failure.*report this error/i]
+  ])('classifies provider failure and suggests a next step: %s', (message, expected) => {
+    const result: ConnectionTestResult = {
+      ok: false, slotId: 'voice_tts', providerId: 'gemini_tts', tier: 1,
+      label: 'Online AI', latencyMs: 5, message: `FAIL — ${message}`
+    };
+    expect(describeConnectionTestFailure(result)).toMatch(expected);
+  });
+
+  it('clears persisted account health after a successful saved connection test', async () => {
+    const config = createDefaultSlotConfig('voice_tts');
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error('HTTP 401 rejected'), { status: 401 }));
+    expect((await getProviderAccountHealth('voice_tts', 'primary'))?.state).toBe('needs-retest');
+    await persistSlotAccountTestResult(config, {
+      ok: true, slotId: 'voice_tts', providerId: config.providerId, tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS', verificationFingerprint: 'current-test-fingerprint'
+    }, 'primary');
+    expect(await getProviderAccountHealth('voice_tts', 'primary')).toBeNull();
+  });
+
+  it('saves a slot only when every configured online account passes', () => {
+    const passPrimary = { result: { ok: true, tier: 1 } as ConnectionTestResult };
+    const passSecondary = { result: { ok: true, tier: 2 } as ConnectionTestResult };
+    const failPrimary = { result: { ok: false, tier: 1 } as ConnectionTestResult };
+    const failSecondary = { result: { ok: false, tier: 2 } as ConnectionTestResult };
+    expect(shouldPersistSlotVerification([passPrimary], 1)).toBe(true);
+    expect(shouldPersistSlotVerification([passPrimary, passSecondary], 2)).toBe(true);
+    expect(shouldPersistSlotVerification([passPrimary, failSecondary], 2)).toBe(false);
+    expect(shouldPersistSlotVerification([failPrimary, failSecondary], 2)).toBe(false);
+    expect(shouldPersistSlotVerification([], 0)).toBe(false);
+  });
+
+  it('runs Test all API account probes sequentially and continues after an individual failure', async () => {
+    const primary = createDefaultSlotConfig('voice_tts');
+    const secondary = { ...primary, providerId: 'elevenlabs_tts', baseUrl: 'https://api.elevenlabs.io/v1', modelOrVoice: 'voice-id' };
+    const order: string[] = [];
+    const progress: number[] = [];
+    const batch = await testSlotAccountsSequentially([
+      { account: 'primary', config: primary, apiKeyOverride: 'never-return-this-key' },
+      { account: 'secondary', config: secondary, apiKeyOverride: 'also-secret' }
+    ], {
+      pauseMs: 0,
+      onProgress: current => progress.push(current),
+      probe: async target => {
+        order.push(target.account);
+        if (target.account === 'primary') throw new Error('HTTP 401 invalid key');
+        return {
+          ok: true, slotId: 'voice_tts', providerId: 'elevenlabs_tts', tier: 1,
+          label: 'Online AI', latencyMs: 4, message: 'PASS — secondary'
+        };
+      }
+    });
+    expect(order).toEqual(['primary', 'secondary']);
+    expect(progress).toEqual([1, 2]);
+    expect(batch.cancelled).toBe(false);
+    expect(batch.results.map(item => item.result.ok)).toEqual([false, true]);
+    expect(JSON.stringify(batch.results)).not.toContain('never-return-this-key');
+    expect(JSON.stringify(batch.results)).not.toContain('also-secret');
+  });
+
+  it('cancels sequential API testing between probes without starting the next account', async () => {
+    const config = createDefaultSlotConfig('voice_tts');
+    let calls = 0;
+    let cancel = false;
+    const batch = await testSlotAccountsSequentially([
+      { account: 'primary', config },
+      { account: 'secondary', config: { ...config, providerId: 'elevenlabs_tts' } }
+    ], {
+      pauseMs: 0,
+      shouldCancel: () => cancel,
+      probe: async () => {
+        calls += 1;
+        cancel = true;
+        return {
+          ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+          label: 'Online AI', latencyMs: 2, message: 'PASS'
+        };
+      }
+    });
+    expect(calls).toBe(1);
+    expect(batch.cancelled).toBe(true);
+    expect(batch.results).toHaveLength(1);
+  });
+
+
+  it('re-applies failed secondary provider health after persisting the failed single-test result', async () => {
+    const config = {
+      slotId: 'voice_tts' as const, providerId: 'elevenlabs_tts',
+      baseUrl: 'https://api.elevenlabs.io/v1', modelOrVoice: 'voice-id'
+    };
+    await persistSlotAccountTestResult(config, {
+      ok: false, slotId: 'voice_tts', providerId: 'elevenlabs_tts', tier: 1,
+      label: 'Online AI', latencyMs: 8, message: 'FAIL — HTTP 401 invalid API key'
+    }, 'secondary');
+    await expect(getProviderAccountHealth('voice_tts', 'secondary')).resolves.toMatchObject({ state: 'needs-retest', status: 401 });
+  });
+
+  it('persists primary connection results through the shared account test path', async () => {
+    const config = createDefaultSlotConfig('voice_tts');
+    config.providerId = 'openai_tts';
+    config.baseUrl = 'https://api.openai.com/v1';
+    config.modelOrVoice = 'tts-1:alloy';
+    await saveSlotConfig(config);
+    const result: ConnectionTestResult = {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 12, message: 'PASS — shared test', verificationFingerprint: 'primary-fingerprint'
+    };
+    const persisted = await persistSlotAccountTestResult(config, result, 'primary');
+    expect(persisted?.timestamp).toBeGreaterThan(0);
+    await expect(loadSlotConnectionTestResult('voice_tts')).resolves.toMatchObject({ ok: true, providerId: 'openai_tts', verificationFingerprint: 'primary-fingerprint' });
+  });
+
+  it('persists secondary verification snapshots through the same shared path', async () => {
+    const config = {
+      slotId: 'voice_tts' as const, providerId: 'elevenlabs_tts',
+      baseUrl: 'https://api.elevenlabs.io/v1', modelOrVoice: 'voice-id'
+    };
+    const result: ConnectionTestResult = {
+      ok: true, slotId: 'voice_tts', providerId: 'elevenlabs_tts', tier: 1,
+      label: 'Online AI', latencyMs: 18, message: 'PASS — shared secondary test', verificationFingerprint: 'secondary-fingerprint'
+    };
+    await persistSlotAccountTestResult(config, result, 'secondary');
+    const stored = (await loadAllSlotsConfig()).voice_tts.secondary;
+    expect(stored?.verified).toBe(true);
+    expect(stored?.testResult).toMatchObject({ ok: true, message: 'PASS — shared secondary test', verificationFingerprint: 'secondary-fingerprint' });
   });
 
   it('passes immediately for Tier 3 offline providers without needing a key or internet', async () => {
