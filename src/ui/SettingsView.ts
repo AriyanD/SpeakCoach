@@ -1085,6 +1085,9 @@ export async function renderSettingsView(
       customProviderStatus.textContent = `Applied to ${applied} of ${compatible.length} compatible slots. Existing API 2 backups were preserved.`;
     }
     customProviderApplyButton.disabled = applied === 0;
+    if (applied > 0 && applied === compatible.length && customProviderKey) {
+      customProviderKey.value = '';
+    }
     refreshRequiredApiStatus();
     await _onSettingsUpdated();
   });
