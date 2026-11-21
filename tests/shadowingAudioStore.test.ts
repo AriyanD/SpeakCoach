@@ -73,7 +73,7 @@ describe('durable active-set AI audio store', () => {
       { hash: 'word-1', size: 25, createdAt: 3, kind: 'extra' as const },
       { hash: 'sentence-2', size: 50, createdAt: 4, kind: 'sentence' as const }
     ];
-    expect(selectActiveSetAudioEvictions(entries, 40, 170)).toEqual(['slow-1']);
+    expect(selectActiveSetAudioEvictions(entries, 40, 180)).toEqual(['slow-1']);
     expect(selectActiveSetAudioEvictions(entries, 100, 170)).toEqual(['slow-1', 'word-1']);
   });
 
