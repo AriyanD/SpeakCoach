@@ -519,11 +519,11 @@ export async function renderSettingsView(
         <section class="settings-connection-tests" aria-label="Provider connection tests">
         <div class="btn-row provider-test-actions" >
           <button type="button" class="btn btn-primary settings-test-button" data-test-slot="${slotId}">Test API 1</button>
-          <button type="button" class="btn btn-primary settings-test-button" id="test-secondary-${slotId}">Test API 2</button>
+          <button type="button" class="btn btn-primary settings-test-button" id="test-secondary-${slotId}" ${slotCfg.secondary?.providerId ? "" : "hidden"}>Test API 2</button>
         </div>
         <p class="card-subtitle provider-save-help">Test each configured provider separately. The test saves its current settings and checks the connection.</p>
         <div class="provider-test-results" >
-          <div class="card-subtitle">API 1 result:</div>
+          <div class="card-subtitle primary-result-caption" id="primary-result-caption-${slotId}">API 1 result:</div>
           ${statusHtml}
           ${verificationActionsHtml}
           ${secondaryStatusHtml}
@@ -2118,6 +2118,8 @@ export async function renderSettingsView(
       secondaryProviderOptions?.querySelectorAll<HTMLButtonElement>('[data-secondary-provider-id]').forEach((option) => option.classList.toggle('active', option.dataset.secondaryProviderId === selected));
       closeSecondaryProviderPicker();
       if (!selected) {
+        if (secondaryEnabledToggle?.checked) secondaryEnabledToggle.checked = false;
+        syncSecondaryVisibility();
         const customAuth = container.querySelector<HTMLElement>(`#secondary-custom-auth-container-${slotId}`);
         if (customAuth) customAuth.style.display = 'none';
         if (secondaryBaseUrlInput) secondaryBaseUrlInput.value = '';
@@ -2129,6 +2131,8 @@ export async function renderSettingsView(
         return;
       }
       const selectedPreset = getPreset(slotId, selected);
+      if (secondaryEnabledToggle && !secondaryEnabledToggle.checked) secondaryEnabledToggle.checked = true;
+      syncSecondaryVisibility();
       const secondaryCustomAuthContainer = container.querySelector<HTMLElement>(`#secondary-custom-auth-container-${slotId}`);
       if (secondaryCustomAuthContainer) secondaryCustomAuthContainer.style.display = selectedPreset.id.startsWith('custom_openai_') ? '' : 'none';
       if (secondaryProviderSelect.value !== configs[slotId].secondary?.providerId && secondaryKeyInput) {
