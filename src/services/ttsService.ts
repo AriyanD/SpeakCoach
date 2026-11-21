@@ -5,7 +5,7 @@ import type { ResolvedSlotTier, SlotConfig } from '../config/types';
 import { loadAllSlotsConfig } from '../storage/localStore';
 import { createAudioCacheAccountFingerprint, computeAudioCacheHash, getCachedTtsAudio, setCachedTtsAudio, setMemoryOnlyTtsAudio, removeMemoryOnlyTtsAudio } from './audioCache';
 import { nativeHttpRequest, redactUrlForLog } from './httpClient';
-import { executeWithTierFallback } from './tierManager';
+import { executeWithTierFallback, resolveSlotTier } from './tierManager';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest } from './customEndpointHelper';
 import { runWithSlotApiFallback } from './apiFallback';
 import { convertPcmBase64ToWavDataUrl } from './pcmWavHelper';
@@ -657,7 +657,6 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
     try {
       if (generation !== temporaryCacheGeneration) return false;
       const configs = await loadAllSlotsConfig();
-      const { resolveSlotTier } = await import('./tierManager');
       const resolved = await resolveSlotTier(configs.voice_tts);
       // Prefetch is opportunistic: never probe an offline/unverified provider.
       if (resolved.tier === 3) return false;
