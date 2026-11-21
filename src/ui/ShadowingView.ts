@@ -19,7 +19,8 @@ import {
 import { recordLastShadowingAttempt } from '../services/shadowingTelemetry';
 import { loadAppSettings } from '../storage/appSettings';
 import type { GlobalTierSummary } from '../services/tierManager';
-import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
+import { playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
+import { activateShadowingAudioSet } from '../services/shadowingAudioStore';
 import { translateShadowingText } from '../services/translationService';
 import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavVadAnalyzer';
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
@@ -391,7 +392,7 @@ export function renderShadowingView(
       container.innerHTML = '<section class="card shadowing-main-card"><div class="status-box fail" role="alert">Could not load the sentence library. Please restart the app and try again.</div></section>';
       console.error('[SpeakCoach] Shadowing history initialization failed.', error);
     });
-    return () => { shadowingViewGeneration++; stopAllTts(); clearPreloadedSentenceAudio(); shadowingPrefetchWindowKey = ''; shadowingPrefetchScheduler.reset(); };
+    return () => { shadowingViewGeneration++; stopAllTts(); shadowingPrefetchWindowKey = ''; shadowingPrefetchScheduler.reset(); };
   }
   const activeHistory = sentenceSetHistory[state.difficulty];
   const activeSet = activeHistory.sets.length ? getActiveShadowingSet(sentenceSetHistory, state.difficulty) : undefined;
@@ -412,56 +413,43 @@ export function renderShadowingView(
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
   const selectedLanguage = getShadowingLanguage(state.languageCode);
-  // Start prefetch on the first normal-play or recording action. Fetch four
-  // future sentences, then another four only after two distinct sentences
-  // have been successfully practised and scored.
-  const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${activeSet?.sentences[0]?.text ?? ''}:${state.customDrillText ?? ''}`;
+  const activeAudioSetId = activeSet ? `${state.languageCode}:${state.difficulty}:${activeSet.id}` : null;
+  const audioSetContextPromise = activeAudioSetId
+    ? activateShadowingAudioSet(activeAudioSetId).then(generation => ({ setId: activeAudioSetId, generation }))
+    : Promise.resolve(null);
+  // Stable identity is the persisted sentence-set ID, not view lifecycle or the first sentence.
+  const prefetchWindowKey = `${activeAudioSetId ?? 'none'}:${state.customDrillText ?? ''}`;
   if (prefetchWindowKey !== shadowingPrefetchWindowKey) {
     shadowingPrefetchWindowKey = prefetchWindowKey;
     shadowingPrefetchEpoch++;
-    shadowingPrefetchScheduler.reset(state.index + 1);
-    clearPreloadedSentenceAudio();
+    shadowingPrefetchScheduler.reset(0);
   }
   const enqueueShadowingPrefetch = (indices: number[]): void => {
     if (!activeSet || !indices.length) return;
     const queue = indices.map(index => activeSet.sentences[index]).filter((item): item is ShadowingSentence => Boolean(item));
     if (!queue.length) return;
-    // Serialize batches so quick progress cannot create overlapping API bursts.
-    // Discard queued work from a previous language/sentence-set context.
     const queuedEpoch = shadowingPrefetchEpoch;
     shadowingPrefetchQueue = shadowingPrefetchQueue.then(async () => {
       if (queuedEpoch !== shadowingPrefetchEpoch) return;
-      await runShadowingPrefetchBatch(queue, async (item) => {
+      const context = await audioSetContextPromise;
+      if (!context) return;
+      const completed = await runShadowingPrefetchBatch(queue, async (item) => {
         if (queuedEpoch !== shadowingPrefetchEpoch) return false;
         const settings = await loadAppSettings();
         if (!settings.prefetchShadowingAudio) return false;
-        return preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
+        return preloadSentenceAudio(item.text, {
+          locale: selectedLanguage.locale,
+          shadowingSetAudio: { ...context, kind: 'sentence' }
+        });
       });
+      shadowingPrefetchScheduler.completeBatch(completed);
     });
   };
   const startShadowingPrefetch = (): void => {
     if (!activeSet || state.customDrillText) return;
     void loadAppSettings().then(settings => {
-      if (prefetchWindowKey !== shadowingPrefetchWindowKey) return;
-      if (!settings.prefetchShadowingAudio) {
-        shadowingPrefetchScheduler.reset(state.index + 1);
-        return;
-      }
-      enqueueShadowingPrefetch(shadowingPrefetchScheduler.start(activeSet.sentences.length));
-    }).catch(() => {
-      // Fail closed: do not spend provider quota when the preference cannot be read.
-    });
-  };
-  const recordShadowingPracticeForPrefetch = (): void => {
-    if (!activeSet || state.customDrillText) return;
-    const practicedIndex = state.index;
-    void loadAppSettings().then(settings => {
-      if (prefetchWindowKey !== shadowingPrefetchWindowKey) return;
-      if (!settings.prefetchShadowingAudio) {
-        shadowingPrefetchScheduler.reset(state.index + 1);
-        return;
-      }
-      enqueueShadowingPrefetch(shadowingPrefetchScheduler.recordPractice(practicedIndex, activeSet.sentences.length));
+      if (prefetchWindowKey !== shadowingPrefetchWindowKey || !settings.prefetchShadowingAudio) return;
+      enqueueShadowingPrefetch(shadowingPrefetchScheduler.reachPosition(state.index, activeSet.sentences.length));
     }).catch(() => {
       // Fail closed: do not spend provider quota when the preference cannot be read.
     });
@@ -828,29 +816,37 @@ export function renderShadowingView(
     }
     state.customDrillText = null;
     clearAttemptState();
+    startShadowingPrefetch();
     renderShadowingView(container, summary);
   });
 
   container.querySelector<HTMLButtonElement>('#sh-exit-drill-btn')?.addEventListener('click', () => {
     state.customDrillText = null;
     clearAttemptState();
+    startShadowingPrefetch();
     renderShadowingView(container, summary);
   });
 
   const playModelAudio = async (mode: 'normal' | 'slow'): Promise<void> => {
     if (state.activeModelPlayback) return;
     const playbackToken = ++shadowingModelPlaybackToken;
-    // Slow playback is generated on demand for this sentence only; do not
-    // trigger the normal-speed prefetch queue or spend quota on other sentences.
-    if (mode === 'normal') startShadowingPrefetch();
     state.activeModelPlayback = mode;
-    state.statusMessage = mode === 'normal'
-      ? 'Playing model audio at normal speed...'
-      : 'Playing model audio slowly...';
+    state.statusMessage = 'Generating audio…';
     renderShadowingView(container, summary);
     try {
       const rate = mode === 'normal' ? 1.0 : 0.72;
-      const res = await speakSentenceWithTierFallback(targetText, { rate, locale: selectedLanguage.locale });
+      const audioContext = await audioSetContextPromise;
+      const res = await speakSentenceWithTierFallback(targetText, {
+        rate,
+        locale: selectedLanguage.locale,
+        shadowingSetAudio: audioContext ? { ...audioContext, kind: rate === 1 ? 'sentence' : 'extra' } : undefined,
+        onPlaybackStart: () => {
+          if (playbackToken !== shadowingModelPlaybackToken) return;
+          state.statusMessage = mode === 'normal' ? 'Playing model audio at normal speed…' : 'Playing model audio slowly…';
+          renderShadowingView(container, summary);
+          if (mode === 'normal') startShadowingPrefetch();
+        }
+      });
       if (playbackToken !== shadowingModelPlaybackToken) return;
       const offlineVoiceNote = res.activeTier.tier >= 3
         ? ' The basic offline system voice is being used; an online TTS API may sound more natural.'
@@ -865,6 +861,7 @@ export function renderShadowingView(
     } finally {
       if (playbackToken === shadowingModelPlaybackToken) {
         state.activeModelPlayback = null;
+        startShadowingPrefetch(); // Retry any batch deferred by user-initiated synthesis.
         renderShadowingView(container, summary);
       }
     }
@@ -1052,7 +1049,7 @@ export function renderShadowingView(
     clearDiagnosticsCache();
 
     state.statusMessage = `Scored recognizer output ("${rawRecognized}") against reference.`;
-    recordShadowingPracticeForPrefetch();
+    startShadowingPrefetch();
     renderShadowingView(container, summary);
   });
 
@@ -1085,7 +1082,6 @@ export function renderShadowingView(
     shadowingModelPlaybackToken++;
     state.activeModelPlayback = null;
     stopAllTts();
-    clearPreloadedSentenceAudio();
     shadowingPrefetchWindowKey = '';
     shadowingPrefetchScheduler.reset();
     shadowingIsStopping = false;
