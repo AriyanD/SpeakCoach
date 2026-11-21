@@ -5,6 +5,7 @@ import {
   type IeltsTestRecord
 } from '../storage/ieltsHistoryStore';
 import { retryIeltsEvaluation } from '../services/ieltsLlmEvaluator';
+import { clearIeltsTelemetry, getLastIeltsEvaluation } from '../services/ieltsTelemetry';
 import { confirmInApp } from './confirmDialog';
 
 export interface IeltsHistoryViewCallbacks {
@@ -223,6 +224,7 @@ export async function renderIeltsHistoryView(
       });
       if (confirmed) {
         await clearIeltsTestHistory();
+        await clearIeltsTelemetry();
         await refresh();
       }
     });
@@ -283,7 +285,9 @@ export async function renderIeltsHistoryView(
           tone: 'danger'
         });
         if (confirmed) {
+          const lastEvaluation = await getLastIeltsEvaluation();
           await deleteIeltsTestResult(id);
+          if (lastEvaluation?.id === id) await clearIeltsTelemetry();
           await refresh();
         }
       });
