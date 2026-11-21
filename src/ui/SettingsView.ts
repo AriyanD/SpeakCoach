@@ -5,6 +5,7 @@ import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUp
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
 import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult } from '../services/connectionTester';
 import { networkMonitor } from '../services/networkMonitor';
+import { getProviderAccountHealth } from '../services/providerHealth';
 import { isOnlineProviderVerified } from '../services/slotConnectionStatus';
 import {
   detectProviderUrlMismatch,
@@ -1539,21 +1540,24 @@ export async function renderSettingsView(
         const primaryResult = lastTestResults.get(slotId);
         const badge = container.querySelector<HTMLElement>(`#badge-${slotId}`);
         if (badge) {
-          const onlineVerified = isOnlineProviderVerified(primaryResult, configs[slotId].secondary);
+          const failedAccount = failed[0]?.account;
+          const health = failedAccount ? await getProviderAccountHealth(slotId, failedAccount) : null;
+          const onlineVerified = !failed.length && isOnlineProviderVerified(primaryResult, configs[slotId].secondary);
+          const badgeLabel = failed.length ? (health?.state === 'cooldown' ? 'Cooling down' : 'Needs re-test') : onlineVerified ? 'Online AI' : 'Basic offline';
           badge.className = `tier-badge settings-slot-status ${onlineVerified ? 'online' : 'offline'}`;
-          badge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
+          badge.innerHTML = `<span class="tier-dot"></span>${badgeLabel}`;
         }
         const primaryStatus = container.querySelector<HTMLElement>(`#status-${slotId}`);
         if (primaryStatus && tested.some(item => item.account === 'primary')) {
           const result = tested.find(item => item.account === 'primary')!.result;
           primaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
-          primaryStatus.textContent = `API 1: ${result.ok ? 'PASS' : 'FAIL'} — ${result.message}`;
+          primaryStatus.textContent = `API 1: ${result.ok ? 'PASS' : 'FAIL'} — ${result.message} · Tested: ${new Date().toLocaleTimeString()}`;
         }
         const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
         if (secondaryStatus && tested.some(item => item.account === 'secondary')) {
           const result = tested.find(item => item.account === 'secondary')!.result;
           secondaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
-          secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${result.message}`;
+          secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${result.message} · Tested: ${new Date().toLocaleTimeString()}`;
         }
       }
       backupStatus.className = cancelTestAllApis ? 'status-box info' : notSavedSlots ? 'status-box info' : 'status-box pass';
