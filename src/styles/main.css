@@ -4085,3 +4085,9 @@ body {
   .secondary-api-switch-label { flex: 1 1 100%; justify-content: space-between; }
   .secondary-api-content .settings-copy-key-btn { flex: 1 1 100%; }
 }
+
+.secondary-api-settings .settings-test-button[hidden],
+.secondary-api-settings ~ .settings-connection-tests .settings-test-button[hidden],
+.provider-test-results .status-box[hidden] {
+  display: none !important;
+}
