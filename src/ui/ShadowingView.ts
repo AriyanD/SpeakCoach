@@ -519,6 +519,38 @@ export function renderShadowingView(
           ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
         </select>
       </div>
+      <section class="sh-sentence-set-details" aria-labelledby="sh-sentence-set-title">
+        <div class="sh-sentence-set-heading"><h2 id="sh-sentence-set-title">Sentence set</h2><span class="sh-sentence-set-summary">${state.difficulty[0].toUpperCase()+state.difficulty.slice(1)} · Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id)+1 : 0} of ${activeHistory.sets.length} · Change${state.isGeneratingAi ? " · Generating…" : state.aiGenerationError ? " · Error" : ""}</span></div>
+      <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
+        <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy">Easy</button>
+        <button type="button" class="pill-btn ${state.difficulty === 'medium' ? 'active' : ''}" data-diff="medium">Medium</button>
+        <button type="button" class="pill-btn ${state.difficulty === 'hard' ? 'active' : ''}" data-diff="hard">Hard</button>
+      </div>
+
+      <div class="ai-sentence-panel">
+        <div class="ai-sentence-panel-copy">
+          <strong>Get a new sentence set</strong>
+          <span>AI-generated sets contain 20 sentences; offline starter sets may contain one.</span>
+        </div>
+        <div class="form-field sh-topic-field">
+          <label class="form-label" for="sh-topic-input">Optional topic</label>
+          <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
+        </div>
+        <div class="btn-row sh-generate-actions">
+          <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi ? 'disabled' : ''}>
+            ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
+          </button>
+        </div>
+        <div class="sh-history-controls" aria-label="Sentence set history">
+          <span class="sh-history-caption">From history</span>
+          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
+          <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1 : 0} of ${activeHistory.sets.length}</span>
+          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
+        </div>
+        
+        ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
+      </div>
+      </section>
       <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
       <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
         <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
@@ -534,6 +566,8 @@ export function renderShadowingView(
         <summary><strong>Pronunciation accuracy notice</strong><span class="offline-quality-learn-more">Learn more</span></summary>
         <p>Offline feedback uses the device or browser speech recognizer and approximate word/timing checks. It is still useful for practising repetition, fluency and matching the target sentence, but it is not a precise pronunciation score. For more dependable transcription and word-level timing, connect and test an online speech-to-text provider in Slot 2 (for example, Groq Whisper when available for your account). This improves the information available to the practice feedback, but true phoneme-level pronunciation assessment requires a dedicated pronunciation-assessment service.</p>
       </details>` : ''}
+
+
       <p class="card-subtitle sh-ai-sentence-count shadowing-topic-label">${state.customDrillText ? 'Weak-word drill' : `${hasLanguageSentenceSet ? `Sentence ${state.index + 1} of ${activeSet?.sentences.length ?? 0}` : 'No sentence set yet'} · Topic: ${escapeHtml(sentence?.topic ?? 'Offline practice')}`}</p>
       <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div>
       <p class="card-subtitle sh-focus-copy">
@@ -576,11 +610,10 @@ export function renderShadowingView(
             )} (Score: 0)</div>`
           : `<div class="status-box info" id="sh-status-msg" role="status" aria-live="polite">${escapeHtml(state.statusMessage)}</div>`
       }
-    </section>
 
-    ${state.lastReport ? `<div class="sh-result-strip" role="status" aria-live="polite"><div class="sh-result-strip-score"><strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace</span></div><div class="sh-result-strip-words">${state.lastReport.words.slice(0, 12).map(word => `<span class="sh-result-chip ${word.status}" title="${escapeHtml(word.referenceWord || word.spokenWord || '')}">${escapeHtml(word.referenceWord || word.spokenWord || '')}</span>`).join('')}</div></div>` : ''}
-    <details class="sh-result-details" ${state.recognizerError ? 'open' : ''}>
-      <summary>Score &amp; recognition details</summary>
+      ${state.lastReport ? `<div class="sh-result-strip" role="group" aria-label="Latest recording result"><div class="sh-result-strip-score" role="status" aria-live="polite"><strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace</span></div><div class="sh-result-strip-words">${state.lastReport.words.map(word => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); return `<button type="button" class="sh-result-chip ${word.status}" data-word-replay="${escapeHtml(replayWord)}" aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord ? '' : 'disabled'}>${escapeHtml(replayWord)}</button>`; }).join('')}</div><p class="sh-result-replay-help">Tap a word to hear it. For more details and practice with difficult words, see Score &amp; recognition details below.</p></div>` : ''}
+    <section class="sh-result-details" aria-labelledby="sh-result-details-title">
+      <h2 id="sh-result-details-title">Score &amp; recognition details</h2>
       ${state.lastReport ? renderReportHtml(state.lastReport, Boolean(state.lastRecording?.wavBase64)) : ''}
       <details class="sh-transcript-details" ${state.recognizerError ? 'open' : ''}>
         <summary>Transcript &amp; recognition details</summary>
@@ -600,40 +633,8 @@ export function renderShadowingView(
           </div>
         </div>
       </details>
-    </details>
-
-      <details class="sh-sentence-set-details" ${(!hasLanguageSentenceSet || !hasSentence || state.isGeneratingAi || state.aiGenerationError) ? "open" : ""}>
-        <summary><strong>Sentence set</strong><span class="sh-sentence-set-summary">${state.difficulty[0].toUpperCase()+state.difficulty.slice(1)} · Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id)+1 : 0} of ${activeHistory.sets.length} · Change${state.isGeneratingAi ? " · Generating…" : state.aiGenerationError ? " · Error" : ""}</span></summary>
-      <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
-        <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy">Easy</button>
-        <button type="button" class="pill-btn ${state.difficulty === 'medium' ? 'active' : ''}" data-diff="medium">Medium</button>
-        <button type="button" class="pill-btn ${state.difficulty === 'hard' ? 'active' : ''}" data-diff="hard">Hard</button>
-      </div>
-
-      <div class="ai-sentence-panel">
-        <div class="ai-sentence-panel-copy">
-          <strong>Get a new sentence set</strong>
-          <span>AI-generated sets contain 20 sentences; offline starter sets may contain one.</span>
-        </div>
-        <div class="form-field sh-topic-field">
-          <label class="form-label" for="sh-topic-input">Optional topic</label>
-          <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
-        </div>
-        <div class="btn-row sh-generate-actions">
-          <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi ? 'disabled' : ''}>
-            ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
-          </button>
-        </div>
-        <div class="sh-history-controls" aria-label="Sentence set history">
-          <span class="sh-history-caption">From history</span>
-          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
-          <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1 : 0} of ${activeHistory.sets.length}</span>
-          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
-        </div>
-        
-        ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
-      </div>
-      </details>
+    </section>
+    </section>
 
     <section class="card sh-translation-card" id="sh-translation-card">
       <div class="card-header">

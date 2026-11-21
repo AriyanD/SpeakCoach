@@ -1,6 +1,6 @@
 {
   "name": "speakcoach",
-  "version": "1.0.14",
+  "version": "1.1.0",
   "private": true,
   "description": "SpeakCoach — Multilingual Shadowing and IELTS Speaking Practice",
   "type": "module",

@@ -124,6 +124,17 @@ export async function renderSettingsView(
     ? `<aside class="offline-quality-notice" role="alert" aria-label="API key recovery notice"><strong>Saved API key needs recovery</strong><ul>${unreadableApiKeyWarnings.map(escapeHtml).map(message => `<li>${message}</li>`).join('')}</ul><p>Do not save an empty value for these providers. Restore the key from an AI Settings backup, enter a replacement key, or switch providers. SpeakCoach will not silently erase the unreadable saved value.</p></aside>`
     : '';
 
+  const accountHealthBySlot = new Map<SlotId, {
+    primary: Awaited<ReturnType<typeof getProviderAccountHealth>>;
+    secondary: Awaited<ReturnType<typeof getProviderAccountHealth>>;
+  }>();
+  for (const slotId of SLOT_ORDER) {
+    accountHealthBySlot.set(slotId, {
+      primary: await getProviderAccountHealth(slotId, 'primary'),
+      secondary: await getProviderAccountHealth(slotId, 'secondary')
+    });
+  }
+
   const cardsHtml = SLOT_ORDER.map((slotId) => {
     const def = SLOT_DEFINITIONS[slotId];
     const slotCfg = configs[slotId];
@@ -134,7 +145,17 @@ export async function renderSettingsView(
     const lastTest = storedLastTest?.providerId === slotCfg.providerId ? storedLastTest : undefined;
     const apiRequiredOfflineSelected = (slotId === 'llm_evaluator' || slotId === 'llm_translation') && preset.tier === 3;
     const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
-    const slotStatus = apiRequiredOfflineSelected
+    const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
+    const secondarySuggestions = secondaryPreset ? (secondaryPreset.modelSuggestions || [secondaryPreset.defaultModelOrVoice]) : [];
+    const secondaryIsCustom = secondaryPreset?.id.startsWith('custom_openai_') ?? false;
+    const secondarySameModelAsPrimary = !!slotCfg.secondary && slotCfg.secondary.providerId === slotCfg.providerId && slotCfg.secondary.modelOrVoice.trim() === slotCfg.modelOrVoice.trim();
+    const secondaryTestResult = slotCfg.secondary?.testResult;
+    const accountHealth = accountHealthBySlot.get(slotId);
+    const primaryAccountReady = lastTest?.ok === true && lastTest.tier !== 3 && !accountHealth?.primary;
+    const secondaryAccountReady = !!slotCfg.secondary && slotCfg.secondary.verified === true && secondaryTestResult?.ok === true && !accountHealth?.secondary;
+    const bothConfiguredApisReady = !!slotCfg.secondary && primaryAccountReady && secondaryAccountReady;
+    const mixedApiReadiness = !!slotCfg.secondary && primaryAccountReady !== secondaryAccountReady;
+    let slotStatus = apiRequiredOfflineSelected
       ? 'api-required'
       : resolved.label !== 'Online AI' && (lastTest?.ok || resolved.reason?.toLowerCase().includes('re-test'))
         ? 'needs-retest'
@@ -155,22 +176,43 @@ export async function renderSettingsView(
                   : preset.requiresKey
                     ? 'not-tested'
                     : 'offline-ready';
+    if (bothConfiguredApisReady || mixedApiReadiness) slotStatus = 'ready';
     const badgeClass = slotStatus === 'ready' || slotStatus === 'ready-degraded' || slotStatus === 'ready-cooldown' ? 'online' : slotStatus === 'error' || slotStatus === 'needs-retest' ? 'error' : 'offline';
     const badgeLabel = slotStatus === 'ready' ? 'Ready' : slotStatus === 'ready-degraded' ? `Ready · ${resolved.reason?.startsWith('API 1') ? 'API 1 needs re-test' : 'API 2 needs re-test'}` : slotStatus === 'ready-cooldown' ? `Ready · ${resolved.reason?.startsWith('API 1') ? 'API 1 cooling down' : 'API 2 cooling down'}` : slotStatus === 'needs-retest' ? 'Needs re-test' : slotStatus === 'cooldown' ? 'Cooling down' : slotStatus === 'error' ? 'Error' : slotStatus === 'needs-key' ? 'API key needed' : slotStatus === 'offline-ready' ? 'Offline ready' : slotStatus === 'api-required' ? 'API required' : 'Not tested';
     const isCustom = preset.id.startsWith('custom_openai_');
-    const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
-    const secondaryIsCustom = secondaryPreset?.id.startsWith('custom_openai_') ?? false;
-    const secondarySameModelAsPrimary = !!slotCfg.secondary && slotCfg.secondary.providerId === slotCfg.providerId && slotCfg.secondary.modelOrVoice.trim() === slotCfg.modelOrVoice.trim();
-    const secondaryTestResult = slotCfg.secondary?.testResult;
     const secondaryStatusClass = secondaryTestResult
       ? (secondaryTestResult.ok ? 'pass' : 'fail')
       : (slotCfg.secondary?.verified ? 'pass' : 'info');
     const secondaryStatusText = secondaryTestResult
       ? `${escapeHtml(secondaryTestResult.message)} · <span class="settings-tested-time">Tested: ${new Date(secondaryTestResult.testedAt).toLocaleTimeString()}</span>`
       : (slotCfg.secondary?.verified ? 'PASS — Verified (test details unavailable)' : 'Not tested');
-    const secondaryStatusHtml = `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
+    const renderAccountStatus = (
+      account: 'primary' | 'secondary',
+      providerName: string,
+      ready: boolean,
+      result: Pick<ConnectionTestResult, 'ok' | 'message'> | undefined,
+      health: Awaited<ReturnType<typeof getProviderAccountHealth>>
+    ): string => {
+      const label = account === 'primary' ? 'API 1' : 'API 2';
+      if (ready) return `<div class="status-box pass" id="${account === 'primary' ? `status-${slotId}` : `secondary-status-${slotId}`}">${label} (${escapeHtml(providerName)}): Ready</div>`;
+      const healthText = health
+        ? `${health.state === 'cooldown' ? 'Cooling down' : 'Needs re-test'} — ${health.reason}`
+        : result
+          ? `Error — ${result.message}`
+          : account === 'primary'
+            ? (resolved.reason ?? 'Not tested')
+            : secondaryStatusText;
+      const statusClass = health?.state === 'cooldown' ? 'info' : 'fail';
+      return `<div class="status-box ${statusClass}" id="${account === 'primary' ? `status-${slotId}` : `secondary-status-${slotId}`}">${label} (${escapeHtml(providerName)}): ${escapeHtml(healthText)}</div>`;
+    };
+    const secondaryStatusHtml = bothConfiguredApisReady
+      ? ''
+      : mixedApiReadiness && secondaryPreset
+        ? renderAccountStatus('secondary', secondaryPreset.name, secondaryAccountReady, secondaryTestResult, accountHealth?.secondary ?? null)
+        : `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
     const showVoiceInput = slotId === 'voice_tts' && preset.id !== 'android_native_tts';
     const mismatchInfo = detectProviderUrlMismatch(slotCfg);
+    const secondaryMismatchInfo = secondaryPreset ? detectProviderUrlMismatch({ slotId, providerId: secondaryPreset.id, baseUrl: slotCfg.secondary?.baseUrl || secondaryPreset.defaultBaseUrl, endpointPathOverride: slotCfg.secondary?.endpointPathOverride }) : { mismatch: false, reason: undefined as string | undefined };
 
     const optionsHtml = def.providers
       .map(
@@ -223,23 +265,27 @@ export async function renderSettingsView(
       .map((source, index) => `<button type="button" class="provider-picker-option ${index === 0 ? 'active' : ''}" data-secondary-copy-key-source="${source.slotId}|${source.account}">${escapeHtml(source.label)}</button>`)
       .join('');
 
-    const statusHtml = apiRequiredOfflineSelected
-      ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${slotId === 'llm_translation' ? 'Translation requires an online AI API. No offline translation engine is available.' : 'IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.'}</div>`
-      : ['needs-retest', 'cooldown', 'ready-degraded', 'ready-cooldown'].includes(slotStatus) && resolved.reason
-        ? `<div class="status-box ${slotStatus === 'needs-retest' ? 'fail' : 'info'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${escapeHtml(resolved.reason)}</div>`
-        : lastTest
-          ? `<div class="status-box ${lastTest.ok ? 'pass' : 'fail'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
-               ${escapeHtml(lastTest.message)}${ 
-                 typeof (lastTest as PersistedConnectionTestResult).timestamp === 'number'
-                   ? ` · <span class="settings-tested-time">Tested: ${new Date(
-                       (lastTest as PersistedConnectionTestResult).timestamp
-                     ).toLocaleTimeString()}</span>`
-                   : ''
-               }
-             </div>`
-          : `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
-               ${escapeHtml(resolved.reason ?? `Active: ${resolved.detailLabel}`)}
-             </div>`;
+    const statusHtml = bothConfiguredApisReady
+      ? `<div class="status-box pass" id="status-${slotId}">Ready</div>`
+      : mixedApiReadiness && secondaryPreset
+        ? renderAccountStatus('primary', preset.name, primaryAccountReady, lastTest, accountHealth?.primary ?? null)
+        : apiRequiredOfflineSelected
+          ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${slotId === 'llm_translation' ? 'Translation requires an online AI API. No offline translation engine is available.' : 'IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.'}</div>`
+          : ['needs-retest', 'cooldown', 'ready-degraded', 'ready-cooldown'].includes(slotStatus) && resolved.reason
+            ? `<div class="status-box ${slotStatus === 'needs-retest' ? 'fail' : 'info'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${escapeHtml(resolved.reason)}</div>`
+            : lastTest
+              ? `<div class="status-box ${lastTest.ok ? 'pass' : 'fail'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
+                   ${escapeHtml(lastTest.message)}${ 
+                     typeof (lastTest as PersistedConnectionTestResult).timestamp === 'number'
+                       ? ` · <span class="settings-tested-time">Tested: ${new Date(
+                           (lastTest as PersistedConnectionTestResult).timestamp
+                         ).toLocaleTimeString()}</span>`
+                       : ''
+                   }
+                 </div>`
+              : `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
+                   ${escapeHtml(resolved.reason ?? `Active: ${resolved.detailLabel}`)}
+                 </div>`;
     const showVerificationActions = !lastTest?.ok && !dismissedVerificationErrors.has(slotId);
     const verificationActionsHtml = `<div class="btn-row verification-error-actions" id="verification-actions-${slotId}" style="display:${showVerificationActions ? 'flex' : 'none'};gap:8px;margin-top:6px;">
          <button type="button" class="btn btn-secondary settings-verify-action" data-ignore-verification-error="${slotId}">Dismiss error</button>
@@ -308,28 +354,9 @@ export async function renderSettingsView(
           </div>
 
           <div class="form-field">
-            <div class="settings-field-heading">
-              <label class="form-label settings-field-label" for="key-${slotId}">
-                API Key ${preset.requiresKey ? `(${keyStorageLabel})` : '(Offline — no key needed)'}
-              </label>
-              ${
-                preset.requiresKey && copyKeyOptionsHtml
-                  ? `<div class="settings-copy-key">
-                       <select class="form-select provider-native-select" id="copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">
-                         ${copyKeyOptionsHtml}
-                       </select>
-                       <span class="card-subtitle settings-copy-key-label">Copy from</span>
-                       <div class="provider-picker copy-key-provider-picker" id="copy-key-picker-${slotId}">
-                         <button type="button" class="provider-picker-trigger" id="copy-key-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(copyKeySources[0]?.label ?? 'Choose source')}</span><span class="provider-picker-chevron">⌄</span></button>
-                         <div class="provider-picker-options" id="copy-key-options-${slotId}" hidden>${copyKeyPickerOptionsHtml}</div>
-                       </div>
-                       <button type="button" class="btn btn-secondary settings-copy-key-btn" id="copy-key-btn-${slotId}">
-                         Copy API key
-                       </button>
-                     </div>`
-                  : ''
-              }
-            </div>
+            <label class="form-label settings-field-label" for="key-${slotId}">
+              API Key ${preset.requiresKey ? `(${keyStorageLabel})` : '(Offline — no key needed)'}
+            </label>
             <input
               type="password"
               class="form-input"
@@ -339,8 +366,19 @@ export async function renderSettingsView(
               autocomplete="off"
               ${preset.requiresKey ? '' : 'disabled'}
             />
+            ${preset.requiresKey && copyKeyOptionsHtml ? `
+              <div class="settings-copy-key-field">
+                <label class="form-label" for="copy-key-source-${slotId}">Or copy from</label>
+                <select class="form-select provider-native-select" id="copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${copyKeyOptionsHtml}</select>
+                <div class="settings-copy-key">
+                  <div class="provider-picker copy-key-provider-picker" id="copy-key-picker-${slotId}">
+                    <button type="button" class="provider-picker-trigger" id="copy-key-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(copyKeySources[0]?.label ?? 'Choose source')}</span><span class="provider-picker-chevron">⌄</span></button>
+                    <div class="provider-picker-options" id="copy-key-options-${slotId}" hidden>${copyKeyPickerOptionsHtml}</div>
+                  </div>
+                  <button type="button" class="btn btn-secondary settings-copy-key-btn" id="copy-key-btn-${slotId}">Copy API key</button>
+                </div>
+              </div>` : ''}
           </div>
-
           <div class="form-field">
             <div class="settings-field-heading">
               <label class="form-label settings-field-label" for="model-${slotId}">
@@ -435,17 +473,19 @@ export async function renderSettingsView(
           </details>
         </div>
 
-        <div class="settings-api-divider" aria-hidden="true"></div>
-        <details class="secondary-api-settings">
-          <summary class="secondary-api-summary">
-            <span class="settings-api-section-heading secondary-api-heading"><span>API 2</span><small>Backup / rotation</small></span>
-            <span class="secondary-api-configure-label">Tap to configure</span>
-            <span class="secondary-api-summary-chevron" aria-hidden="true">+</span>
-          </summary>
+        <section class="secondary-api-settings" aria-labelledby="secondary-api-heading-${slotId}">
+          <div class="secondary-api-summary">
+            <span class="settings-api-section-heading secondary-api-heading" id="secondary-api-heading-${slotId}"><span>API 2</span><small>Backup / rotation</small></span>
+            <label class="secondary-api-switch-label" for="secondary-api-enabled-${slotId}">
+              <span>Enable API 2</span>
+              <input type="checkbox" class="secondary-api-switch" id="secondary-api-enabled-${slotId}" ${slotCfg.secondary ? 'checked' : ''} aria-controls="secondary-api-content-${slotId}" />
+            </label>
+          </div>
+          <div class="secondary-api-content" id="secondary-api-content-${slotId}" ${slotCfg.secondary ? '' : 'hidden'}>
           <p class="card-subtitle secondary-api-help">Configure another provider/account and key. Speech recognition may rotate between verified APIs. API 2 is not guaranteed to be a different model or service: if you use the same gateway, model, or endpoint in both accounts, you may have no independent fallback. Check that each account supports the required operation (TTS: text → audio; STT: audio → text).</p>
           ${secondarySameModelAsPrimary ? `<div class="status-box info" role="note"><strong>API 2 uses the same provider and model as API 1.</strong> It may still have a separate key or quota, but it is not a different model or an independent model capability.</div>` : ''}
           <div class="form-grid">
-            <div class="form-field"><label class="form-label" for="secondary-provider-${slotId}">Secondary provider</label>
+            <div class="form-field"><label class="form-label" for="secondary-provider-${slotId}">Provider</label>
               <select class="form-select provider-native-select" id="secondary-provider-${slotId}" aria-hidden="true" tabindex="-1">
                 <option value="">Not configured</option>
                 ${def.providers.filter((p) => p.tier !== 3).map((p) => `<option value="${escapeHtml(p.id)}" ${slotCfg.secondary?.providerId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
@@ -458,32 +498,36 @@ export async function renderSettingsView(
                 </div>
               </div>
             </div>
-            <div class="form-field"><label class="form-label" for="secondary-baseurl-${slotId}">Secondary Base URL</label>
-              <input type="url" class="form-input" id="secondary-baseurl-${slotId}" value="${escapeHtml(slotCfg.secondary?.baseUrl || secondaryPreset?.defaultBaseUrl || '')}" placeholder="https://api.example.com/v1" /></div>
+            <div class="form-field settings-baseurl-field"><label class="form-label" for="secondary-baseurl-${slotId}">Base URL</label>
+              <input type="url" class="form-input settings-baseurl-input" id="secondary-baseurl-${slotId}" value="${escapeHtml(slotCfg.secondary?.baseUrl || secondaryPreset?.defaultBaseUrl || '')}" placeholder="${escapeHtml(secondaryPreset?.baseUrlPlaceholder ?? 'https://api.example.com/v1')}" ${secondaryPreset?.tier === 3 ? 'disabled' : ''} />
+              <div class="status-box fail settings-mismatch-warning" id="secondary-mismatch-warning-${slotId}" style="${secondaryMismatchInfo.mismatch ? '' : 'display:none;'}">
+                <div id="secondary-mismatch-warning-text-${slotId}" class="settings-mismatch-copy">${escapeHtml(secondaryMismatchInfo.reason ?? '')}</div>
+                <button type="button" class="btn btn-secondary settings-switch-custom-btn" id="secondary-switch-custom-btn-${slotId}">Switch to Custom (OpenAI-compatible)</button>
+              </div></div>
             <div class="form-field">
               <div class="settings-field-heading">
-                <label class="form-label" for="secondary-model-${slotId}">Secondary model / voice</label>
-                ${slotId === 'voice_tts' ? '' : `<button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-models-btn-${slotId}">Fetch API 2 models</button>`}
+                <label class="form-label" for="secondary-model-${slotId}">${escapeHtml(secondaryPreset?.modelFieldLabel ?? "Model / voice")}</label>
+                <button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-models-btn-${slotId}">Fetch models</button>
               </div>
               <input type="text" class="form-input" id="secondary-model-${slotId}" value="${escapeHtml(slotCfg.secondary?.modelOrVoice ?? '')}" placeholder="${escapeHtml(secondaryPreset?.defaultModelOrVoice ?? 'Model name')}" />
               ${secondaryIsCustom ? `<p class="card-subtitle">Custom API 2 model ID is free text; suggestions do not limit what you can enter. Use the exact ID and audio endpoint supported by that gateway.</p>` : ''}
-              ${slotId === 'voice_tts' ? '' : `<div class="model-picker-dropdown"><button type="button" class="model-picker-trigger" aria-expanded="false">Browse API 2 models</button><div class="model-picker-options" id="secondary-models-list-${slotId}" hidden></div></div><div id="fetch-secondary-models-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>`}
+              <div class="model-picker-dropdown"><button type="button" class="model-picker-trigger" aria-expanded="false">Browse available models</button><div class="model-picker-options" id="secondary-models-list-${slotId}" hidden>${secondarySuggestions.map((model) => `<button type="button" class="model-option" data-model-value="${escapeHtml(model)}">${escapeHtml(model)}</button>`).join("")}</div></div><div id="fetch-secondary-models-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
             </div>
             ${slotId === 'voice_tts' ? `<div class="form-field" id="secondary-tts-voice-container-${slotId}" style="${secondaryPreset && secondaryPreset.id !== 'android_native_tts' ? '' : 'display:none;'}">
               <label class="form-label" for="secondary-custom-voice-${slotId}">API 2 voice (choose from the available list or enter a custom name)</label>
               <input type="text" class="form-input" id="secondary-custom-voice-${slotId}" value="${escapeHtml(slotCfg.secondary?.customTtsVoice ?? '')}" placeholder="Choose or enter a voice name" autocomplete="off" />
               <div class="voice-picker-dropdown">
-                <div class="btn-row"><button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-voices-btn-${slotId}">Load API 2 voices</button><button type="button" class="btn btn-secondary" id="preview-secondary-voice-btn-${slotId}">Preview API 2 voice</button></div>
+                <div class="btn-row"><button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-voices-btn-${slotId}">Load available voices</button><button type="button" class="btn btn-secondary" id="preview-secondary-voice-btn-${slotId}">Preview voice</button></div>
                 <div class="model-picker-options" id="secondary-voices-list-${slotId}" hidden></div>
                 <div id="preview-secondary-voice-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
                 <div id="fetch-secondary-voices-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
               </div>
             </div>` : ''}
-            <div class="form-field"><label class="form-label" for="secondary-key-${slotId}">API Key (${keyStorageLabel}) — API 2</label>
-              <input type="password" class="form-input" id="secondary-key-${slotId}" value="" autocomplete="off" placeholder="${secondaryKeysBySlot[slotId] ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.' : 'Enter second API key'}" /></div>
+            <div class="form-field"><label class="form-label" for="secondary-key-${slotId}">API Key (${secondaryPreset?.requiresKey === false ? 'Offline — no key needed' : keyStorageLabel})</label>
+              <input type="password" class="form-input" id="secondary-key-${slotId}" value="" autocomplete="off" placeholder="${secondaryPreset?.requiresKey === false ? 'No API key needed' : secondaryKeysBySlot[slotId] ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.' : 'Enter second API key'}" ${secondaryPreset?.requiresKey === false ? 'disabled' : ''} /></div>
             ${secondaryCopyKeyOptionsHtml ? `
             <div class="form-field">
-              <label class="form-label" for="secondary-copy-key-source-${slotId}">Copy API key from another slot</label>
+              <label class="form-label" for="secondary-copy-key-source-${slotId}">Or copy from</label>
               <div class="settings-copy-key">
                 <select class="form-select provider-native-select" id="secondary-copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${secondaryCopyKeyOptionsHtml}</select>
                 <div class="provider-picker copy-key-provider-picker" id="secondary-copy-key-picker-${slotId}">
@@ -494,8 +538,10 @@ export async function renderSettingsView(
               </div>
               <p class="card-subtitle">You can copy an API 1 or API 2 key from another capability slot.</p>
             </div>` : ''}
-            <div id="secondary-custom-auth-container-${slotId}" style="${secondaryIsCustom ? '' : 'display:none;'}">
-            <div class="form-field"><label class="form-label" for="secondary-authstyle-${slotId}">Secondary authentication</label>
+            <details class="advanced-provider-settings" id="secondary-custom-auth-container-${slotId}" style="${secondaryIsCustom ? '' : 'display:none;'}">
+              <summary>Advanced authentication & endpoint</summary>
+              <div class="advanced-provider-fields">
+            <div class="form-field"><label class="form-label" for="secondary-authstyle-${slotId}">Authentication</label>
               <select class="form-select" id="secondary-authstyle-${slotId}">
                 <option value="bearer" ${(slotCfg.secondary?.authStyle ?? 'bearer') === 'bearer' ? 'selected' : ''}>Bearer</option>
                 <option value="custom_header" ${slotCfg.secondary?.authStyle === 'custom_header' ? 'selected' : ''}>Custom header</option>
@@ -508,9 +554,10 @@ export async function renderSettingsView(
             <div class="form-field"><label class="form-label" for="secondary-endpoint-${slotId}">Endpoint path override (optional)</label>
               <input type="text" class="form-input" id="secondary-endpoint-${slotId}" value="${escapeHtml(slotCfg.secondary?.endpointPathOverride ?? '')}" placeholder="/v1/chat/completions" /></div>
             </div>
+            </details>
           </div>
-
-        </details>
+          </div>
+        </section>
 
         <section class="settings-connection-tests" aria-label="Provider connection tests">
         <div class="btn-row provider-test-actions" >
@@ -635,6 +682,7 @@ export async function renderSettingsView(
           <input type="file" id="import-ai-file" accept="application/json,.json" hidden />
         </div>
         <p class="card-subtitle">Tests run sequentially and may use a small amount of API quota. A slot is marked saved only when every configured online account in that slot passes; otherwise its previous verification is preserved.</p>
+        <div id="backup-status" class="status-box info" role="status" aria-live="polite">AI settings can be exported with API keys for device migration, or without keys for safer sharing. Importing a no-key backup leaves the API keys already stored on this device unchanged.</div>
       </div>
       <div class="backup-section">
         <strong>Test data &amp; practice history</strong>
@@ -645,7 +693,7 @@ export async function renderSettingsView(
           <input type="file" id="import-test-file" accept="application/json,.json" hidden />
         </div>
       </div>
-      <div id="backup-status" class="status-box info" role="status" aria-live="polite">AI settings can be exported with API keys for device migration, or without keys for safer sharing. Importing a no-key backup leaves the API keys already stored on this device unchanged.</div>
+      <div id="test-data-backup-status" class="status-box info" role="status" aria-live="polite" hidden></div>
     </section>
     <section class="card settings-language-card">
       <div class="card-header"><h2 class="card-title">Language / زبان</h2></div>
@@ -1311,6 +1359,7 @@ export async function renderSettingsView(
   });
 
   const backupStatus = container.querySelector<HTMLElement>('#backup-status');
+  const testDataBackupStatus = container.querySelector<HTMLElement>('#test-data-backup-status');
   let testAllApisButton: HTMLButtonElement | null = null;
   const persistSlotDrafts: Partial<Record<SlotId, () => Promise<void>>> = {};
 
@@ -1335,24 +1384,28 @@ export async function renderSettingsView(
     );
     if (importButton) importButton.disabled = true;
     if (testAllApisButton) testAllApisButton.disabled = true;
-    if (backupStatus) {
-      backupStatus.className = 'status-box info';
-      backupStatus.textContent = 'Reading and validating the selected backup…';
+    const operationStatus = kind === 'ai-settings' ? backupStatus : testDataBackupStatus;
+    if (operationStatus) {
+      operationStatus.hidden = false;
+      operationStatus.className = 'status-box info';
+      operationStatus.textContent = 'Reading and validating the selected backup…';
     }
     try {
       const payload = await readPayload();
       await restoreBackup(kind, payload);
-      if (backupStatus) {
-        backupStatus.className = 'status-box pass';
-        backupStatus.textContent = kind === 'ai-settings'
+      if (operationStatus) {
+        operationStatus.hidden = false;
+        operationStatus.className = 'status-box pass';
+        operationStatus.textContent = kind === 'ai-settings'
           ? 'AI provider settings and API keys restored and verified in storage. Keep the backup file private. Run the test for each provider.'
           : 'Test history and practice data restored.';
       }
       await _onSettingsUpdated();
     } catch (error) {
-      if (backupStatus) {
-        backupStatus.className = 'status-box fail';
-        backupStatus.textContent = error instanceof Error ? error.message : String(error);
+      if (operationStatus) {
+        operationStatus.hidden = false;
+        operationStatus.className = 'status-box fail';
+        operationStatus.textContent = error instanceof Error ? error.message : String(error);
       }
     } finally {
       if (importButton) importButton.disabled = false;
@@ -1365,13 +1418,15 @@ export async function renderSettingsView(
     const exportButton = container.querySelector<HTMLButtonElement>(`#export-${suffix}-backup`);
     const importButton = container.querySelector<HTMLButtonElement>(`#import-${suffix}-backup`);
     const fileInput = container.querySelector<HTMLInputElement>(`#import-${suffix}-file`);
+    const operationStatus = kind === 'ai-settings' ? backupStatus : testDataBackupStatus;
     exportButton?.addEventListener('click', async () => {
       if (exportButton) exportButton.disabled = true;
       try {
+        if (operationStatus) operationStatus.hidden = false;
         if (kind === 'ai-settings') {
-          if (backupStatus) {
-            backupStatus.className = 'status-box info';
-            backupStatus.textContent = 'Saving the current provider settings and API keys before export...';
+          if (operationStatus) {
+            operationStatus.className = 'status-box info';
+            operationStatus.textContent = 'Saving the current provider settings and API keys before export...';
           }
           // Capture the values currently shown in every provider form so recently
           // entered API keys are not silently omitted from the backup.
@@ -1381,7 +1436,7 @@ export async function renderSettingsView(
         }
         const payload = await createBackup(kind);
         await downloadBackupFile(kind, payload);
-        if (backupStatus) {
+        if (operationStatus) {
           if (kind === 'ai-settings') {
             const backupConfigs = payload.configs as AllSlotsConfig;
             const backupKeys = payload.apiKeys as Record<string, { primary?: string; secondary?: string }> | undefined;
@@ -1399,19 +1454,19 @@ export async function renderSettingsView(
               !(backupKeys?.[slotId]?.[account] ?? '').trim()
             );
             const includedCount = requiredKeyAccounts.length - missingKeyAccounts.length;
-            backupStatus.className = missingKeyAccounts.length ? 'status-box info' : 'status-box pass';
-            backupStatus.textContent = missingKeyAccounts.length
+            operationStatus.className = missingKeyAccounts.length ? 'status-box info' : 'status-box pass';
+            operationStatus.textContent = missingKeyAccounts.length
               ? `AI settings backup created. Saved API keys included for ${includedCount}/${requiredKeyAccounts.length} configured provider accounts. No saved key was found for: ${missingKeyAccounts.map(item => item.label).join(', ')}. Keep this file private and secure.`
               : `AI settings backup created. Saved API keys included for all ${includedCount} configured provider accounts. Keep this file private and secure.`;
           } else {
-            backupStatus.className = 'status-box pass';
-            backupStatus.textContent = 'Test data backup created.';
+            operationStatus.className = 'status-box pass';
+            operationStatus.textContent = 'Test data backup created.';
           }
         }
       } catch (error) {
-        if (backupStatus) {
-          backupStatus.className = 'status-box fail';
-          backupStatus.textContent = error instanceof Error ? error.message : String(error);
+        if (operationStatus) {
+          operationStatus.className = 'status-box fail';
+          operationStatus.textContent = error instanceof Error ? error.message : String(error);
         }
       } finally { if (exportButton) exportButton.disabled = false; }
     });
@@ -1789,6 +1844,8 @@ export async function renderSettingsView(
     const customEndpointContainer = container.querySelector<HTMLElement>(`#custom-endpoint-container-${slotId}`);
     const customVoiceContainer = container.querySelector<HTMLElement>(`#tts-voice-container-${slotId}`);
 
+    const secondaryEnabledToggle = container.querySelector<HTMLInputElement>(`#secondary-api-enabled-${slotId}`);
+    const secondaryContent = container.querySelector<HTMLElement>(`#secondary-api-content-${slotId}`);
     const secondaryProviderSelect = container.querySelector<HTMLSelectElement>(`#secondary-provider-${slotId}`);
     const secondaryProviderPicker = container.querySelector<HTMLElement>(`#secondary-provider-picker-${slotId}`);
     const secondaryProviderTrigger = container.querySelector<HTMLButtonElement>(`#secondary-provider-trigger-${slotId}`);
@@ -1797,11 +1854,35 @@ export async function renderSettingsView(
     const secondaryModelInput = container.querySelector<HTMLInputElement>(`#secondary-model-${slotId}`);
     const fetchSecondaryModelsBtn = container.querySelector<HTMLButtonElement>(`#fetch-secondary-models-btn-${slotId}`);
     const secondaryModelsList = container.querySelector<HTMLElement>(`#secondary-models-list-${slotId}`);
-    const secondaryModelPickerTrigger = secondaryModelsList?.parentElement?.querySelector<HTMLButtonElement>('.model-picker-trigger');
-    secondaryModelPickerTrigger?.addEventListener('click', () => {
+    const secondaryModelPicker = secondaryModelsList?.closest<HTMLElement>('.model-picker-dropdown');
+    const secondaryModelPickerTrigger = secondaryModelPicker?.querySelector<HTMLButtonElement>('.model-picker-trigger');
+    const renderSecondaryModelOptions = (models: string[]): void => {
       if (!secondaryModelsList) return;
-      secondaryModelsList.hidden = !secondaryModelsList.hidden;
-      secondaryModelPickerTrigger.setAttribute('aria-expanded', String(!secondaryModelsList.hidden));
+      secondaryModelsList.innerHTML = models.map((model) =>
+        `<button type="button" class="model-option" data-model-value="${escapeHtml(model)}">${escapeHtml(model)}</button>`
+      ).join('');
+    };
+    const closeSecondaryModelPicker = (): void => {
+      if (secondaryModelsList) secondaryModelsList.hidden = true;
+      secondaryModelPicker?.classList.remove('open');
+      secondaryModelPickerTrigger?.setAttribute('aria-expanded', 'false');
+    };
+    secondaryModelPickerTrigger?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!secondaryModelsList) return;
+      const opening = secondaryModelsList.hidden;
+      secondaryModelsList.hidden = !opening;
+      secondaryModelPicker?.classList.toggle('open', opening);
+      secondaryModelPickerTrigger.setAttribute('aria-expanded', String(opening));
+      if (opening) {
+        const closeOutside = (outsideEvent: Event): void => {
+          if (!secondaryModelPicker?.contains(outsideEvent.target as Node)) {
+            closeSecondaryModelPicker();
+            document.removeEventListener('pointerdown', closeOutside, true);
+          }
+        };
+        document.addEventListener('pointerdown', closeOutside, true);
+      }
     });
     const fetchSecondaryModelsMsg = container.querySelector<HTMLElement>(`#fetch-secondary-models-msg-${slotId}`);
     secondaryModelsList?.addEventListener('click', (event) => {
@@ -1809,13 +1890,14 @@ export async function renderSettingsView(
       if (!option || !secondaryModelInput) return;
       secondaryModelInput.value = option.dataset.modelValue ?? '';
       secondaryModelInput.dispatchEvent(new Event('input', { bubbles: true }));
-      secondaryModelsList.hidden = true;
+      closeSecondaryModelPicker();
     });
     fetchSecondaryModelsBtn?.addEventListener('click', async () => {
       if (!fetchSecondaryModelsMsg || !secondaryProviderSelect?.value) return;
       fetchSecondaryModelsBtn.disabled = true;
       fetchSecondaryModelsMsg.hidden = false;
-      fetchSecondaryModelsMsg.textContent = 'Fetching API 2 models...';
+      fetchSecondaryModelsMsg.style.color = 'var(--text-secondary)';
+      fetchSecondaryModelsMsg.textContent = 'Fetching models from endpoint...';
       try {
         const preset = getPreset(slotId, secondaryProviderSelect.value);
         const cfg: SlotConfig = {
@@ -1830,12 +1912,16 @@ export async function renderSettingsView(
         };
         const key = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, preset.id, 'secondary');
         const res = await fetchAvailableModels(cfg, key);
-        fetchSecondaryModelsMsg.textContent = res.message;
-        if (res.supported && res.models.length && secondaryModelsList) {
-          secondaryModelsList.innerHTML = res.models.map(model => `<button type="button" class="model-option" data-model-value="${escapeHtml(model)}">${escapeHtml(model)}</button>`).join('');
-          secondaryModelsList.hidden = false;
+        if (res.supported && res.models.length > 0) {
+          fetchSecondaryModelsMsg.style.color = 'var(--success)';
+          fetchSecondaryModelsMsg.textContent = `${res.message} Suggestions added to the list.`;
+          renderSecondaryModelOptions(res.models);
+        } else {
+          fetchSecondaryModelsMsg.style.color = res.supported ? 'var(--warning)' : 'var(--danger, #ef4444)';
+          fetchSecondaryModelsMsg.textContent = res.message;
         }
       } catch (error) {
+        fetchSecondaryModelsMsg.style.color = 'var(--danger, #ef4444)';
         fetchSecondaryModelsMsg.textContent = error instanceof Error ? error.message : String(error);
       } finally {
         fetchSecondaryModelsBtn.disabled = false;
@@ -1871,6 +1957,9 @@ export async function renderSettingsView(
     const mismatchWarningBox = container.querySelector<HTMLElement>(`#mismatch-warning-${slotId}`);
     const mismatchWarningText = container.querySelector<HTMLElement>(`#mismatch-warning-text-${slotId}`);
     const switchCustomBtn = container.querySelector<HTMLButtonElement>(`#switch-custom-btn-${slotId}`);
+    const secondaryMismatchWarningBox = container.querySelector<HTMLElement>(`#secondary-mismatch-warning-${slotId}`);
+    const secondaryMismatchWarningText = container.querySelector<HTMLElement>(`#secondary-mismatch-warning-text-${slotId}`);
+    const switchSecondaryCustomBtn = container.querySelector<HTMLButtonElement>(`#secondary-switch-custom-btn-${slotId}`);
 
     const markSlotNotVerified = (message = 'Unsaved or changed settings. Save this slot, then pass the test to activate Online AI.'): void => {
       dismissedVerificationErrors.delete(slotId);
@@ -2079,6 +2168,34 @@ export async function renderSettingsView(
       secondaryProviderSelect.value = option.dataset.secondaryProviderId ?? '';
       secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
     });
+    secondaryEnabledToggle?.addEventListener('change', () => {
+      if (!secondaryEnabledToggle.checked) {
+        if (secondaryContent) secondaryContent.hidden = true;
+        if (secondaryProviderSelect) {
+          secondaryProviderSelect.value = '';
+          secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (secondaryTestBtn) secondaryTestBtn.hidden = true;
+        if (secondaryStatus) secondaryStatus.hidden = true;
+        return;
+      }
+      if (secondaryContent) secondaryContent.hidden = false;
+      if (secondaryTestBtn) secondaryTestBtn.hidden = false;
+      if (secondaryStatus) secondaryStatus.hidden = false;
+      if (secondaryProviderSelect && !secondaryProviderSelect.value) {
+        const candidates = SLOT_DEFINITIONS[slotId].providers.filter((provider) => provider.tier !== 3);
+        const next = candidates.find((provider) => provider.id !== providerSelect?.value) ?? candidates[0];
+        if (next) {
+          secondaryProviderSelect.value = next.id;
+          secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    });
+    if (secondaryEnabledToggle && !secondaryEnabledToggle.checked) {
+      if (secondaryTestBtn) secondaryTestBtn.hidden = true;
+      if (secondaryStatus) secondaryStatus.hidden = true;
+    }
+
     secondaryProviderSelect?.addEventListener('change', () => {
       const selected = secondaryProviderSelect.value;
       if (secondaryProviderTrigger) secondaryProviderTrigger.querySelector('span')!.textContent = selected ? getPreset(slotId, selected).name : 'Not configured';
@@ -2091,14 +2208,22 @@ export async function renderSettingsView(
         if (secondaryModelInput) secondaryModelInput.value = '';
         if (secondaryCustomVoiceInput) secondaryCustomVoiceInput.value = '';
         if (secondaryCustomVoiceContainer) secondaryCustomVoiceContainer.style.display = 'none';
-        if (secondaryKeyInput) secondaryKeyInput.value = '';
+        if (secondaryKeyInput) { secondaryKeyInput.value = ''; secondaryKeyInput.disabled = true; secondaryKeyInput.placeholder = 'Choose a provider first'; }
+        renderSecondaryModelOptions([]);
+        updateSecondaryMismatchWarning();
         if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Not configured'; }
         return;
       }
       const selectedPreset = getPreset(slotId, selected);
+      renderSecondaryModelOptions(selectedPreset.modelSuggestions || [selectedPreset.defaultModelOrVoice]);
       const secondaryCustomAuthContainer = container.querySelector<HTMLElement>(`#secondary-custom-auth-container-${slotId}`);
       if (secondaryCustomAuthContainer) secondaryCustomAuthContainer.style.display = selectedPreset.id.startsWith('custom_openai_') ? '' : 'none';
-      if (secondaryProviderSelect.value !== configs[slotId].secondary?.providerId && secondaryKeyInput) {
+      if (secondaryKeyInput) secondaryKeyInput.disabled = !selectedPreset.requiresKey;
+      if (!selectedPreset.requiresKey && secondaryKeyInput) {
+        secondaryKeyInput.value = '';
+        secondaryKeyInput.placeholder = 'No API key needed';
+      }
+      if (secondaryProviderSelect.value !== configs[slotId].secondary?.providerId && secondaryKeyInput && selectedPreset.requiresKey) {
         secondaryKeyInput.value = '';
         secondaryKeyInput.placeholder = 'Enter second API key';
         void readKeyForSettings(slotId, selectedPreset.id, 'secondary').then((storedKey) => {
@@ -2112,6 +2237,7 @@ export async function renderSettingsView(
       if (secondaryModelInput) secondaryModelInput.value = selectedPreset.defaultModelOrVoice;
       if (secondaryCustomVoiceInput) secondaryCustomVoiceInput.value = '';
       if (secondaryCustomVoiceContainer) secondaryCustomVoiceContainer.style.display = selectedPreset.id === 'android_native_tts' ? 'none' : '';
+      updateSecondaryMismatchWarning();
       if (secondaryStatus) { secondaryStatus.className = 'status-box info'; secondaryStatus.textContent = 'API 2: Changes not tested'; }
     });
     [secondaryProviderSelect, secondaryBaseUrlInput, secondaryModelInput, secondaryCustomVoiceInput, secondaryKeyInput, secondaryAuthSelect, secondaryHeaderInput, secondaryQueryInput, secondaryEndpointInput].forEach((field) => {
@@ -2121,6 +2247,20 @@ export async function renderSettingsView(
     [authStyleSelect].forEach((field) => field?.addEventListener('change', () => {
       markSlotNotVerified('Unsaved changes. Save this slot, then pass test to activate Online AI.');
     }));
+
+    const updateSecondaryMismatchWarning = (): void => {
+      if (!secondaryMismatchWarningBox || !secondaryMismatchWarningText) return;
+      const selectedProviderId = secondaryProviderSelect?.value ?? '';
+      if (!selectedProviderId) { secondaryMismatchWarningBox.style.display = 'none'; return; }
+      const preset = getPreset(slotId, selectedProviderId);
+      const check = detectProviderUrlMismatch({ slotId, providerId: preset.id, baseUrl: secondaryBaseUrlInput?.value.trim() || preset.defaultBaseUrl, endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined });
+      if (check.mismatch) {
+        secondaryMismatchWarningBox.style.display = '';
+        secondaryMismatchWarningText.textContent = check.reason ?? '';
+      } else {
+        secondaryMismatchWarningBox.style.display = 'none';
+      }
+    };
 
     const updateMismatchWarning = () => {
       if (!mismatchWarningBox || !mismatchWarningText) return;
@@ -2145,6 +2285,8 @@ export async function renderSettingsView(
       updateMismatchWarning();
     });
     endpointPathInput?.addEventListener('input', updateMismatchWarning);
+    secondaryBaseUrlInput?.addEventListener('input', updateSecondaryMismatchWarning);
+    secondaryEndpointInput?.addEventListener('input', updateSecondaryMismatchWarning);
 
     // One-click "Switch to Custom (OpenAI-compatible)" preserving current Base URL, model, and API key
     switchCustomBtn?.addEventListener('click', async () => {
@@ -2190,6 +2332,88 @@ export async function renderSettingsView(
       if (customAuthContainer) customAuthContainer.style.display = '';
       if (customEndpointContainer) customEndpointContainer.style.display = '';
       markSlotNotVerified('Custom provider selected. Save this slot, then pass test to activate Online AI.');
+    });
+
+    switchSecondaryCustomBtn?.addEventListener('click', async () => {
+      const customProviderId = getCustomProviderIdForSlot(slotId);
+      const customPreset = getPreset(slotId, customProviderId);
+      const currentProviderId = secondaryProviderSelect?.value ?? '';
+      if (!currentProviderId || !secondaryProviderSelect) return;
+      const currentBaseUrl = secondaryBaseUrlInput?.value.trim() || customPreset.defaultBaseUrl;
+      const currentModel = secondaryModelInput?.value.trim() || customPreset.defaultModelOrVoice;
+      const currentKey = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, currentProviderId, 'secondary');
+
+      secondaryProviderSelect.value = customPreset.id;
+      secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      if (secondaryBaseUrlInput) secondaryBaseUrlInput.value = currentBaseUrl;
+      if (secondaryModelInput) secondaryModelInput.value = currentModel;
+      if (secondaryKeyInput) secondaryKeyInput.value = currentKey;
+
+      if (currentKey.trim()) {
+        try {
+          await saveApiKey(slotId, customPreset.id, currentKey, 'secondary');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (saveStatus) {
+            saveStatus.hidden = false;
+            saveStatus.className = 'status-box fail settings-save-status';
+            saveStatus.textContent = `API 2 key was not copied to the custom provider: ${message}`;
+          }
+          return;
+        }
+      }
+      if (secondaryKeyInput) {
+        secondaryKeyInput.value = '';
+        secondaryKeyInput.placeholder = currentKey
+          ? 'API 2 key saved securely. Leave blank to keep it, or type a replacement.'
+          : 'Enter second API key';
+      }
+      updateSecondaryMismatchWarning();
+      if (secondaryStatus) {
+        secondaryStatus.className = 'status-box info';
+        secondaryStatus.textContent = 'API 2 custom provider selected. Save this slot, then test API 2.';
+      }
+    });
+
+    switchSecondaryCustomBtn?.addEventListener('click', async () => {
+      const customProviderId = getCustomProviderIdForSlot(slotId);
+      const customPreset = getPreset(slotId, customProviderId);
+      const currentProviderId = secondaryProviderSelect?.value ?? '';
+      if (!currentProviderId || !secondaryProviderSelect) return;
+      const currentBaseUrl = secondaryBaseUrlInput?.value.trim() || customPreset.defaultBaseUrl;
+      const currentModel = secondaryModelInput?.value.trim() || customPreset.defaultModelOrVoice;
+      const currentKey = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, currentProviderId, 'secondary');
+
+      secondaryProviderSelect.value = customPreset.id;
+      secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      if (secondaryBaseUrlInput) secondaryBaseUrlInput.value = currentBaseUrl;
+      if (secondaryModelInput) secondaryModelInput.value = currentModel;
+      if (secondaryKeyInput) secondaryKeyInput.value = currentKey;
+
+      if (currentKey.trim()) {
+        try {
+          await saveApiKey(slotId, customPreset.id, currentKey, 'secondary');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (saveStatus) {
+            saveStatus.hidden = false;
+            saveStatus.className = 'status-box fail settings-save-status';
+            saveStatus.textContent = `API 2 key was not copied to the custom provider: ${message}`;
+          }
+          return;
+        }
+      }
+      if (secondaryKeyInput) {
+        secondaryKeyInput.value = '';
+        secondaryKeyInput.placeholder = currentKey
+          ? 'API 2 key saved securely. Leave blank to keep it, or type a replacement.'
+          : 'Enter second API key';
+      }
+      updateSecondaryMismatchWarning();
+      if (secondaryStatus) {
+        secondaryStatus.className = 'status-box info';
+        secondaryStatus.textContent = 'API 2 custom provider selected. Save this slot, then test API 2.';
+      }
     });
 
     // "Copy key from another slot" click handler

@@ -2,6 +2,21 @@
 
 Notable user-facing changes are recorded here. Release tags and version numbers are created only when a release is intentionally published.
 
+## 1.1.0 — 2026-11-21
+
+### Added
+- API 2 is now an explicit opt-in backup account with matching provider, endpoint, model, key, and test controls.
+- API 2 configuration stays hidden until enabled; enabling an empty slot chooses a suitable online provider when available.
+
+### Improved
+- Shadowing Trainer keeps Sentence set, practice, recording results, and score details together in a clearer layout.
+- Recorded result words can be replayed directly.
+- The bulk API test action and key-copy controls have clearer, more consistent layouts.
+- Settings layouts are more robust on narrow screens and in right-to-left layouts.
+
+### Compatibility
+- Android 6.0 (API 23) or newer is required. Android 5.1 (API 22) and older are unsupported.
+
 ## Unreleased
 
 ### Breaking change for the next Android APK

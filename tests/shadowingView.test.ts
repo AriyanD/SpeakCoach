@@ -17,18 +17,29 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
   });
 
 
-  it('places the practice stage before collapsible sentence-set controls and gives recording its own action style', async () => {
+  it('keeps Sentence set directly below Practice language and nests the full Shadowing workflow in one persistent trainer card', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
     await bootstrapApp(root, 'shadowing');
     await new Promise(resolve => setTimeout(resolve, 30));
-    const target = root.querySelector('#sh-target-text');
-    const setup = root.querySelector('#sh-generate-ai-btn');
-    const transcript = root.querySelector('.sh-transcript-details');
+    const trainer = root.querySelector('.shadowing-main-card');
+    const language = root.querySelector('#sh-language-select');
     const sentenceSet = root.querySelector('.sh-sentence-set-details');
-    expect(target && setup && target.compareDocumentPosition(setup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(sentenceSet).not.toBeNull();
-    expect(sentenceSet?.parentElement?.querySelector('#sh-history-position')).not.toBeNull();
+    const target = root.querySelector('#sh-target-text');
+    const scoreDetails = root.querySelector('.sh-result-details');
+    const transcript = root.querySelector('.sh-transcript-details');
+    const translation = root.querySelector('#sh-translation-card');
+    expect(trainer).not.toBeNull();
+    expect(sentenceSet?.tagName).toBe('SECTION');
+    expect(scoreDetails?.tagName).toBe('SECTION');
+    expect(sentenceSet?.querySelector('#sh-history-position')).not.toBeNull();
+    expect(language && sentenceSet && language.compareDocumentPosition(sentenceSet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(language?.parentElement?.nextElementSibling).toBe(sentenceSet);
+    expect(sentenceSet && target && sentenceSet.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(trainer?.contains(sentenceSet)).toBe(true);
+    expect(trainer?.contains(target)).toBe(true);
+    expect(trainer?.contains(scoreDetails)).toBe(true);
+    expect(trainer?.contains(translation)).toBe(false);
     expect(transcript).not.toBeNull();
     expect(root.querySelector('#sh-record-btn')?.classList.contains('btn-record')).toBe(true);
     expect(root.querySelector('#sh-translate-btn')?.classList.contains('btn-secondary')).toBe(true);
@@ -115,10 +126,19 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-recognizer-meta')?.textContent).toContain('87%');
 
     expect(root.querySelector('#sh-score-card')).not.toBeNull();
+    expect(root.querySelector('.shadowing-main-card')?.contains(root.querySelector('.sh-result-strip'))).toBe(true);
     expect(root.querySelector<HTMLDetailsElement>('.sh-transcript-details')).not.toBeNull();
     expect(root.querySelector('.metric-tile-overall #sh-overall-score')).not.toBeNull();
     expect(root.querySelector('#sh-word-replay-help')?.textContent).toContain('Tap any word below');
     expect(root.querySelector<HTMLButtonElement>('#sh-word-chips [data-word-replay]')).not.toBeNull();
+    const resultWord = root.querySelector<HTMLButtonElement>('.sh-result-strip-words [data-word-replay]');
+    expect(resultWord).not.toBeNull();
+    expect(resultWord?.tagName).toBe('BUTTON');
+    expect(resultWord?.getAttribute('aria-label')).toContain('Play pronunciation of');
+    expect(root.querySelectorAll('.sh-result-strip-words [data-word-replay]')).toHaveLength(
+      root.querySelectorAll('#sh-word-chips [data-word-replay]').length
+    );
+    expect(root.querySelector('.sh-result-replay-help')?.textContent).toContain('Score & recognition details');
     expect(root.querySelector<HTMLButtonElement>('#sh-word-chips [data-word-replay]')?.getAttribute('aria-label')).toContain('Play pronunciation of');
     // In offline SpeechRecognizer mode, no raw WAV is kept and word timing / replay are disabled with a clear notice
     expect(root.querySelector('#sh-vad-summary')).toBeNull();
