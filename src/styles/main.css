@@ -9,7 +9,7 @@
  --warning:#815C0A; --warning-bg:rgba(152,97,30,.12);
  --danger:#AE3A4E; --danger-bg:rgba(180,61,58,.10);
  --neutral-chip:#5F6D75;
- --record-bg:#B4233C; --record-bg-hover:#951B31; --record-border:#951B31; --record-text:#FFFFFF;
+ --record-bg:#B4233C; --record-bg-hover:#951B31; --record-border:#951B31; --record-disabled-bg:#7E1B2F; --record-text:#FFFFFF;
  --border:rgba(29,41,35,.09);
  --radius-sm:12px; --radius-md:18px; --radius-lg:24px;
  --space-1:4px; --space-2:8px; --space-3:12px;
@@ -3882,9 +3882,9 @@ body {
 .sh-record-controls .sh-record-action.btn-record:hover:not(:disabled) { background: var(--record-bg-hover); color: var(--record-text); }
 .sh-record-controls .sh-record-action.btn-record:active:not(:disabled) { background: var(--record-bg-hover); transform: translateY(1px); }
 .sh-record-controls .sh-record-action.btn-record:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-.sh-record-controls .sh-record-action.btn-record:disabled { background: var(--record-bg); color: var(--record-text); opacity: .48; cursor: not-allowed; }
+.sh-record-controls .sh-record-action.btn-record:disabled { background: var(--record-disabled-bg); color: var(--record-text); opacity: 1; border-style: dashed; cursor: not-allowed; }
 .sh-record-controls .sh-record-action.btn-record.is-recording { background: var(--record-bg); color: var(--record-text); border-color: var(--record-border); }
-.sh-record-controls .sh-record-action.btn-record.is-stopping { background: var(--record-bg); color: var(--record-text); border-color: var(--record-border); opacity: .82; cursor: wait; }
+.sh-record-controls .sh-record-action.btn-record.is-stopping { background: var(--record-bg); color: var(--record-text); border-color: var(--record-border); opacity: 1; border-style: dashed; cursor: wait; }
 .sh-record-controls .recording-led { background: #FFFFFF; box-shadow: 0 0 0 2px rgba(255,255,255,.22); }
 .sh-result-strip {
   margin: 8px 0; padding: 8px 10px; border: 1px solid var(--border);
