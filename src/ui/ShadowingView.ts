@@ -1109,6 +1109,7 @@ export function renderShadowingView(
     shadowingModelPlaybackToken++;
     state.activeModelPlayback = null;
     stopAllTts();
+    shadowingPrefetchEpoch++;
     shadowingPrefetchWindowKey = '';
     shadowingPrefetchScheduler.reset();
     shadowingIsStopping = false;
