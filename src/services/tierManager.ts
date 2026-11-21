@@ -327,7 +327,9 @@ export async function resolveSlotTier(
     ? degradedAccount.health.state === 'needs-retest'
       ? `${degradedAccount.account} (${degradedAccount.provider}) needs a successful connection re-test; the alternate account is available.`
       : `${degradedAccount.account} (${degradedAccount.provider}) is cooling down after a temporary provider failure; the alternate account is available.`
-    : undefined;
+    : !primaryUsable && secondaryUsable
+      ? `API 1 (${primaryPreset.name}) verification is missing, expired, or no longer matches the saved key/provider/model/voice. API 2 is being used; re-test API 1 in Settings → Voice/TTS.`
+      : undefined;
   return {
     slotId,
     providerId: selectedPreset.id,
