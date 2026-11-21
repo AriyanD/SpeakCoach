@@ -942,3 +942,14 @@ export async function testSlotAccountsSequentially(
   }
   return { results, cancelled: Boolean(options.shouldCancel?.()) };
 }
+
+
+/** Atomic per-slot policy: only a complete set of successful configured probes may be saved. */
+export function shouldPersistSlotVerification(
+  results: Array<{ result: ConnectionTestResult }>,
+  expectedAccountCount: number
+): boolean {
+  return expectedAccountCount > 0 &&
+    results.length === expectedAccountCount &&
+    results.every(item => item.result.ok && item.result.tier !== 3);
+}
