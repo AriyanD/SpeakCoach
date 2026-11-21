@@ -25,7 +25,8 @@ let activeHtmlAudioFinish: (() => void) | null = null;
 let activePlaybackGeneration = 0;
 let temporaryCacheGeneration = 0;
 const temporaryCacheHashes = new Set<string>();
-const prefetchTasks = new Map<string, Promise<void>>();
+const prefetchTasks = new Map<string, Promise<boolean>>();
+const inFlightAudioRequests = new Map<string, Promise<{ dataUrl: string; fromCache: boolean }>>();
 let prefetchQueueTail: Promise<void> = Promise.resolve();
 
 async function storeGeneratedAudio(
@@ -94,6 +95,47 @@ function escapeXml(str: string): string {
 }
 
 export async function synthesizeOnlineNeuralAudio(
+  text: string,
+  slotCfg: SlotConfig,
+  apiKey: string,
+  rate = 1.0,
+  transport?: TransportFn,
+  locale = 'en-US',
+  memoryOnly = false,
+  cacheGeneration = temporaryCacheGeneration,
+  bypassCache = false
+): Promise<{ dataUrl: string; fromCache: boolean }> {
+  // Explicit probes/previews must always issue their own live request. Normal
+  // playback and prefetch share one promise so overlapping callers cannot
+  // spend quota twice for the same account/model/voice/language/text/rate.
+  const fingerprint = await createAudioCacheAccountFingerprint(apiKey);
+  if (!fingerprint || bypassCache) {
+    return synthesizeOnlineNeuralAudioUnshared(
+      text, slotCfg, apiKey, rate, transport, locale, memoryOnly, cacheGeneration, bypassCache
+    );
+  }
+  const hash = computeAudioCacheHash({
+    providerId: slotCfg.providerId,
+    voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${locale}`,
+    rate,
+    text,
+    endpoint: slotCfg.baseUrl?.trim() ?? '',
+    accountFingerprintHash: fingerprint
+  });
+  const existing = inFlightAudioRequests.get(hash);
+  if (existing) return existing;
+  const request = synthesizeOnlineNeuralAudioUnshared(
+    text, slotCfg, apiKey, rate, transport, locale, memoryOnly, cacheGeneration, false
+  );
+  inFlightAudioRequests.set(hash, request);
+  try {
+    return await request;
+  } finally {
+    if (inFlightAudioRequests.get(hash) === request) inFlightAudioRequests.delete(hash);
+  }
+}
+
+async function synthesizeOnlineNeuralAudioUnshared(
   text: string,
   slotCfg: SlotConfig,
   apiKey: string,
@@ -602,29 +644,35 @@ export async function previewTtsVoice(
  * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
  * audio is never persisted to Preferences, localStorage, or the filesystem.
  */
-export async function preloadSentenceAudio(text: string, options?: { locale?: string }): Promise<void> {
+export async function preloadSentenceAudio(text: string, options?: { locale?: string }): Promise<boolean> {
   const normalizedText = text.trim();
-  if (!normalizedText) return;
+  if (!normalizedText) return false;
   const locale = normalizeSpeechLocale(options?.locale);
   const taskKey = `${locale}|${normalizedText}`;
   const existing = prefetchTasks.get(taskKey);
   if (existing) return existing;
 
   const generation = temporaryCacheGeneration;
-  const task = prefetchQueueTail.then(async () => {
+  const task = prefetchQueueTail.then(async (): Promise<boolean> => {
     try {
-      if (generation !== temporaryCacheGeneration) return;
+      if (generation !== temporaryCacheGeneration) return false;
       const configs = await loadAllSlotsConfig();
+      const { resolveSlotTier } = await import('./tierManager');
+      const resolved = await resolveSlotTier(configs.voice_tts);
+      // Prefetch is opportunistic: never probe an offline/unverified provider.
+      if (resolved.tier === 3) return false;
       await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) =>
         synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, undefined, locale, true, generation)
       );
+      return true;
     } catch {
-      // Prefetch is opportunistic. Normal playback retains its full fallback path.
+      // The caller stops the current batch on failure; playback can retry online.
+      return false;
     } finally {
       prefetchTasks.delete(taskKey);
     }
   });
-  prefetchQueueTail = task.catch(() => {});
+  prefetchQueueTail = task.then(() => {}, () => {});
   prefetchTasks.set(taskKey, task);
   return task;
 }
