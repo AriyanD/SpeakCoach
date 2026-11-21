@@ -81,7 +81,7 @@ describe('IELTS LLM Evaluator Engine (Stage 3.4 · Tier 1 & Fallback)', () => {
     const current = await saveIeltsTestResult({
       id: 'comparison-current-score',
       mode: 'part1', timestamp: Date.now(), overallBand: 7.0,
-      evaluation: { overallBand: 7.0, activeTier: { tier: 1, detailLabel: 'API 1', tier: 1 } } as any,
+      evaluation: { overallBand: 7.0, activeTier: { tier: 1, detailLabel: 'API 1' } } as any,
       answers: []
     } as any);
     await expect(compareIeltsAttempts(previous, current)).rejects.toThrow(/API 1:.*API 2:/i);
