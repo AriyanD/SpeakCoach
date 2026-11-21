@@ -515,7 +515,7 @@ describe('Functional Deep Connection Tester', () => {
       isOnlineOverride: true,
       transport: async opts => {
         liveRequests++;
-        connectionTimeoutMs = opts.timeoutMs ?? 0;
+        connectionTimeoutMs = opts.connectTimeout ?? 0;
         return {
           url: opts.url, status: 401, headers: {},
           data: { error: { message: 'API key revoked' } }
