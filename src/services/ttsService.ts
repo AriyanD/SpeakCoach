@@ -669,13 +669,14 @@ export async function previewTtsVoice(
   }
   // Voice previews are user-initiated synthesis too; keep prefetch paused until
   // the provider request completes. The disposable preview bypasses the cache.
-  userInitiatedSynthesisInFlight++;
-  let result: { dataUrl: string; fromCache: boolean };
-  try {
-    result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true, temporaryCacheGeneration, true);
-  } finally {
-    userInitiatedSynthesisInFlight = Math.max(0, userInitiatedSynthesisInFlight - 1);
-  }
+  const result = await (async () => {
+    userInitiatedSynthesisInFlight++;
+    try {
+      return await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true, temporaryCacheGeneration, true);
+    } finally {
+      userInitiatedSynthesisInFlight = Math.max(0, userInitiatedSynthesisInFlight - 1);
+    }
+  })();
   await playAudioDataUrl(result.dataUrl);
 }
 
