@@ -5,7 +5,7 @@ import { bootstrapApp } from '../src/main';
 import { describeConnectionTestFailure, persistSlotAccountTestResult, shouldPersistSlotVerification, testSlotAccountsSequentially, testSlotConnection } from '../src/services/connectionTester';
 import { synthesizeOnlineNeuralAudio } from '../src/services/ttsService';
 import { networkMonitor } from '../src/services/networkMonitor';
-import { getProviderAccountHealth } from '../src/services/providerHealth';
+import { getProviderAccountHealth, markProviderAccountFailure } from '../src/services/providerHealth';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
 import { saveApiKey } from '../src/storage/keyStore';
 
@@ -65,6 +65,17 @@ describe('Functional Deep Connection Tester', () => {
       label: 'Online AI', latencyMs: 5, message: `FAIL — ${message}`
     };
     expect(describeConnectionTestFailure(result)).toMatch(expected);
+  });
+
+  it('clears persisted account health after a successful saved connection test', async () => {
+    const config = createDefaultSlotConfig('voice_tts');
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error('HTTP 401 rejected'), { status: 401 }));
+    expect((await getProviderAccountHealth('voice_tts', 'primary'))?.state).toBe('needs-retest');
+    await persistSlotAccountTestResult(config, {
+      ok: true, slotId: 'voice_tts', providerId: config.providerId, tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS', verificationFingerprint: 'current-test-fingerprint'
+    }, 'primary');
+    expect(await getProviderAccountHealth('voice_tts', 'primary')).toBeNull();
   });
 
   it('saves a slot only when every configured online account passes', () => {
