@@ -173,8 +173,8 @@ export async function resolveSlotTier(
     );
     const secondaryTest = slotConfig.secondary.testResult;
     secondaryReady = !!secondaryFingerprint &&
-      secondaryTest?.verificationFingerprint === secondaryFingerprint &&
-      Date.now() - secondaryTest.testedAt < CONNECTION_VERIFICATION_TTL_MS &&
+      (!secondaryTest?.verificationFingerprint || secondaryTest.verificationFingerprint === secondaryFingerprint) &&
+      Date.now() - (secondaryTest?.testedAt ?? 0) < CONNECTION_VERIFICATION_TTL_MS &&
       (!secondaryPreset.requiresKey || !!secondaryKey.trim());
   }
 
