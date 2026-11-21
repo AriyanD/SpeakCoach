@@ -150,6 +150,7 @@ async function removePersistentAudio(hash: string): Promise<void> {
     try { localStorage.removeItem(key); } catch { /* best-effort cache eviction */ }
   }
   memoryAudioCache.delete(hash);
+  prefetchedAudioCache.delete(hash);
 }
 
 async function touchCacheEntry(hash: string, chars: number): Promise<void> {
@@ -305,6 +306,12 @@ export async function setCachedTtsAudio(hash: string, base64OrDataUrl: string): 
   const next = index.filter(item => item.hash !== hash);
   next.push({ hash, chars: base64OrDataUrl.length, lastAccess: Date.now() });
   await prunePersistentAudioCache(next);
+}
+
+export async function removeTtsAudioCacheEntry(hash: string): Promise<void> {
+  await removePersistentAudio(hash);
+  const index = await readCacheIndex();
+  await writeCacheIndex(index.filter(item => item.hash !== hash));
 }
 
 export function clearMemoryAudioCache(): void {
