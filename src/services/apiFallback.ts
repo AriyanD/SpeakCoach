@@ -40,6 +40,7 @@ export async function getSlotAccountReadiness(
   if (account === 'primary') {
     const test = await loadSlotConnectionTestResult(slotId);
     if (!test?.ok) return { usable: false, reason: test?.message ? `the connection test did not pass: ${test.message} Open Settings > ${label} and run Test again.` : 'the provider has not passed a connection test. Open Settings > API 1 and run Test again.', config };
+    if (test.providerId !== preset.id || test.tier !== preset.tier) return { usable: false, reason: 'the saved connection test belongs to a different provider or tier. Run Test API 1 again in Settings.', config };
     const fingerprint = await createProviderVerificationFingerprint(config, key);
     if (!fingerprint || test.verificationFingerprint !== fingerprint) return { usable: false, reason: 'the saved verification no longer matches the API key, model or URL. Run Test API 1 again in Settings.', config };
     if (Date.now() - test.timestamp >= CONNECTION_VERIFICATION_TTL_MS) return { usable: false, reason: 'the connection test expired (older than 30 days). Open Settings > API 1 and run Test again.', config };
@@ -48,7 +49,7 @@ export async function getSlotAccountReadiness(
     if (!secondaryConfig?.verified || !test?.ok) return { usable: false, reason: test?.message ? `the connection test did not pass: ${test.message} Open Settings > API 2 and run Test again.` : 'API 2 is configured but not verified. Open Settings > API 2 and run Test again.', config };
     const fingerprint = await createProviderVerificationFingerprint(config, key);
     if (!fingerprint || !test.verificationFingerprint || test.verificationFingerprint !== fingerprint) return { usable: false, reason: 'the saved verification no longer matches the API key, model or URL. Run Test API 2 again in Settings.', config };
-    if (Date.now() - test.testedAt >= CONNECTION_VERIFICATION_TTL_MS) return { usable: false, reason: 'the connection test expired (older than 30 days). Open Settings > API 2 and run Test again.', config };
+    if (!Number.isFinite(test.testedAt) || Date.now() - test.testedAt >= CONNECTION_VERIFICATION_TTL_MS) return { usable: false, reason: 'the connection test expired or has no valid test timestamp (older than 30 days). Open Settings > API 2 and run Test again.', config };
   }
   return { usable: true, reason: '', config };
 }
