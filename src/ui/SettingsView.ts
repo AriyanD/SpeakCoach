@@ -1663,6 +1663,7 @@ export async function renderSettingsView(
   });
 
   for (const slotId of SLOT_ORDER) {
+    const def = SLOT_DEFINITIONS[slotId];
     const providerSelect = container.querySelector<HTMLSelectElement>(`#provider-${slotId}`);
     const providerPicker = container.querySelector<HTMLElement>(`#provider-picker-${slotId}`);
     const providerTrigger = container.querySelector<HTMLButtonElement>(`#provider-trigger-${slotId}`);
