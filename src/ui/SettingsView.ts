@@ -439,12 +439,12 @@ export async function renderSettingsView(
         <section class="secondary-api-settings" aria-label="API 2 backup provider">
           <div class="secondary-api-summary">
             <span class="settings-api-section-heading secondary-api-heading"><span>API 2 · Backup / rotation</span></span>
-            <label class="secondary-api-toggle-label" for="secondary-enabled-\${slotId}">
-              <input type="checkbox" class="secondary-api-toggle" id="secondary-enabled-\${slotId}" role="switch" aria-label="Enable API 2 for \${escapeHtml(def.title)}" \${slotCfg.secondary?.providerId ? 'checked' : ''} />
+            <label class="secondary-api-toggle-label" for="secondary-enabled-${slotId}">
+              <input type="checkbox" class="secondary-api-toggle" id="secondary-enabled-${slotId}" role="switch" aria-label="Enable API 2 for ${escapeHtml(def.title)}" ${slotCfg.secondary?.providerId ? 'checked' : ''} />
               <span class="secondary-api-toggle-track" aria-hidden="true"><span></span></span>
             </label>
           </div>
-          <div id="secondary-api-content-\${slotId}" class="secondary-api-content" \${slotCfg.secondary?.providerId ? '' : 'hidden'}>
+          <div id="secondary-api-content-${slotId}" class="secondary-api-content" ${slotCfg.secondary?.providerId ? '' : 'hidden'}>
           <p class="card-subtitle secondary-api-help">Use a separate provider or account for backup. The same gateway and model may not provide an independent fallback. TTS requires text → audio; STT requires audio → text.</p>
           ${secondarySameModelAsPrimary ? `<div class="status-box info" role="note"><strong>API 2 uses the same provider and model as API 1.</strong> It may still have a separate key or quota, but it is not a different model or an independent model capability.</div>` : ''}
           <div class="form-grid">
