@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { clearAllProviderAccountHealth } from '../src/services/providerHealth';
 import { createDefaultSlotConfig } from '../src/config/providers';
 import { nativeHttpRequest, SpeakCoachHttpError } from '../src/services/httpClient';
 import { networkMonitor } from '../src/services/networkMonitor';
@@ -28,8 +29,9 @@ async function markSlotVerified(slotId: 'voice_tts' | 'llm_evaluator' | 'llm_gen
 }
 
 describe('HTTP Client & 3-Tier Auto-Fallback Framework', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await clearAllProviderAccountHealth();
     clearAllRuntimeFailures();
     networkMonitor.setOnline(true);
   });
