@@ -93,6 +93,11 @@ async function writeFile(path: string, data: string): Promise<void> {
     localStorage.setItem(`speakcoach.shadowing.audio.${path}`, data);
   }
 }
+function deferSetFiles(setId: string, entries: Entry[]): void {
+  const combined = [...(deferredSetDeletes.get(setId) ?? []), ...entries];
+  const unique = new Map(combined.map(entry => [entry.file, entry]));
+  deferredSetDeletes.set(setId, [...unique.values()]);
+}
 function hasPlayingAudio(setId: string): boolean {
   for (const [key, count] of playing) if (count > 0 && key.startsWith(`${setId}:`)) return true;
   return false;
@@ -208,7 +213,7 @@ export function activateShadowingAudioSet(setId: string): Promise<number> {
     await ensureInitialized();
     if (activeSetId === setId && index?.setId === setId) return generation;
     if (index) {
-      if (hasPlayingAudio(index.setId)) deferredSetDeletes.set(index.setId, [...index.entries]);
+      if (hasPlayingAudio(index.setId)) deferSetFiles(index.setId, index.entries);
       else await removeSetFiles(index.setId, index.entries);
     }
     ram.clear();
