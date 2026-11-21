@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearAllProviderAccountHealth } from '../src/services/providerHealth';
 import { clearMemoryAudioCache } from '../src/services/audioCache';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
@@ -17,8 +18,9 @@ import { saveApiKey } from '../src/storage/keyStore';
 import { saveSlotConfig, saveSlotConnectionTestResult } from '../src/storage/localStore';
 
 describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await clearAllProviderAccountHealth();
     clearMemoryAudioCache();
     clearAllRuntimeFailures();
     networkMonitor.setOnline(true);
