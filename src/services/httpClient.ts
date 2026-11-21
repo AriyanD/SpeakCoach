@@ -207,7 +207,7 @@ export async function nativeHttpRequest<T = unknown>(
         humanMessage: formatHumanHttpError(response.status, detail, false),
         requestUrl: redactUrlForLog(config.url),
         responseDetail: detail,
-        retryAfterMs: parseRetryAfterMs(response.headers ?? {})
+        retryAfterMs: parseRetryAfterMs(response.headers ?? {}) ?? undefined
       });
     } catch (err) {
       if (err instanceof SpeakCoachHttpError) {
