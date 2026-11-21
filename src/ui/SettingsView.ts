@@ -3,7 +3,7 @@ import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { APP_VERSION } from '../config/appVersion';
 import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
-import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult } from '../services/connectionTester';
+import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult, testSlotAccountsSequentially } from '../services/connectionTester';
 import { networkMonitor } from '../services/networkMonitor';
 import { getProviderAccountHealth } from '../services/providerHealth';
 import { isOnlineProviderVerified } from '../services/slotConnectionStatus';
@@ -1485,7 +1485,6 @@ export async function renderSettingsView(
       return total + Number(primary.tier !== 3 && (!primary.requiresKey || !!keysBySlot[slotId].trim())) +
         Number(Boolean(secondary && secondary.tier !== 3 && (!secondary.requiresKey || !!secondaryKeysBySlot[slotId].trim())));
     }, 0);
-    const pause = () => new Promise(resolve => window.setTimeout(resolve, 350));
 
     try {
       backupStatus.className = 'status-box info';
@@ -1512,30 +1511,19 @@ export async function renderSettingsView(
           continue;
         }
 
-        const tested: Array<{ account: 'primary' | 'secondary'; config: SlotConfig; result: ConnectionTestResult }> = [];
-        for (const item of accounts) {
-          if (cancelTestAllApis) break;
-          completedAccounts += 1;
-          backupStatus.textContent = `Testing ${completedAccounts} of ${Math.max(plannedAccounts, completedAccounts)}: ${slotTitle} — ${item.account === 'primary' ? 'API 1' : 'API 2'}…`;
-          let result: ConnectionTestResult;
-          try {
-            result = await testAndPersistSlotAccount(item.config, {
-              account: item.account,
-              apiKeyOverride: item.key,
-              persist: false
-            });
-          } catch (error) {
-            const preset = getPreset(slotId, item.config.providerId);
-            result = {
-              ok: false, slotId, providerId: item.config.providerId, tier: preset.tier,
-              label: preset.tier === 3 ? 'Basic offline' : 'Online AI', latencyMs: 0,
-              message: `FAIL — ${error instanceof Error ? error.message : String(error)}`
-            };
+        const batch = await testSlotAccountsSequentially(
+          accounts.map(item => ({ account: item.account, config: item.config, apiKeyOverride: item.key })),
+          {
+            pauseMs: 350,
+            shouldCancel: () => cancelTestAllApis,
+            onProgress: (_current, _total, item) => {
+              completedAccounts += 1;
+              backupStatus.textContent = `Testing ${completedAccounts} of ${Math.max(plannedAccounts, completedAccounts)}: ${slotTitle} — ${item.account === 'primary' ? 'API 1' : 'API 2'}…`;
+            }
           }
-          tested.push({ account: item.account, config: item.config, result });
-          if (completedAccounts < plannedAccounts) await pause();
-        }
-        if (cancelTestAllApis) {
+        );
+        const tested = batch.results;
+        if (batch.cancelled || cancelTestAllApis) {
           reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: Cancelled before all configured accounts finished; previous verification preserved.</li>`);
           break;
         }
