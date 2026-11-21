@@ -119,10 +119,10 @@ describe('Functional Deep Connection Tester', () => {
     await saveSlotConfig(config);
     const result: ConnectionTestResult = {
       ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
-      label: 'Online AI', latencyMs: 12, message: 'PASS — shared test'
+      label: 'Online AI', latencyMs: 12, message: 'PASS — shared test', verificationFingerprint: 'primary-fingerprint'
     };
     await persistSlotAccountTestResult(config, result, 'primary');
-    await expect(loadSlotConnectionTestResult('voice_tts')).resolves.toMatchObject({ ok: true, providerId: 'openai_tts' });
+    await expect(loadSlotConnectionTestResult('voice_tts')).resolves.toMatchObject({ ok: true, providerId: 'openai_tts', verificationFingerprint: 'primary-fingerprint' });
   });
 
   it('persists secondary verification snapshots through the same shared path', async () => {
@@ -132,12 +132,12 @@ describe('Functional Deep Connection Tester', () => {
     };
     const result: ConnectionTestResult = {
       ok: true, slotId: 'voice_tts', providerId: 'elevenlabs_tts', tier: 1,
-      label: 'Online AI', latencyMs: 18, message: 'PASS — shared secondary test'
+      label: 'Online AI', latencyMs: 18, message: 'PASS — shared secondary test', verificationFingerprint: 'secondary-fingerprint'
     };
     await persistSlotAccountTestResult(config, result, 'secondary');
     const stored = (await loadAllSlotsConfig()).voice_tts.secondary;
     expect(stored?.verified).toBe(true);
-    expect(stored?.testResult).toMatchObject({ ok: true, message: 'PASS — shared secondary test' });
+    expect(stored?.testResult).toMatchObject({ ok: true, message: 'PASS — shared secondary test', verificationFingerprint: 'secondary-fingerprint' });
   });
 
   it('passes immediately for Tier 3 offline providers without needing a key or internet', async () => {
