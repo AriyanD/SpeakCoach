@@ -2375,6 +2375,47 @@ export async function renderSettingsView(
       }
     });
 
+    switchSecondaryCustomBtn?.addEventListener('click', async () => {
+      const customProviderId = getCustomProviderIdForSlot(slotId);
+      const customPreset = getPreset(slotId, customProviderId);
+      const currentProviderId = secondaryProviderSelect?.value ?? '';
+      if (!currentProviderId || !secondaryProviderSelect) return;
+      const currentBaseUrl = secondaryBaseUrlInput?.value.trim() || customPreset.defaultBaseUrl;
+      const currentModel = secondaryModelInput?.value.trim() || customPreset.defaultModelOrVoice;
+      const currentKey = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, currentProviderId, 'secondary');
+
+      secondaryProviderSelect.value = customPreset.id;
+      secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      if (secondaryBaseUrlInput) secondaryBaseUrlInput.value = currentBaseUrl;
+      if (secondaryModelInput) secondaryModelInput.value = currentModel;
+      if (secondaryKeyInput) secondaryKeyInput.value = currentKey;
+
+      if (currentKey.trim()) {
+        try {
+          await saveApiKey(slotId, customPreset.id, currentKey, 'secondary');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (saveStatus) {
+            saveStatus.hidden = false;
+            saveStatus.className = 'status-box fail settings-save-status';
+            saveStatus.textContent = `API 2 key was not copied to the custom provider: ${message}`;
+          }
+          return;
+        }
+      }
+      if (secondaryKeyInput) {
+        secondaryKeyInput.value = '';
+        secondaryKeyInput.placeholder = currentKey
+          ? 'API 2 key saved securely. Leave blank to keep it, or type a replacement.'
+          : 'Enter second API key';
+      }
+      updateSecondaryMismatchWarning();
+      if (secondaryStatus) {
+        secondaryStatus.className = 'status-box info';
+        secondaryStatus.textContent = 'API 2 custom provider selected. Save this slot, then test API 2.';
+      }
+    });
+
     // "Copy key from another slot" click handler
     copyKeyBtn?.addEventListener('click', () => {
       const [sourceSlot, sourceAccount] = (copyKeySelect?.value ?? '').split('|');
