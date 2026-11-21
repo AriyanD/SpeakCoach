@@ -11,7 +11,7 @@ export type { IeltsAnswerInput, IeltsEvaluationResult };
 import { aggregateIeltsSessionMetrics, computeAnswerSpeechMetrics } from './ieltsSpeechMetrics';
 import { logIeltsSessionEvent } from './ieltsTelemetry';
 import { resolveSlotTier } from './tierManager';
-import { runWithSlotApiFallback } from './apiFallback';
+import { getSlotAccountReadiness, runWithSlotApiFallback } from './apiFallback';
 
 type TransportFn = (opts: HttpOptions) => Promise<HttpResponse>;
 
@@ -665,7 +665,11 @@ export async function compareIeltsAttempts(
   const configs = await loadAllSlotsConfig();
   const slotConfig = configs.llm_evaluator;
   const resolved = await resolveSlotTier(slotConfig);
-  if (resolved.tier === 3) throw new Error('Online AI evaluator is not available for attempt comparison.');
+  if (resolved.tier === 3) {
+    const primary = await getSlotAccountReadiness('llm_evaluator', 'primary');
+    const secondary = await getSlotAccountReadiness('llm_evaluator', 'secondary');
+    throw new Error(`Online AI evaluator is not ready for attempt comparison. API 1: ${primary.reason} API 2: ${secondary.reason}`);
+  }
 
   const compactAnswers = (record: IeltsTestRecord) => (record.answers || []).slice(0, 15).map(answer => ({
     question: answer.questionText.slice(0, 240),
