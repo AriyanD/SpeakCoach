@@ -457,4 +457,27 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     }
   });
 
+  it('remembers a Gemini model-language 400 for the session and does not repeat the request', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'gemini_tts',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-2.5-flash-preview-tts',
+      customTtsVoice: 'Kore'
+    };
+    let calls = 0;
+    const failingTransport = async (opts: { url: string }) => {
+      calls++;
+      return {
+        url: opts.url, status: 400, headers: {},
+        data: { error: { message: 'Language sv-SE is not supported by this model.' } }
+      };
+    };
+    await expect(synthesizeOnlineNeuralAudio('First Swedish sentence.', config, 'language-session-key', 1, failingTransport, 'sv-SE'))
+      .rejects.toThrow();
+    await expect(synthesizeOnlineNeuralAudio('Second Swedish sentence.', config, 'language-session-key', 1, failingTransport, 'sv-SE'))
+      .rejects.toThrow(/Language sv-SE is not supported/);
+    expect(calls).toBe(1);
+  });
+
 });
