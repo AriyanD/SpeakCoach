@@ -109,8 +109,7 @@ export async function renderSettingsView(
   const hasConfiguredOnlineAccount = SLOT_ORDER.some((slotId) => {
     const primary = getPreset(slotId, configs[slotId].providerId);
     const secondary = configs[slotId].secondary ? getPreset(slotId, configs[slotId].secondary!.providerId) : null;
-    return (primary.tier !== 3 && (!primary.requiresKey || !!keysBySlot[slotId].trim())) ||
-      Boolean(secondary && secondary.tier !== 3 && (!secondary.requiresKey || !!secondaryKeysBySlot[slotId].trim()));
+    return primary.tier !== 3 || Boolean(secondary && secondary.tier !== 3);
   });
 
   const unreadableApiKeyWarnings = Array.from(keyStorageReadErrors).map((entry) => {
@@ -1325,6 +1324,7 @@ export async function renderSettingsView(
     );
     if (importButton) importButton.disabled = true;
     if (testAllApisButton) testAllApisButton.disabled = true;
+    if (testAllApisButton) testAllApisButton.disabled = true;
     if (backupStatus) {
       backupStatus.className = 'status-box info';
       backupStatus.textContent = 'Reading and validating the selected backup…';
@@ -1346,6 +1346,7 @@ export async function renderSettingsView(
       }
     } finally {
       if (importButton) importButton.disabled = false;
+      if (testAllApisButton) testAllApisButton.disabled = settingsProviderTestRunning || !hasConfiguredOnlineAccount;
       if (testAllApisButton) testAllApisButton.disabled = settingsProviderTestRunning || !hasConfiguredOnlineAccount;
     }
   };
@@ -1447,12 +1448,14 @@ export async function renderSettingsView(
     if (!confirmed) return;
 
     testAllApisRunning = true;
+    settingsProviderTestRunning = true;
     cancelTestAllApis = false;
     testAllApisButton.textContent = 'Cancel tests';
     const singleTestButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('.settings-test-button'));
     const importButtons = ['#import-ai-backup', '#import-test-backup'].map(selector => container.querySelector<HTMLButtonElement>(selector)).filter((button): button is HTMLButtonElement => !!button);
     const previousDisabled = [...singleTestButtons, ...importButtons].map(button => button.disabled);
     [...singleTestButtons, ...importButtons].forEach(button => { button.disabled = true; });
+    if (testAllApisButton) testAllApisButton.disabled = false;
     const reports: string[] = [];
     let savedSlots = 0;
     let notSavedSlots = 0;
@@ -1551,7 +1554,9 @@ export async function renderSettingsView(
       backupStatus.textContent = `Test all APIs stopped: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
       testAllApisRunning = false;
+      settingsProviderTestRunning = false;
       testAllApisButton.textContent = 'Test all APIs';
+      testAllApisButton.disabled = !hasConfiguredOnlineAccount;
       [...singleTestButtons, ...importButtons].forEach((button, index) => { button.disabled = previousDisabled[index]; });
     }
   });
@@ -2424,8 +2429,10 @@ export async function renderSettingsView(
 
     secondaryTestBtn?.addEventListener('click', async () => {
       if (!secondaryTestBtn || !secondaryStatus) return;
+      settingsProviderTestRunning = true;
+      if (testAllApisButton) testAllApisButton.disabled = true;
       const providerId = secondaryProviderSelect?.value ?? '';
-      if (!providerId) { secondaryStatus.textContent = 'API 2: Choose a provider first.'; return; }
+      if (!providerId) { secondaryStatus.textContent = 'API 2: Choose a provider first.'; settingsProviderTestRunning = false; if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount; return; }
       const secondaryPreset = getPreset(slotId, providerId);
       const secondaryCfg: SlotConfig = {
         slotId, providerId: secondaryPreset.id,
@@ -2548,6 +2555,8 @@ clearPreloadedSentenceAudio();
 
     testBtn?.addEventListener('click', async () => {
       if (!testBtn || !statusBox) return;
+      settingsProviderTestRunning = true;
+      if (testAllApisButton) testAllApisButton.disabled = true;
       testBtn.disabled = true;
       statusBox.className = 'status-box info';
       dismissedVerificationErrors.delete(slotId);
@@ -2577,6 +2586,8 @@ clearPreloadedSentenceAudio();
         statusBox.textContent = `API 1: FAIL — ${message}`;
       } finally {
         testBtn.disabled = false;
+        settingsProviderTestRunning = false;
+        if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount;
       }
     });
   }
