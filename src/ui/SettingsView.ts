@@ -871,9 +871,9 @@ export async function renderSettingsView(
           let primaryStatus = 'Primary configured';
           if (primaryKey) {
             try {
-              const result = await testSlotConnection(primaryConfig, { apiKeyOverride: primaryKey, account: 'primary' });
-              const persisted = await saveSlotConnectionTestResult(item.slotId, result);
-              lastTestResults.set(item.slotId, persisted);
+              const result = await testAndPersistSlotAccount(primaryConfig, { apiKeyOverride: primaryKey, account: 'primary' });
+              const persisted = await loadSlotConnectionTestResult(item.slotId);
+              lastTestResults.set(item.slotId, persisted ?? result);
               attempted += 1;
               if (result.ok && result.tier !== 3) { passed += 1; primaryStatus = 'Primary verified'; }
               else primaryStatus = 'Primary test failed';
@@ -915,10 +915,9 @@ export async function renderSettingsView(
             let secondaryStatus = 'API 2 configured — key missing';
             if (secondaryKey) {
               try {
-                const result = await testSlotConnection({ ...secondaryConfigBase, secondary: undefined }, { apiKeyOverride: secondaryKey, account: 'secondary' });
+                const result = await testAndPersistSlotAccount({ ...secondaryConfigBase, secondary: undefined }, { apiKeyOverride: secondaryKey, account: 'secondary' });
                 const testResult = { ok: result.ok && result.tier !== 3, latencyMs: result.latencyMs, message: result.message, testedAt: Date.now(), verificationFingerprint: result.verificationFingerprint };
                 secondaryConfig = { ...secondaryConfig, verified: testResult.ok, testResult };
-                await saveSecondarySlotConfig(item.slotId, secondaryConfig);
                 clearPreloadedSentenceAudio();
                 if (item.slotId === 'voice_tts') {
                   await clearActiveShadowingAudioStore();
