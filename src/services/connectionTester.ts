@@ -847,7 +847,6 @@ export async function persistSlotAccountTestResult(
     return;
   }
   const all = await loadAllSlotsConfig();
-  const current = all[slotConfig.slotId].secondary;
   const testResult = {
     ok: passed,
     latencyMs: result.latencyMs,
