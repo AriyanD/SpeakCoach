@@ -1,5 +1,5 @@
 import { Preferences } from '@capacitor/preferences';
-import type { SlotId } from '../config/types';
+import type { SlotConfig, SlotId } from '../config/types';
 
 export type ProviderAccount = 'primary' | 'secondary';
 export type ProviderHealthState = 'needs-retest' | 'cooldown';
@@ -115,4 +115,27 @@ export async function clearAllProviderAccountHealth(): Promise<void> {
   await hydrate();
   health.clear();
   await persist();
+}
+
+/** Bind a successful connection test to the exact provider configuration and a SHA-256 key digest. */
+export async function createProviderVerificationFingerprint(
+  config: SlotConfig,
+  apiKey: string
+): Promise<string | null> {
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+    const canonical = [
+      config.providerId,
+      config.baseUrl.trim().replace(/\\/+$/, ''),
+      config.modelOrVoice.trim(),
+      config.customTtsVoice?.trim() ?? '',
+      apiKey
+    ].join('|');
+    const digest = await subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+    return Array.from(new Uint8Array(digest).slice(0, 16))
+      .map(value => value.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return null;
+  }
 }
