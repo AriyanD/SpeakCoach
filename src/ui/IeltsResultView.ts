@@ -1,6 +1,7 @@
 import type { IeltsTestRecord } from '../storage/ieltsHistoryStore';
 import { recordLastIeltsEvaluation } from '../services/ieltsTelemetry';
 import { retryIeltsEvaluation } from '../services/ieltsLlmEvaluator';
+import { getSlotAccountReadiness } from '../services/apiFallback';
 
 export interface IeltsResultViewCallbacks {
   onRetake: () => void;
@@ -200,30 +201,47 @@ export function renderIeltsResultView(
         <option value="secondary">API 2 only — compare model</option>
       </select>
       <button type="button" class="btn btn-primary" id="result-retry-eval-btn">Re-evaluate</button>
+      <div class="status-box info ielts-reevaluation-status" id="result-reevaluation-status" role="status" aria-live="polite"></div>
     </div>
   `;
 
   const attachReevaluationHandlers = (): void => {
     const apiChoice = container.querySelector<HTMLSelectElement>('#result-api-choice');
     const apiButton = container.querySelector<HTMLButtonElement>('#result-retry-eval-btn');
+    const status = container.querySelector<HTMLElement>('#result-reevaluation-status');
+    const updateChoices = async (): Promise<void> => {
+      if (!apiChoice) return;
+      for (const account of ['primary', 'secondary'] as const) {
+        const option = apiChoice.querySelector<HTMLOptionElement>(`option[value="${account}"]`);
+        if (!option) continue;
+        const readiness = await getSlotAccountReadiness('llm_evaluator', account);
+        option.disabled = !readiness.usable;
+        option.title = readiness.usable ? '' : readiness.reason;
+        if (!readiness.usable && !option.textContent?.includes('(not ready)')) option.textContent += ' (not ready — test in Settings)';
+      }
+    };
+    void updateChoices();
 
     const run = async (providerChoice: 'auto' | 'primary' | 'secondary', button: HTMLButtonElement | null) => {
       if (!button) return;
       button.disabled = true;
       const originalText = button.textContent || 'Re-evaluate';
       button.textContent = 'Re-evaluating…';
+      if (status) { status.hidden = false; status.className = 'status-box info ielts-reevaluation-status'; status.textContent = 'Re-evaluation in progress…'; }
       try {
         if (providerChoice === 'auto' && callbacks.onRetryEvaluation) {
           await callbacks.onRetryEvaluation(record);
+          if (status) { status.className = 'status-box pass ielts-reevaluation-status'; status.textContent = 'Re-evaluation completed.'; }
           return;
         }
         const updated = await retryIeltsEvaluation(record, undefined, { providerChoice });
         renderIeltsResultView(container, updated, callbacks);
+        const nextStatus = container.querySelector<HTMLElement>('#result-reevaluation-status');
+        if (nextStatus) { nextStatus.hidden = false; nextStatus.className = 'status-box pass ielts-reevaluation-status'; nextStatus.textContent = `Re-evaluated successfully with ${updated.evaluation?.activeTier?.detailLabel || (providerChoice === 'secondary' ? 'API 2' : providerChoice === 'primary' ? 'API 1' : 'the selected provider')}.`; }
       } catch (error) {
         button.disabled = false;
         button.textContent = originalText;
-        const reasonBox = container.querySelector('#result-failure-reason');
-        if (reasonBox) reasonBox.textContent = error instanceof Error ? error.message : String(error);
+        if (status) { status.hidden = false; status.className = 'status-box fail ielts-reevaluation-status'; status.textContent = error instanceof Error ? error.message : String(error); }
       }
     };
 
