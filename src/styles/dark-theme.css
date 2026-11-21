@@ -26,6 +26,10 @@ html[data-theme="dark"] {
   --danger-bg: rgba(240,134,149,.14);
   --neutral-chip: #A2B1B8;
   --border: #2F3933;
+  --record-bg: #B4233C;
+  --record-bg-hover: #951B31;
+  --record-border: #951B31;
+  --record-text: #FFFFFF;
 }
 html, body { background: var(--bg-primary); color: var(--text-primary); }
 body {
