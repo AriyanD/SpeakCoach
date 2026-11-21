@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
+import { removeTtsAudioFromMemory } from './audioCache';
 
 const INDEX_KEY = 'speakcoach.shadowing.audio-set-index.v1';
 const ACTIVE_SET_KEY = 'speakcoach.shadowing.audio-active-set.v1';
@@ -117,6 +118,7 @@ async function removeSetFiles(setId: string, entries: Entry[]): Promise<void> {
   for (const entry of entries) {
     await removeFile(entry.file);
     ram.delete(ramKey(setId, entry.hash));
+    removeTtsAudioFromMemory(entry.hash);
   }
   if (Capacitor.isNativePlatform()) {
     try { await Filesystem.rmdir({ path: `${ROOT}/${safeId(setId)}`, directory: Directory.Data, recursive: true }); } catch { /* empty or absent */ }
