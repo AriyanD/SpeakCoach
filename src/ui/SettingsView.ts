@@ -844,7 +844,7 @@ export async function renderSettingsView(
           let primaryStatus = 'Primary configured';
           if (primaryKey) {
             try {
-              const result = await testSlotConnection(primaryConfig, { apiKeyOverride: primaryKey });
+              const result = await testSlotConnection(primaryConfig, { apiKeyOverride: primaryKey, account: 'primary' });
               const persisted = await saveSlotConnectionTestResult(item.slotId, result);
               lastTestResults.set(item.slotId, persisted);
               attempted += 1;
@@ -883,8 +883,8 @@ export async function renderSettingsView(
             let secondaryStatus = 'API 2 configured — key missing';
             if (secondaryKey) {
               try {
-                const result = await testSlotConnection({ ...secondaryConfigBase, secondary: undefined }, { apiKeyOverride: secondaryKey });
-                const testResult = { ok: result.ok && result.tier !== 3, latencyMs: result.latencyMs, message: result.message, testedAt: Date.now() };
+                const result = await testSlotConnection({ ...secondaryConfigBase, secondary: undefined }, { apiKeyOverride: secondaryKey, account: 'secondary' });
+                const testResult = { ok: result.ok && result.tier !== 3, latencyMs: result.latencyMs, message: result.message, testedAt: Date.now(), verificationFingerprint: result.verificationFingerprint };
                 secondaryConfig = { ...secondaryConfig, verified: testResult.ok, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
                 configs[item.slotId].secondary = secondaryConfig;
@@ -2243,12 +2243,13 @@ export async function renderSettingsView(
       secondaryStatus.className = 'status-box info';
       secondaryStatus.textContent = 'API 2: Testing…';
       try {
-        const result = await testSlotConnection(secondaryCfg, { apiKeyOverride: apiKey });
+        const result = await testSlotConnection(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
         const testResult = {
           ok: result.ok && result.tier !== 3,
           latencyMs: result.latencyMs,
           message: result.message,
-          testedAt: Date.now()
+          testedAt: Date.now(),
+          verificationFingerprint: result.verificationFingerprint
         };
         if (testResult.ok) {
           await saveApiKey(slotId, secondaryPreset.id, apiKey, 'secondary');
@@ -2348,7 +2349,7 @@ export async function renderSettingsView(
       statusBox.textContent = 'API 1: Testing…';
       try {
         const { cfg, key } = await persistCurrentSlot();
-        const result = await testSlotConnection(cfg, { apiKeyOverride: key });
+        const result = await testSlotConnection(cfg, { apiKeyOverride: key, account: 'primary' });
         const persisted = await saveSlotConnectionTestResult(slotId, result);
         lastTestResults.set(slotId, persisted);
         dismissedVerificationErrors.delete(slotId);
