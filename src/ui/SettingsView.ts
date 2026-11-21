@@ -3,7 +3,8 @@ import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { APP_VERSION } from '../config/appVersion';
 import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
-import { testSlotConnection } from '../services/connectionTester';
+import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult } from '../services/connectionTester';
+import { networkMonitor } from '../services/networkMonitor';
 import { isOnlineProviderVerified } from '../services/slotConnectionStatus';
 import {
   detectProviderUrlMismatch,
@@ -104,6 +105,13 @@ export async function renderSettingsView(
     llm_generator: configs.llm_generator.secondary ? await readKeyForSettings('llm_generator', configs.llm_generator.secondary.providerId, 'secondary') : '',
     llm_translation: configs.llm_translation.secondary ? await readKeyForSettings('llm_translation', configs.llm_translation.secondary.providerId, 'secondary') : ''
   };
+
+  const hasConfiguredOnlineAccount = SLOT_ORDER.some((slotId) => {
+    const primary = getPreset(slotId, configs[slotId].providerId);
+    const secondary = configs[slotId].secondary ? getPreset(slotId, configs[slotId].secondary!.providerId) : null;
+    return (primary.tier !== 3 && (!primary.requiresKey || !!keysBySlot[slotId].trim())) ||
+      Boolean(secondary && secondary.tier !== 3 && (!secondary.requiresKey || !!secondaryKeysBySlot[slotId].trim()));
+  });
 
   const unreadableApiKeyWarnings = Array.from(keyStorageReadErrors).map((entry) => {
     const [slotIdRaw, providerId, account] = entry.split('|');
@@ -621,8 +629,10 @@ export async function renderSettingsView(
           <button type="button" class="btn btn-secondary" id="export-ai-backup">Export AI settings (with keys)</button>
           <button type="button" class="btn btn-secondary" id="export-ai-backup-no-keys">Export settings only (no keys)</button>
           <button type="button" class="btn btn-secondary" id="import-ai-backup">Import AI settings</button>
+          ${hasConfiguredOnlineAccount ? '<button type="button" class="btn btn-secondary" id="test-all-apis-btn">Test all APIs</button>' : ''}
           <input type="file" id="import-ai-file" accept="application/json,.json" hidden />
         </div>
+        <p class="card-subtitle">Tests run sequentially and may use a small amount of API quota. A slot is marked saved only when every configured online account in that slot passes; otherwise its previous verification is preserved.</p>
       </div>
       <div class="backup-section">
         <strong>Test data &amp; practice history</strong>
