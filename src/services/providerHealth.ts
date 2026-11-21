@@ -112,7 +112,7 @@ export async function markProviderAccountFailure(
     await persist();
     return;
   }
-  if (status === 429 || (status !== undefined && status >= 500) || status === 0 || networkFailure) {
+  if (status === 408 || status === 429 || (status !== undefined && status >= 500) || status === 0 || networkFailure) {
     const duration = Math.max(1000, Math.min(10 * 60 * 1000, retryAfterMs ?? 90_000));
     health.set(key(slotId, account), {
       state: 'cooldown', reason, status, updatedAt: now, cooldownUntil: now + duration
