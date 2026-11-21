@@ -12,6 +12,8 @@ describe('Shadowing position-based prefetch scheduler', () => {
     expect(scheduler.reachPosition(5, 20)).toEqual([6, 7, 8, 9]);
     scheduler.completeBatch(4);
     expect(scheduler.reachPosition(9, 20)).toEqual([10, 11, 12, 13]);
+    scheduler.completeBatch(4);
+    expect(scheduler.reachPosition(9, 20)).toEqual([10, 11, 12, 13]);
   });
 
   it('does not advance the cursor after a failed or deferred batch and retries the remainder', () => {
