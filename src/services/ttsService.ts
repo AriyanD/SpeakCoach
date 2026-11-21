@@ -159,7 +159,7 @@ export async function synthesizeOnlineNeuralAudio(
     endpoint: slotCfg.baseUrl?.trim() ?? '',
     accountFingerprintHash: fingerprint
   });
-  const inFlightKey = `${hash}|generation:${cacheGeneration}`;
+  const inFlightKey = `${hash}|generation:${cacheGeneration}|set:${setAudio?.setId ?? ''}:${setAudio?.generation ?? ''}`;
   const existing = inFlightAudioRequests.get(inFlightKey);
   if (existing) return existing;
   const request = synthesizeOnlineNeuralAudioUnshared(
@@ -733,7 +733,7 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
   const normalizedText = text.trim();
   if (!normalizedText) return false;
   const locale = normalizeSpeechLocale(options?.locale);
-  const taskKey = `${locale}|${normalizedText}`;
+  const taskKey = `${options?.shadowingSetAudio?.setId ?? ''}:${options?.shadowingSetAudio?.generation ?? ''}|${locale}|${normalizedText}`;
   const existing = prefetchTasks.get(taskKey);
   if (existing) return existing;
 
