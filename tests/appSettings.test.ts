@@ -12,7 +12,18 @@ describe('App settings persistence', () => {
       theme: 'system',
       language: null,
       showTutorialOnStartup: true,
-      onboardingCompleted: false
+      onboardingCompleted: false,
+      prefetchShadowingAudio: true
+    });
+  });
+
+  it('persists the Shadowing audio prefetch opt-out without resetting other settings', async () => {
+    await saveAppSettings({ prefetchShadowingAudio: false });
+
+    await expect(loadAppSettings()).resolves.toMatchObject({
+      prefetchShadowingAudio: false,
+      theme: 'system',
+      language: null
     });
   });
 
@@ -49,7 +60,8 @@ describe('App settings persistence', () => {
       theme: 'system',
       language: null,
       showTutorialOnStartup: true,
-      onboardingCompleted: false
+      onboardingCompleted: false,
+      prefetchShadowingAudio: true
     });
   });
 
@@ -62,7 +74,8 @@ describe('App settings persistence', () => {
       theme: 'system',
       language: null,
       showTutorialOnStartup: true,
-      onboardingCompleted: false
+      onboardingCompleted: false,
+      prefetchShadowingAudio: true
     });
   });
 
@@ -77,7 +90,8 @@ describe('App settings persistence', () => {
       theme: 'system',
       language: null,
       showTutorialOnStartup: true,
-      onboardingCompleted: false
+      onboardingCompleted: false,
+      prefetchShadowingAudio: true
     });
   });
 });
