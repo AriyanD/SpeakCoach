@@ -214,19 +214,21 @@ export async function renderSettingsView(
 
     const statusHtml = apiRequiredOfflineSelected
       ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${slotId === 'llm_translation' ? 'Translation requires an online AI API. No offline translation engine is available.' : 'IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.'}</div>`
-      : lastTest
-        ? `<div class="status-box ${lastTest.ok ? 'pass' : 'fail'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
-             ${escapeHtml(lastTest.message)}${ 
-               typeof (lastTest as PersistedConnectionTestResult).timestamp === 'number'
-                 ? ` · <span class="settings-tested-time">Tested: ${new Date(
-                     (lastTest as PersistedConnectionTestResult).timestamp
-                   ).toLocaleTimeString()}</span>`
-                 : ''
-             }
-           </div>`
-        : `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
-             ${escapeHtml(resolved.reason ?? `Active: ${resolved.detailLabel}`)}
-           </div>`;
+      : ['needs-retest', 'cooldown', 'ready-degraded', 'ready-cooldown'].includes(slotStatus) && resolved.reason
+        ? `<div class="status-box ${slotStatus === 'needs-retest' ? 'fail' : 'info'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${escapeHtml(resolved.reason)}</div>`
+        : lastTest
+          ? `<div class="status-box ${lastTest.ok ? 'pass' : 'fail'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
+               ${escapeHtml(lastTest.message)}${ 
+                 typeof (lastTest as PersistedConnectionTestResult).timestamp === 'number'
+                   ? ` · <span class="settings-tested-time">Tested: ${new Date(
+                       (lastTest as PersistedConnectionTestResult).timestamp
+                     ).toLocaleTimeString()}</span>`
+                   : ''
+               }
+             </div>`
+          : `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
+               ${escapeHtml(resolved.reason ?? `Active: ${resolved.detailLabel}`)}
+             </div>`;
     const showVerificationActions = !lastTest?.ok && !dismissedVerificationErrors.has(slotId);
     const verificationActionsHtml = `<div class="btn-row verification-error-actions" id="verification-actions-${slotId}" style="display:${showVerificationActions ? 'flex' : 'none'};gap:8px;margin-top:6px;">
          <button type="button" class="btn btn-secondary settings-verify-action" data-ignore-verification-error="${slotId}">Dismiss error</button>
