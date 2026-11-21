@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Directory, Filesystem } from '@capacitor/filesystem';
-import { downloadSpeakCoachUpdate, type SpeakCoachReleaseAsset } from '../src/services/appUpdater';
+import { assertMinimumAndroidSdk, downloadSpeakCoachUpdate, type SpeakCoachReleaseAsset } from '../src/services/appUpdater';
 
 vi.mock('@capacitor/filesystem', () => ({
   Directory: { Data: 'DATA' },
@@ -18,6 +18,23 @@ const asset: SpeakCoachReleaseAsset = {
   size: 1234,
   sha256: 'a'.repeat(64)
 };
+
+describe('SpeakCoach Android update compatibility', () => {
+  it('rejects Android 5.1 and older before offering an API 23+ update', () => {
+    expect(() => assertMinimumAndroidSdk(22)).toThrow(/Android 6\.0 \(API 23\) or newer/);
+    expect(() => assertMinimumAndroidSdk(19)).toThrow(/API 19/);
+  });
+
+  it('allows Android 6.0 and newer', () => {
+    expect(() => assertMinimumAndroidSdk(23)).not.toThrow();
+    expect(() => assertMinimumAndroidSdk(35)).not.toThrow();
+  });
+
+  it('fails closed when the native SDK level cannot be verified', () => {
+    expect(() => assertMinimumAndroidSdk(0)).toThrow(/could not verify/i);
+    expect(() => assertMinimumAndroidSdk(Number.NaN)).toThrow(/could not verify/i);
+  });
+});
 
 describe('SpeakCoach update downloads', () => {
   beforeEach(() => {
