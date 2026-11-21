@@ -36,7 +36,6 @@ const geminiLanguageFailures = new Map<string, { message: string; expiresAt: num
 export function clearGeminiLanguageFailures(providerId?: string): void {
   if (!providerId || providerId === 'gemini_tts') geminiLanguageFailures.clear();
 }
-let prefetchQueueTail: Promise<void> = Promise.resolve();
 
 async function storeGeneratedAudio(
   hash: string,
@@ -807,7 +806,7 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
   if (existing) return existing;
 
   const generation = temporaryCacheGeneration;
-  const task = prefetchQueueTail.then(async (): Promise<boolean> => {
+  const task = (async (): Promise<boolean> => {
     try {
       if (generation !== temporaryCacheGeneration || userInitiatedSynthesisInFlight > 0) return false;
       const configs = await loadAllSlotsConfig();
@@ -828,8 +827,7 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
     } finally {
       prefetchTasks.delete(taskKey);
     }
-  });
-  prefetchQueueTail = task.then(() => {}, () => {});
+  })();
   prefetchTasks.set(taskKey, task);
   return task;
 }
