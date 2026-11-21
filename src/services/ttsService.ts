@@ -3,6 +3,7 @@ import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { getPreset, normalizeBaseUrl } from '../config/providers';
 import type { ResolvedSlotTier, SlotConfig } from '../config/types';
 import { loadAllSlotsConfig } from '../storage/localStore';
+import { loadApiKey } from '../storage/keyStore';
 import { createAudioCacheAccountFingerprint, computeAudioCacheHash, getCachedTtsAudio, setCachedTtsAudio, setMemoryOnlyTtsAudio, removeMemoryOnlyTtsAudio } from './audioCache';
 import { nativeHttpRequest, redactUrlForLog } from './httpClient';
 import { executeWithTierFallback, resolveSlotTier } from './tierManager';
@@ -627,6 +628,56 @@ export async function speakSentenceWithTierFallback(
 
   const configs = await loadAllSlotsConfig();
   const voiceSlot = configs.voice_tts;
+
+  // A durable active-set entry is usable even when the device is offline or
+  // the provider currently resolves to Tier 3. Look up both configured
+  // accounts using the same provider/key/model/voice/rate/text hash.
+  if (options?.shadowingSetAudio) {
+    const localeKey = locale;
+    const accounts: Array<{ config: SlotConfig; account: 'primary' | 'secondary' }> = [
+      { config: voiceSlot, account: 'primary' },
+      ...(voiceSlot.secondary ? [{ config: { slotId: 'voice_tts' as const, ...voiceSlot.secondary }, account: 'secondary' as const }] : [])
+    ];
+    for (const account of accounts) {
+      const preset = getPreset('voice_tts', account.config.providerId);
+      if (preset.tier === 3) continue;
+      const key = await loadApiKey('voice_tts', account.config.providerId, account.account);
+      const fingerprint = await createAudioCacheAccountFingerprint(key);
+      if (!fingerprint) continue;
+      const hash = computeAudioCacheHash({
+        providerId: account.config.providerId,
+        endpoint: account.config.baseUrl?.trim() ?? '',
+        accountFingerprintHash: fingerprint,
+        voiceOrModel: `${account.config.modelOrVoice}|${account.config.customTtsVoice?.trim() ?? ''}|${localeKey}`,
+        rate,
+        text
+      });
+      const cachedSetAudio = await readActiveShadowingAudio(hash, options.shadowingSetAudio.setId);
+      if (!cachedSetAudio) continue;
+      const activeSet = await getActiveShadowingAudioSet();
+      if (activeSet.setId !== options.shadowingSetAudio.setId || activeSet.generation !== options.shadowingSetAudio.generation) {
+        return { activeTier: await resolveSlotTier(voiceSlot), fromCache: false, durationEstimateMs };
+      }
+      const resolved = await resolveSlotTier(voiceSlot);
+      const cachedTier: ResolvedSlotTier = {
+        ...resolved,
+        providerId: account.config.providerId,
+        providerName: preset.name,
+        tier: preset.tier,
+        label: 'Online AI',
+        detailLabel: `Cached audio · ${preset.name}`,
+        isFallback: false,
+        reason: resolved.tier === 3 ? 'Playing saved generated audio while offline; no provider request was needed.' : undefined
+      };
+      markActiveSetAudioPlaying(options.shadowingSetAudio.setId, hash);
+      try {
+        await playAudioDataUrl(cachedSetAudio, 1.0, 30000, options.onPlaybackStart);
+      } finally {
+        await releaseActiveSetAudioPlaying(options.shadowingSetAudio.setId, hash);
+      }
+      return { activeTier: cachedTier, fromCache: true, durationEstimateMs };
+    }
+  }
 
   let usedCache = false;
   let activeSetAudioHash: string | null = null;
