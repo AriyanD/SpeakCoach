@@ -113,7 +113,7 @@ export async function synthesizeOnlineNeuralAudio(
     rate,
     text,
     endpoint: slotCfg.baseUrl?.trim() ?? '',
-    accountFingerprint: accountFingerprint ?? undefined
+    accountFingerprintHash: accountFingerprint ?? undefined
   });
 
   if (cacheEnabled) {
