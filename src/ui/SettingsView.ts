@@ -1513,6 +1513,14 @@ export async function renderSettingsView(
         } else skippedAccounts.push('API 2 skipped — not configured');
         if (!accounts.length) {
           skippedSlots += 1;
+          for (const account of ['primary', 'secondary'] as const) {
+            const statusBox = container.querySelector<HTMLElement>(account === 'primary' ? `#status-${slotId}` : `#secondary-status-${slotId}`);
+            if (statusBox) {
+              statusBox.style.display = '';
+              statusBox.className = 'status-box info';
+              statusBox.textContent = `${account === 'primary' ? 'API 1' : 'API 2'}: ${skippedAccounts.find(reason => reason.startsWith(account === 'primary' ? 'API 1' : 'API 2')) || 'Skipped — not configured'}`;
+            }
+          }
           reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: ${skippedAccounts.join(' · ')} — <strong>Skipped</strong>; no verification state changed.</li>`);
           continue;
         }
@@ -1593,6 +1601,15 @@ export async function renderSettingsView(
           const result = tested.find(item => item.account === 'secondary')!.result;
           secondaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
           secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.message)} · Tested: ${new Date().toLocaleTimeString()}`;
+        }
+        for (const account of ['primary', 'secondary'] as const) {
+          if (tested.some(item => item.account === account)) continue;
+          const statusBox = container.querySelector<HTMLElement>(account === 'primary' ? `#status-${slotId}` : `#secondary-status-${slotId}`);
+          if (statusBox) {
+            statusBox.style.display = '';
+            statusBox.className = 'status-box info';
+            statusBox.textContent = `${account === 'primary' ? 'API 1' : 'API 2'}: ${skippedAccounts.find(reason => reason.startsWith(account === 'primary' ? 'API 1' : 'API 2')) || 'Skipped — not configured'}`;
+          }
         }
       }
       backupStatus.className = cancelTestAllApis ? 'status-box info' : notSavedSlots ? 'status-box info' : 'status-box pass';
