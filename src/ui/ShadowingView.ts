@@ -149,6 +149,7 @@ let shadowingIsStopping = false;
 let shadowingPrefetchWindowKey = '';
 let shadowingActiveAudioSetId: string | null = null;
 let shadowingPrefetchEpoch = 0;
+let shadowingTier3FallbackNoticeShown = false;
 const shadowingPrefetchScheduler = new ShadowingPrefetchScheduler();
 let shadowingPrefetchQueue: Promise<void> = Promise.resolve();
 let shadowingViewGeneration = 0;
@@ -866,8 +867,11 @@ export function renderShadowingView(
       });
       if (playbackToken !== shadowingModelPlaybackToken) return;
       const offlineVoiceNote = res.activeTier.tier >= 3
-        ? ` The basic offline system voice is being used. ${res.activeTier.reason ?? 'The online voice is not currently available.'} Open Settings → Voice/TTS to re-test the provider or configure API 2.`
+        ? shadowingTier3FallbackNoticeShown
+          ? ''
+          : ` The basic offline system voice is being used. ${res.activeTier.reason ?? 'The online voice is not currently available.'} Open Settings → Voice/TTS to re-test the provider or configure API 2.`
         : res.activeTier.reason ? ` Notice: ${res.activeTier.reason}` : '';
+      if (res.activeTier.tier >= 3) shadowingTier3FallbackNoticeShown = true;
       state.statusMessage = mode === 'normal'
         ? `Played model audio via ${res.activeTier.detailLabel}${res.fromCache ? ' [Cached]' : ''}.${offlineVoiceNote}`
         : `Played slow model audio (0.72x) via ${res.activeTier.detailLabel}.${offlineVoiceNote}`;
