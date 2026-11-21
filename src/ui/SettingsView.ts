@@ -130,7 +130,7 @@ export async function renderSettingsView(
         ? 'needs-retest'
         : resolved.label !== 'Online AI' && resolved.reason?.toLowerCase().includes('cooling down')
           ? 'cooldown'
-          : resolved.label === 'Online AI' && resolved.reason?.includes('needs a successful connection re-test')
+          : resolved.label === 'Online AI' && /needs a successful connection re-test|verification is missing|expired|no longer matches/i.test(resolved.reason ?? '')
             ? 'ready-degraded'
             : resolved.label === 'Online AI' && resolved.reason?.includes('cooling down')
               ? 'ready-cooldown'
