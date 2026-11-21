@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createDefaultSlotConfig } from '../src/config/providers';
 import type { ConnectionTestResult } from '../src/config/types';
 import { bootstrapApp } from '../src/main';
-import { persistSlotAccountTestResult, testSlotConnection } from '../src/services/connectionTester';
+import { persistSlotAccountTestResult, testSlotAccountsSequentially, testSlotConnection } from '../src/services/connectionTester';
 import { synthesizeOnlineNeuralAudio } from '../src/services/ttsService';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
@@ -44,6 +44,59 @@ describe('Functional Deep Connection Tester', () => {
     networkMonitor.setOnline(true);
   });
 
+
+
+  it('runs Test all API account probes sequentially and continues after an individual failure', async () => {
+    const primary = createDefaultSlotConfig('voice_tts');
+    const secondary = { ...primary, providerId: 'elevenlabs_tts', baseUrl: 'https://api.elevenlabs.io/v1', modelOrVoice: 'voice-id' };
+    const order: string[] = [];
+    const progress: number[] = [];
+    const batch = await testSlotAccountsSequentially([
+      { account: 'primary', config: primary, apiKeyOverride: 'never-return-this-key' },
+      { account: 'secondary', config: secondary, apiKeyOverride: 'also-secret' }
+    ], {
+      pauseMs: 0,
+      onProgress: current => progress.push(current),
+      probe: async target => {
+        order.push(target.account);
+        if (target.account === 'primary') throw new Error('HTTP 401 invalid key');
+        return {
+          ok: true, slotId: 'voice_tts', providerId: 'elevenlabs_tts', tier: 1,
+          label: 'Online AI', latencyMs: 4, message: 'PASS — secondary'
+        };
+      }
+    });
+    expect(order).toEqual(['primary', 'secondary']);
+    expect(progress).toEqual([1, 2]);
+    expect(batch.cancelled).toBe(false);
+    expect(batch.results.map(item => item.result.ok)).toEqual([false, true]);
+    expect(JSON.stringify(batch.results)).not.toContain('never-return-this-key');
+    expect(JSON.stringify(batch.results)).not.toContain('also-secret');
+  });
+
+  it('cancels sequential API testing between probes without starting the next account', async () => {
+    const config = createDefaultSlotConfig('voice_tts');
+    let calls = 0;
+    let cancel = false;
+    const batch = await testSlotAccountsSequentially([
+      { account: 'primary', config },
+      { account: 'secondary', config: { ...config, providerId: 'elevenlabs_tts' } }
+    ], {
+      pauseMs: 0,
+      shouldCancel: () => cancel,
+      probe: async () => {
+        calls += 1;
+        cancel = true;
+        return {
+          ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+          label: 'Online AI', latencyMs: 2, message: 'PASS'
+        };
+      }
+    });
+    expect(calls).toBe(1);
+    expect(batch.cancelled).toBe(true);
+    expect(batch.results).toHaveLength(1);
+  });
 
   it('persists primary connection results through the shared account test path', async () => {
     const config = createDefaultSlotConfig('voice_tts');
