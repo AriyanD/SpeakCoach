@@ -319,4 +319,25 @@ describe('IELTS STT online tier detection', () => {
     expect(isOnlineIeltsSttTier(3, 'Basic offline')).toBe(false);
     expect(isOnlineIeltsSttTier(1, 'Basic offline')).toBe(false);
   });
+  it('invalidates a saved PASS when the API key or model configuration changes', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'fingerprint-key-one');
+    await markSlotVerified('voice_tts', 'openai_tts');
+
+    expect((await resolveSlotTier(config, { isOnline: true })).tier).toBe(1);
+
+    await saveApiKey('voice_tts', 'openai_tts', 'fingerprint-key-two');
+    expect((await resolveSlotTier(config, { isOnline: true })).tier).toBe(3);
+
+    await saveApiKey('voice_tts', 'openai_tts', 'fingerprint-key-one');
+    const changedModel = { ...config, modelOrVoice: 'tts-1:nova' };
+    expect((await resolveSlotTier(changedModel, { isOnline: true })).tier).toBe(3);
+  });
+
 });
