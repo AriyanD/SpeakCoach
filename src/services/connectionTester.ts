@@ -817,7 +817,7 @@ export async function testSlotConnection(
         status: failureInfo.status
       });
     }
-    if (options?.account) await markProviderAccountFailure(slotConfig.slotId, options.account, { message: failureMsg, status: failureInfo.status });
+    if (options?.account) {\n      const healthError = new Error(failureMsg) as Error & { status?: number };\n      healthError.status = failureInfo.status;\n      await markProviderAccountFailure(slotConfig.slotId, options.account, healthError);\n    }
     return {
       ok: false,
       slotId: slotConfig.slotId,
