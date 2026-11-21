@@ -31,6 +31,7 @@ import {
   clearSlotConnectionTestResult,
   loadAllConnectionTestResults,
   loadAllSlotsConfig,
+  loadSlotConnectionTestResult,
   getStorageRecoveryNotices,
   type PersistedConnectionTestResult,
   saveSlotConfig,
@@ -1523,16 +1524,34 @@ export async function renderSettingsView(
         }
         const failed = tested.filter(item => !item.result.ok || item.result.tier === 3);
         if (failed.length === 0 && tested.length === accounts.length) {
-          for (const item of tested) {
-            await persistSlotAccountTestResult(item.config, item.result, item.account);
-            if (item.account === 'primary') lastTestResults.set(slotId, item.result);
-            else configs[slotId].secondary = { ...item.config, verified: true, testResult: {
-              ok: true, latencyMs: item.result.latencyMs, message: item.result.message,
-              testedAt: Date.now(), verificationFingerprint: item.result.verificationFingerprint
-            } };
+          const previousPrimary = await loadSlotConnectionTestResult(slotId);
+          const previousSecondary = configs[slotId].secondary;
+          const previousLastTest = lastTestResults.get(slotId);
+          try {
+            for (const item of tested) {
+              await persistSlotAccountTestResult(item.config, item.result, item.account);
+              if (item.account === 'primary') lastTestResults.set(slotId, item.result);
+              else configs[slotId].secondary = { ...item.config, verified: true, testResult: {
+                ok: true, latencyMs: item.result.latencyMs, message: item.result.message,
+                testedAt: Date.now(), verificationFingerprint: item.result.verificationFingerprint
+              } };
+            }
+            savedSlots += 1;
+            reports.push(`<li class="pass"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} PASS`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Saved</strong></li>`);
+          } catch (saveError) {
+            try {
+              if (previousPrimary) await saveSlotConnectionTestResult(slotId, previousPrimary);
+              else await clearSlotConnectionTestResult(slotId);
+              await saveSecondarySlotConfig(slotId, previousSecondary);
+              if (previousLastTest) lastTestResults.set(slotId, previousLastTest);
+              else lastTestResults.delete(slotId);
+              configs[slotId].secondary = previousSecondary;
+            } catch {
+              // Preserve the original storage failure in the report; rollback is best effort.
+            }
+            notSavedSlots += 1;
+            reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: Tests passed, but verification could not be saved: ${escapeHtml(saveError instanceof Error ? saveError.message : String(saveError))}. Previous verification was restored where storage allowed.</li>`);
           }
-          savedSlots += 1;
-          reports.push(`<li class="pass"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} PASS`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Saved</strong></li>`);
         } else {
           notSavedSlots += 1;
           const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} failed: ${escapeHtml(item.result.message)}`).join(' · ');
