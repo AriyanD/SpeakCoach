@@ -360,7 +360,7 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
 
     let calls = 0;
     let release: ((response: { url: string; status: number; headers: Record<string, string>; data: string }) => void) | undefined;
-    const transport = async (opts: { url: string }) => {
+    const transport = async (_opts: { url: string }) => {
       calls++;
       return new Promise<{ url: string; status: number; headers: Record<string, string>; data: string }>(resolve => {
         release = resolve;
