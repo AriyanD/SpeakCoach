@@ -9,7 +9,11 @@ const MAX_CACHE_ENTRIES = 30;
 const MAX_CACHE_ITEM_CHARS = 2_000_000;
 const MAX_PERSISTED_CACHE_CHARS = 12_000_000;
 const MAX_MEMORY_CACHE_CHARS = 4_000_000;
+// Reserve a separate 4M-character RAM budget so ordinary playback entries
+// cannot evict the small set of upcoming sentences prepared by Shadowing.
+const MAX_PREFETCH_MEMORY_CHARS = 4_000_000;
 const memoryAudioCache = new Map<string, string>();
+const prefetchedAudioCache = new Map<string, string>();
 
 interface AudioCacheIndexEntry {
   hash: string;
@@ -31,6 +35,20 @@ function rememberInMemory(hash: string, value: string): void {
     if (!oldestHash) break;
     const oldestValue = memoryAudioCache.get(oldestHash) ?? '';
     memoryAudioCache.delete(oldestHash);
+    total -= oldestValue.length;
+  }
+}
+
+function rememberPrefetchedInMemory(hash: string, value: string): void {
+  prefetchedAudioCache.delete(hash);
+  if (value.length > MAX_PREFETCH_MEMORY_CHARS) return;
+  prefetchedAudioCache.set(hash, value);
+  let total = Array.from(prefetchedAudioCache.values()).reduce((sum, item) => sum + item.length, 0);
+  while (total > MAX_PREFETCH_MEMORY_CHARS && prefetchedAudioCache.size > 0) {
+    const oldestHash = prefetchedAudioCache.keys().next().value as string | undefined;
+    if (!oldestHash) break;
+    const oldestValue = prefetchedAudioCache.get(oldestHash) ?? '';
+    prefetchedAudioCache.delete(oldestHash);
     total -= oldestValue.length;
   }
 }
@@ -200,6 +218,11 @@ export function computeAudioCacheHash(params: {
 }
 
 export async function getCachedTtsAudio(hash: string): Promise<string | null> {
+  if (prefetchedAudioCache.has(hash)) {
+    const value = prefetchedAudioCache.get(hash) ?? '';
+    rememberPrefetchedInMemory(hash, value);
+    return value || null;
+  }
   if (memoryAudioCache.has(hash)) {
     const value = memoryAudioCache.get(hash) ?? '';
     rememberInMemory(hash, value);
@@ -286,14 +309,15 @@ export async function setCachedTtsAudio(hash: string, base64OrDataUrl: string): 
 
 export function clearMemoryAudioCache(): void {
   memoryAudioCache.clear();
+  prefetchedAudioCache.clear();
 }
 
 /** Keep prefetched audio in RAM only; it is deliberately not written to disk. */
 export function setMemoryOnlyTtsAudio(hash: string, dataUrl: string): void {
   if (!dataUrl || dataUrl.length > MAX_CACHE_ITEM_CHARS) return;
-  rememberInMemory(hash, dataUrl);
+  rememberPrefetchedInMemory(hash, dataUrl);
 }
 
 export function removeMemoryOnlyTtsAudio(hash: string): void {
-  memoryAudioCache.delete(hash);
+  prefetchedAudioCache.delete(hash);
 }
