@@ -509,11 +509,13 @@ describe('Functional Deep Connection Tester', () => {
     }));
 
     let liveRequests = 0;
+    let connectionTimeoutMs = 0;
     const result = await testSlotConnection(config, {
       apiKeyOverride: apiKey,
       isOnlineOverride: true,
       transport: async opts => {
         liveRequests++;
+        connectionTimeoutMs = opts.timeoutMs ?? 0;
         return {
           url: opts.url, status: 401, headers: {},
           data: { error: { message: 'API key revoked' } }
@@ -522,6 +524,7 @@ describe('Functional Deep Connection Tester', () => {
     });
 
     expect(liveRequests).toBe(1);
+    expect(connectionTimeoutMs).toBe(45000);
     expect(result.ok).toBe(false);
     expect(result.message).toContain('HTTP 401');
   });
