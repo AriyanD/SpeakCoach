@@ -321,3 +321,9 @@ export function setMemoryOnlyTtsAudio(hash: string, dataUrl: string): void {
 export function removeMemoryOnlyTtsAudio(hash: string): void {
   prefetchedAudioCache.delete(hash);
 }
+
+/** Remove both RAM layers for a known hash without touching generic disk cache files. */
+export function removeTtsAudioFromMemory(hash: string): void {
+  memoryAudioCache.delete(hash);
+  prefetchedAudioCache.delete(hash);
+}
