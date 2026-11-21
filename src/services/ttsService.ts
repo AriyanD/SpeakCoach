@@ -10,6 +10,7 @@ import { buildCustomEndpointRequest, buildGeminiEndpointRequest } from './custom
 import { runWithSlotApiFallback } from './apiFallback';
 import { convertPcmBase64ToWavDataUrl } from './pcmWavHelper';
 import { countShadowingLanguageUnits } from '../data/shadowingLanguages';
+import { getActiveShadowingAudioSet, readActiveShadowingAudio, persistActiveShadowingAudio } from './shadowingAudioStore';
 import { getElevenLabsLanguageCode, normalizeSpeechLocale } from './shadowingSpeechLanguage';
 
 export interface SpeakResult {
@@ -36,8 +37,12 @@ async function storeGeneratedAudio(
   dataUrl: string,
   memoryOnly: boolean,
   cacheGeneration: number,
-  cacheEnabled: boolean
+  cacheEnabled: boolean,
+  setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
 ): Promise<void> {
+  if (setAudio) {
+    await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl });
+  }
   if (!cacheEnabled) return;
   if (memoryOnly) {
     if (cacheGeneration === temporaryCacheGeneration) {
@@ -106,7 +111,8 @@ export async function synthesizeOnlineNeuralAudio(
   memoryOnly = false,
   cacheGeneration = temporaryCacheGeneration,
   bypassCache = false,
-  requestTimeoutMs = 15000
+  requestTimeoutMs = 15000,
+  setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
 ): Promise<{ dataUrl: string; fromCache: boolean }> {
   // Explicit probes/previews must always issue their own live request. Normal
   // playback and prefetch share one promise so overlapping callers cannot
@@ -119,7 +125,7 @@ export async function synthesizeOnlineNeuralAudio(
   if (!fingerprint || bypassCache) {
     try {
       const result = await synthesizeOnlineNeuralAudioUnshared(
-        text, slotCfg, apiKey, rate, transport, locale, memoryOnly, cacheGeneration, bypassCache, requestTimeoutMs
+        text, slotCfg, apiKey, rate, transport, locale, memoryOnly, cacheGeneration, bypassCache, requestTimeoutMs, setAudio
       );
       if (slotCfg.providerId === 'gemini_tts') geminiLanguageFailures.delete(languageFailureKey);
       return result;
@@ -143,7 +149,7 @@ export async function synthesizeOnlineNeuralAudio(
   const existing = inFlightAudioRequests.get(inFlightKey);
   if (existing) return existing;
   const request = synthesizeOnlineNeuralAudioUnshared(
-    text, slotCfg, apiKey, rate, transport, locale, memoryOnly, cacheGeneration, false, requestTimeoutMs
+    text, slotCfg, apiKey, rate, transport, locale, memoryOnly, cacheGeneration, false, requestTimeoutMs, setAudio
   );
   inFlightAudioRequests.set(inFlightKey, request);
   try {
@@ -171,7 +177,8 @@ async function synthesizeOnlineNeuralAudioUnshared(
   memoryOnly = false,
   cacheGeneration = temporaryCacheGeneration,
   bypassCache = false,
-  requestTimeoutMs = 15000
+  requestTimeoutMs = 15000,
+  setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
 ): Promise<{ dataUrl: string; fromCache: boolean }> {
   const accountFingerprint = await createAudioCacheAccountFingerprint(apiKey);
   // If Web Crypto is unavailable, synthesize normally but bypass cache so
@@ -186,6 +193,10 @@ async function synthesizeOnlineNeuralAudioUnshared(
     accountFingerprintHash: accountFingerprint ?? undefined
   });
 
+  if (setAudio) {
+    const activeSetAudio = await readActiveShadowingAudio(hash, setAudio.setId);
+    if (activeSetAudio) return { dataUrl: activeSetAudio, fromCache: true };
+  }
   if (cacheEnabled) {
     const cached = await getCachedTtsAudio(hash);
     if (cached) return { dataUrl: cached, fromCache: true };
@@ -234,7 +245,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
     );
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error(`Empty audio payload from ${slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
-    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
+    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
     return { dataUrl, fromCache: false };
   }
 
@@ -585,6 +596,8 @@ export async function speakSentenceWithTierFallback(
     transport?: TransportFn;
     onPlaybackStart?: () => void;
     locale?: string;
+    shadowingSetAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' };
+    onSynthesisStart?: () => void;
   }
 ): Promise<SpeakResult> {
   const playbackGeneration = activePlaybackGeneration;
@@ -606,7 +619,8 @@ export async function speakSentenceWithTierFallback(
       const attempt = await runWithSlotApiFallback('voice_tts', voiceSlot, async (apiConfig, apiKey) => {
         userInitiatedSynthesisInFlight++;
         try {
-          return await synthesizeOnlineNeuralAudio(text, apiConfig, apiKey, rate, options?.transport, locale);
+          options?.onSynthesisStart?.();
+          return await synthesizeOnlineNeuralAudio(text, apiConfig, apiKey, rate, options?.transport, locale, false, temporaryCacheGeneration, false, 15000, options?.shadowingSetAudio);
         } finally {
           userInitiatedSynthesisInFlight = Math.max(0, userInitiatedSynthesisInFlight - 1);
         }
@@ -684,7 +698,7 @@ export async function previewTtsVoice(
  * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
  * audio is never persisted to Preferences, localStorage, or the filesystem.
  */
-export async function preloadSentenceAudio(text: string, options?: { locale?: string; transport?: TransportFn }): Promise<boolean> {
+export async function preloadSentenceAudio(text: string, options?: { locale?: string; transport?: TransportFn; shadowingSetAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' } }): Promise<boolean> {
   const normalizedText = text.trim();
   if (!normalizedText) return false;
   const locale = normalizeSpeechLocale(options?.locale);
@@ -704,7 +718,7 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
         if (userInitiatedSynthesisInFlight > 0) {
           throw new Error('Shadowing prefetch deferred while user-initiated playback is in flight.');
         }
-        return synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, options?.transport, locale, true, generation);
+        return synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, options?.transport, locale, true, generation, false, 15000, options?.shadowingSetAudio);
       });
       return true;
     } catch {
