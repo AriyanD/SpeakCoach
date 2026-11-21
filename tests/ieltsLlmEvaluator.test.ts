@@ -68,6 +68,37 @@ describe('IELTS LLM Evaluator Engine (Stage 3.4 · Tier 1 & Fallback)', () => {
     }
   ];
 
+
+  it('preserves a valid saved band when a manual provider-specific re-evaluation fails', async () => {
+    const previousEvaluation = {
+      overallBand: 7.5,
+      activeTier: { tier: 1, label: 'Online AI', detailLabel: 'API 1 · OpenAI' }
+    };
+    const record = await saveIeltsTestResult({
+      id: 'existing-valid-band-after-retry',
+      mode: 'part1',
+      overallBand: 7.5,
+      evaluation: previousEvaluation as any,
+      evaluationError: null,
+      answers: [{
+        questionId: 'q1',
+        part: 'part1',
+        questionText: 'Where is your hometown?',
+        transcript: 'My hometown is a coastal city with a busy harbour and several public parks.',
+        durationSec: 18
+      }]
+    } as any);
+
+    await expect(retryIeltsEvaluation(record, undefined, { providerChoice: 'secondary' }))
+      .rejects.toThrow(/API 2 is not ready/i);
+
+    const history = await getIeltsTestHistory();
+    const reopened = history.find(item => item.id === record.id);
+    expect(reopened?.overallBand).toBe(7.5);
+    expect(reopened?.evaluation?.overallBand).toBe(7.5);
+    expect(reopened?.evaluationError).toBeFalsy();
+  });
+
   it('cleanJsonPayload extracts pure JSON from markdown code fences and extraneous text', () => {
     const rawWithFence = '```json\n{\n  "fluencyCoherenceBand": 7.0\n}\n```';
     expect(cleanJsonPayload(rawWithFence)).toBe('{\n  "fluencyCoherenceBand": 7.0\n}');
