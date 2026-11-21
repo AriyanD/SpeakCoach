@@ -7,10 +7,10 @@ import type {
   TierLabel,
   TierNumber
 } from '../config/types';
-import { hasConfiguredApiKey } from '../storage/keyStore';
+import { hasConfiguredApiKey, loadApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { networkMonitor } from './networkMonitor';
-import { getProviderAccountHealth } from './providerHealth';
+import { createProviderVerificationFingerprint, getProviderAccountHealth } from './providerHealth';
 
 export interface GlobalTierSummary {
   label: TierLabel;
@@ -21,6 +21,7 @@ export interface GlobalTierSummary {
 }
 
 export const RUNTIME_FAILURE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+export const CONNECTION_VERIFICATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface SlotRuntimeFailureEntry {
   reason: string;
@@ -162,9 +163,20 @@ export async function resolveSlotTier(
   const secondaryPreset = slotConfig.secondary
     ? getPreset(slotId, slotConfig.secondary.providerId)
     : undefined;
-  const secondaryReady = !!slotConfig.secondary?.verified &&
-    !!secondaryPreset && secondaryPreset.tier !== 3 &&
-    (!secondaryPreset.requiresKey || await hasConfiguredApiKey(slotId, secondaryPreset.id, 'secondary'));
+  let secondaryReady = false;
+  if (slotConfig.secondary?.verified && secondaryPreset && secondaryPreset.tier !== 3) {
+    const secondaryKey = secondaryPreset.requiresKey
+      ? await loadApiKey(slotId, secondaryPreset.id, 'secondary')
+      : '';
+    const secondaryFingerprint = await createProviderVerificationFingerprint(
+      { slotId, ...slotConfig.secondary }, secondaryKey
+    );
+    const secondaryTest = slotConfig.secondary.testResult;
+    secondaryReady = !!secondaryFingerprint &&
+      secondaryTest?.verificationFingerprint === secondaryFingerprint &&
+      Date.now() - secondaryTest.testedAt < CONNECTION_VERIFICATION_TTL_MS &&
+      (!secondaryPreset.requiresKey || !!secondaryKey.trim());
+  }
 
   if (selectedPreset.requiresKey && !hasKey && !secondaryReady) {
     return {
@@ -237,8 +249,13 @@ export async function resolveSlotTier(
   // An online provider is not considered active until the user saves its
   // configuration and a test succeeds for that exact provider.
   const verification = await loadSlotConnectionTestResult(slotId);
+  const primaryKey = selectedPreset.requiresKey ? await loadApiKey(slotId, selectedPreset.id, 'primary') : '';
+  const currentFingerprint = await createProviderVerificationFingerprint(slotConfig, primaryKey);
   const primaryVerified = !!verification && verification.ok &&
-    verification.providerId === selectedPreset.id && verification.tier === selectedPreset.tier;
+    verification.providerId === selectedPreset.id && verification.tier === selectedPreset.tier &&
+    !!currentFingerprint && verification.verificationFingerprint === currentFingerprint &&
+    Date.now() - verification.timestamp < CONNECTION_VERIFICATION_TTL_MS &&
+    (!selectedPreset.requiresKey || !!primaryKey.trim());
   if (!primaryUsable && !secondaryUsable) {
     return {
       slotId,
