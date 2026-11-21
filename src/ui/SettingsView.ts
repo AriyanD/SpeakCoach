@@ -480,12 +480,15 @@ export async function renderSettingsView(
         </div>
 
         <div class="settings-api-divider" aria-hidden="true"></div>
-        <details class="secondary-api-settings">
-          <summary class="secondary-api-summary">
-            <span class="settings-api-section-heading secondary-api-heading"><span>API 2</span><small>Backup / rotation</small></span>
-            <span class="secondary-api-configure-label">Tap to configure</span>
-            <span class="secondary-api-summary-chevron" aria-hidden="true">+</span>
-          </summary>
+        <section class="secondary-api-settings" aria-labelledby="secondary-api-heading-${slotId}">
+          <div class="secondary-api-summary">
+            <span class="settings-api-section-heading secondary-api-heading" id="secondary-api-heading-${slotId}"><span>API 2</span><small>Backup / rotation</small></span>
+            <label class="secondary-api-switch-label" for="secondary-api-enabled-${slotId}">
+              <span>Enable API 2</span>
+              <input type="checkbox" class="secondary-api-switch" id="secondary-api-enabled-${slotId}" ${slotCfg.secondary ? 'checked' : ''} aria-controls="secondary-api-content-${slotId}" />
+            </label>
+          </div>
+          <div class="secondary-api-content" id="secondary-api-content-${slotId}" ${slotCfg.secondary ? '' : 'hidden'}>
           <p class="card-subtitle secondary-api-help">Configure another provider/account and key. Speech recognition may rotate between verified APIs. API 2 is not guaranteed to be a different model or service: if you use the same gateway, model, or endpoint in both accounts, you may have no independent fallback. Check that each account supports the required operation (TTS: text → audio; STT: audio → text).</p>
           ${secondarySameModelAsPrimary ? `<div class="status-box info" role="note"><strong>API 2 uses the same provider and model as API 1.</strong> It may still have a separate key or quota, but it is not a different model or an independent model capability.</div>` : ''}
           <div class="form-grid">
@@ -553,8 +556,8 @@ export async function renderSettingsView(
               <input type="text" class="form-input" id="secondary-endpoint-${slotId}" value="${escapeHtml(slotCfg.secondary?.endpointPathOverride ?? '')}" placeholder="/v1/chat/completions" /></div>
             </div>
           </div>
-
-        </details>
+          </div>
+        </section>
 
         <section class="settings-connection-tests" aria-label="Provider connection tests">
         <div class="btn-row provider-test-actions" >
@@ -1841,6 +1844,8 @@ export async function renderSettingsView(
     const customEndpointContainer = container.querySelector<HTMLElement>(`#custom-endpoint-container-${slotId}`);
     const customVoiceContainer = container.querySelector<HTMLElement>(`#tts-voice-container-${slotId}`);
 
+    const secondaryEnabledToggle = container.querySelector<HTMLInputElement>(`#secondary-api-enabled-${slotId}`);
+    const secondaryContent = container.querySelector<HTMLElement>(`#secondary-api-content-${slotId}`);
     const secondaryProviderSelect = container.querySelector<HTMLSelectElement>(`#secondary-provider-${slotId}`);
     const secondaryProviderPicker = container.querySelector<HTMLElement>(`#secondary-provider-picker-${slotId}`);
     const secondaryProviderTrigger = container.querySelector<HTMLButtonElement>(`#secondary-provider-trigger-${slotId}`);
@@ -2131,6 +2136,34 @@ export async function renderSettingsView(
       secondaryProviderSelect.value = option.dataset.secondaryProviderId ?? '';
       secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
     });
+    secondaryEnabledToggle?.addEventListener('change', () => {
+      if (!secondaryEnabledToggle.checked) {
+        if (secondaryContent) secondaryContent.hidden = true;
+        if (secondaryProviderSelect) {
+          secondaryProviderSelect.value = '';
+          secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (secondaryTestBtn) secondaryTestBtn.hidden = true;
+        if (secondaryStatus) secondaryStatus.hidden = true;
+        return;
+      }
+      if (secondaryContent) secondaryContent.hidden = false;
+      if (secondaryTestBtn) secondaryTestBtn.hidden = false;
+      if (secondaryStatus) secondaryStatus.hidden = false;
+      if (secondaryProviderSelect && !secondaryProviderSelect.value) {
+        const candidates = SLOT_DEFINITIONS[slotId].providers.filter((provider) => provider.tier !== 3);
+        const next = candidates.find((provider) => provider.id !== providerSelect?.value) ?? candidates[0];
+        if (next) {
+          secondaryProviderSelect.value = next.id;
+          secondaryProviderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    });
+    if (secondaryEnabledToggle && !secondaryEnabledToggle.checked) {
+      if (secondaryTestBtn) secondaryTestBtn.hidden = true;
+      if (secondaryStatus) secondaryStatus.hidden = true;
+    }
+
     secondaryProviderSelect?.addEventListener('change', () => {
       const selected = secondaryProviderSelect.value;
       if (secondaryProviderTrigger) secondaryProviderTrigger.querySelector('span')!.textContent = selected ? getPreset(slotId, selected).name : 'Not configured';
