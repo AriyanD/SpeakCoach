@@ -39,7 +39,6 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(trainer?.contains(sentenceSet)).toBe(true);
     expect(trainer?.contains(target)).toBe(true);
     expect(trainer?.contains(scoreDetails)).toBe(true);
-    expect(trainer?.contains(root.querySelector('.sh-result-strip'))).toBe(true);
     expect(trainer?.contains(translation)).toBe(false);
     expect(transcript).not.toBeNull();
     expect(root.querySelector('#sh-record-btn')?.classList.contains('btn-record')).toBe(true);
@@ -127,6 +126,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-recognizer-meta')?.textContent).toContain('87%');
 
     expect(root.querySelector('#sh-score-card')).not.toBeNull();
+    expect(root.querySelector('.shadowing-main-card')?.contains(root.querySelector('.sh-result-strip'))).toBe(true);
     expect(root.querySelector<HTMLDetailsElement>('.sh-transcript-details')).not.toBeNull();
     expect(root.querySelector('.metric-tile-overall #sh-overall-score')).not.toBeNull();
     expect(root.querySelector('#sh-word-replay-help')?.textContent).toContain('Tap any word below');
