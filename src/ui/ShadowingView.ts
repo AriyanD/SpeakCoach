@@ -873,9 +873,10 @@ export function renderShadowingView(
         : res.activeTier.reason ? ` Notice: ${res.activeTier.reason}` : '';
       if (res.activeTier.tier >= 3) shadowingTier3FallbackNoticeShown = true;
       const playbackTierLabel = res.activeTier.tier >= 3 ? 'Basic offline' : res.activeTier.detailLabel;
+      const storageWarningNote = res.storageWarning ? ` Warning: ${res.storageWarning}` : '';
       state.statusMessage = mode === 'normal'
-        ? `Played model audio via ${playbackTierLabel}${res.fromCache ? ' [Cached]' : ''}.${offlineVoiceNote}`
-        : `Played slow model audio (0.72x) via ${playbackTierLabel}.${offlineVoiceNote}`;
+        ? `Played model audio via ${playbackTierLabel}${res.fromCache ? ' [Cached]' : ''}.${offlineVoiceNote}${storageWarningNote}`
+        : `Played slow model audio (0.72x) via ${playbackTierLabel}.${offlineVoiceNote}${storageWarningNote}`;
     } catch (error) {
       if (playbackToken !== shadowingModelPlaybackToken) return;
       reopenSpeechApiNoticeForError(error);
