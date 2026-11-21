@@ -101,12 +101,13 @@ export async function synthesizeOnlineNeuralAudio(
   transport?: TransportFn,
   locale = 'en-US',
   memoryOnly = false,
-  cacheGeneration = temporaryCacheGeneration
+  cacheGeneration = temporaryCacheGeneration,
+  bypassCache = false
 ): Promise<{ dataUrl: string; fromCache: boolean }> {
   const accountFingerprint = await createAudioCacheAccountFingerprint(apiKey);
   // If Web Crypto is unavailable, synthesize normally but bypass cache so
   // audio from separate provider accounts can never share a cache namespace.
-  const cacheEnabled = accountFingerprint !== null;
+  const cacheEnabled = accountFingerprint !== null && !bypassCache;
   const hash = computeAudioCacheHash({
     providerId: slotCfg.providerId,
     voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${locale}`,
@@ -593,7 +594,7 @@ export async function previewTtsVoice(
     throw new Error('Enter an API key before previewing this online voice.');
   }
   // Voice previews are disposable; keep them in bounded RAM rather than the persistent cache.
-  const result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true);
+  const result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true, temporaryCacheGeneration, true);
   await playAudioDataUrl(result.dataUrl);
 }
 
