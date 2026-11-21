@@ -150,6 +150,7 @@ async function removePersistentAudio(hash: string): Promise<void> {
     try { localStorage.removeItem(key); } catch { /* best-effort cache eviction */ }
   }
   memoryAudioCache.delete(hash);
+  prefetchedAudioCache.delete(hash);
 }
 
 async function touchCacheEntry(hash: string, chars: number): Promise<void> {
@@ -307,17 +308,36 @@ export async function setCachedTtsAudio(hash: string, base64OrDataUrl: string): 
   await prunePersistentAudioCache(next);
 }
 
+export async function removeTtsAudioCacheEntries(hashes: string[]): Promise<void> {
+  const uniqueHashes = Array.from(new Set(hashes));
+  for (const hash of uniqueHashes) await removePersistentAudio(hash);
+  if (!uniqueHashes.length) return;
+  const removed = new Set(uniqueHashes);
+  const index = await readCacheIndex();
+  await writeCacheIndex(index.filter(item => !removed.has(item.hash)));
+}
+
+export async function removeTtsAudioCacheEntry(hash: string): Promise<void> {
+  await removeTtsAudioCacheEntries([hash]);
+}
+
 export function clearMemoryAudioCache(): void {
   memoryAudioCache.clear();
   prefetchedAudioCache.clear();
 }
 
-/** Keep prefetched audio in RAM only; it is deliberately not written to disk. */
+/** Keep the fast prefetch RAM layer bounded; active-set persistence is handled by shadowingAudioStore. */
 export function setMemoryOnlyTtsAudio(hash: string, dataUrl: string): void {
   if (!dataUrl || dataUrl.length > MAX_CACHE_ITEM_CHARS) return;
   rememberPrefetchedInMemory(hash, dataUrl);
 }
 
 export function removeMemoryOnlyTtsAudio(hash: string): void {
+  prefetchedAudioCache.delete(hash);
+}
+
+/** Remove both RAM layers for a known hash without touching generic disk cache files. */
+export function removeTtsAudioFromMemory(hash: string): void {
+  memoryAudioCache.delete(hash);
   prefetchedAudioCache.delete(hash);
 }

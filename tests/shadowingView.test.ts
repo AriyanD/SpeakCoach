@@ -63,11 +63,11 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     root.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.click();
     await new Promise((r) => setTimeout(r, 40));
 
-    // Must NOT render a score card; must show "Nothing was recognized, try again"
+    // Must NOT render a score card; must explain that online STT is not verified and offer retry/offline guidance.
     expect(root.querySelector('#sh-score-card')).toBeNull();
     const errBox = root.querySelector('#sh-empty-error');
     expect(errBox).not.toBeNull();
-    expect(errBox?.textContent).toContain('Nothing was recognized, try again');
+    expect(errBox?.textContent).toContain('Online speech API is not verified');
   });
 
   it('scores ONLY what the recognizer returned, supports Weak-Word Drill, and logs to Diagnostics', async () => {

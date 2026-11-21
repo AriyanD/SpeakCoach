@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAllProviderAccountHealth, markProviderAccountFailure } from '../src/services/providerHealth';
-import { clearMemoryAudioCache } from '../src/services/audioCache';
+import { clearMemoryAudioCache, computeAudioCacheHash, createAudioCacheAccountFingerprint } from '../src/services/audioCache';
+import { activateShadowingAudioSet, readActiveShadowingAudio, resetShadowingAudioStoreForTests } from '../src/services/shadowingAudioStore';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
 import {
@@ -9,7 +10,8 @@ import {
   speakSentenceWithTierFallback,
   synthesizeOnlineNeuralAudio,
   preloadSentenceAudio,
-  clearPreloadedSentenceAudio
+  clearPreloadedSentenceAudio,
+  clearGeminiLanguageFailures
 } from '../src/services/ttsService';
 import { IeltsSessionController } from '../src/services/ieltsSessionEngine';
 import { generateIeltsSessionPlan } from './fixtures/legacyIeltsQuestionBank';
@@ -22,6 +24,8 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     localStorage.clear();
     await clearAllProviderAccountHealth();
     clearMemoryAudioCache();
+    resetShadowingAudioStoreForTests();
+    clearGeminiLanguageFailures();
     clearAllRuntimeFailures();
     networkMonitor.setOnline(true);
   });
@@ -77,6 +81,45 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     expect(second.activeTier.tier).toBe(1);
     expect(second.fromCache).toBe(true);
     expect(networkCalls).toBe(1); // Zero extra network calls!
+  });
+
+
+  it('persists generated audio from every supported online TTS provider into the active set', async () => {
+    const mp3 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA';
+    const providers = [
+      { providerId: 'openai_tts', baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'tts-1:alloy' },
+      { providerId: 'azure_tts', baseUrl: 'https://eastus.tts.speech.microsoft.com', modelOrVoice: 'en-US-JennyNeural' },
+      { providerId: 'elevenlabs_tts', baseUrl: 'https://api.elevenlabs.io/v1', modelOrVoice: 'voice-id:eleven_multilingual_v2' },
+      { providerId: 'gemini_tts', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', modelOrVoice: 'gemini-2.5-flash-preview-tts', customTtsVoice: 'Puck' }
+    ] as const;
+
+    for (const config of providers) {
+      const setId = `en:easy:provider-${config.providerId}`;
+      const generation = await activateShadowingAudioSet(setId);
+      const transport = async (opts: { url: string }) => ({
+        url: opts.url,
+        status: 200,
+        headers: {},
+        data: config.providerId === 'gemini_tts'
+          ? { candidates: [{ content: { parts: [{ inlineData: { data: 'UklGRg==', mimeType: 'audio/wav' } }] } }] }
+          : mp3
+      });
+      const result = await synthesizeOnlineNeuralAudio(
+        `Persist audio for ${config.providerId}.`,
+        { slotId: 'voice_tts', ...config },
+        `key-${config.providerId}`,
+        1,
+        transport,
+        'en-US',
+        false,
+        undefined,
+        false,
+        15000,
+        { setId, generation, kind: 'sentence' }
+      );
+      expect(result.persistedToActiveSet, config.providerId).toBe(true);
+      await expect(readActiveShadowingAudio(result.cacheHash, setId)).resolves.toBeTruthy();
+    }
   });
 
   it('uses the selected custom voice in the request and keeps different voices out of the same cache entry', async () => {
@@ -481,6 +524,182 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
       .rejects.toThrow();
     expect(calls).toBe(1);
     expect(interactiveTimeoutMs).toBe(15000);
+  });
+
+  it('persists prefetch audio for the active set and reuses it after simulated app restart', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'set-persistence-key');
+    await saveSlotConnectionTestResult('voice_tts', {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    });
+    const setId = 'en:easy:ai-set-persistence';
+    const generation = await activateShadowingAudioSet(setId);
+    let calls = 0;
+    const transport = async (opts: { url: string }) => {
+      calls++;
+      return { url: opts.url, status: 200, headers: {}, data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA' };
+    };
+    const sentence = 'Prefetched generated audio must survive an application restart.';
+    await expect(preloadSentenceAudio(sentence, {
+      transport,
+      shadowingSetAudio: { setId, generation, kind: 'sentence' }
+    })).resolves.toBe(true);
+    expect(calls).toBe(1);
+
+    clearMemoryAudioCache();
+    resetShadowingAudioStoreForTests();
+    const restoredGeneration = await activateShadowingAudioSet(setId);
+    networkMonitor.setOnline(false);
+    vi.stubGlobal('Audio', undefined);
+    try {
+      await expect(preloadSentenceAudio(sentence, {
+        transport,
+        shadowingSetAudio: { setId, generation: restoredGeneration, kind: 'sentence' }
+      })).resolves.toBe(true);
+      expect(calls).toBe(1);
+      const result = await speakSentenceWithTierFallback(sentence, {
+        transport,
+        shadowingSetAudio: { setId, generation: restoredGeneration, kind: 'sentence' }
+      });
+      expect(result.fromCache).toBe(true);
+      expect(result.activeTier.reason).toContain('while offline');
+      expect(calls).toBe(1);
+    } finally {
+      networkMonitor.setOnline(true);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('persists audio generated by a user Play action in the active sentence set', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'play-persistence-key');
+    await saveSlotConnectionTestResult('voice_tts', {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    });
+    const setId = 'en:easy:play-persistence';
+    const generation = await activateShadowingAudioSet(setId);
+    const sentence = 'Normal model playback is also durable.';
+    const key = await createAudioCacheAccountFingerprint('play-persistence-key');
+    if (!key) return;
+    const hash = computeAudioCacheHash({
+      providerId: 'openai_tts', endpoint: config.baseUrl, accountFingerprintHash: key,
+      voiceOrModel: 'tts-1:alloy||en-US', rate: 1, text: sentence
+    });
+    vi.stubGlobal('Audio', undefined);
+    try {
+      await speakSentenceWithTierFallback(sentence, {
+        shadowingSetAudio: { setId, generation, kind: 'sentence' },
+        transport: async opts => ({
+          url: opts.url, status: 200, headers: {},
+          data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA'
+        })
+      });
+      await expect(readActiveShadowingAudio(hash, setId)).resolves.toContain('data:audio/');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('expires Gemini language failures and lets an explicit probe bypass the guard', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'gemini_tts',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-2.5-flash-preview-tts',
+      customTtsVoice: 'Kore'
+    };
+    let calls = 0;
+    const transport = async (opts: { url: string }) => {
+      calls++;
+      return {
+        url: opts.url, status: calls <= 2 ? 404 : 200, headers: {},
+        data: calls <= 2
+          ? { error: { message: 'Model not found' } }
+          : { candidates: [{ content: { parts: [{ inlineData: { data: 'UklGRg==', mimeType: 'audio/wav' } }] } }] }
+      };
+    };
+    vi.useFakeTimers();
+    try {
+      await expect(synthesizeOnlineNeuralAudio('First sentence.', config, 'gemini-language-key', 1, transport, 'en-US'))
+        .rejects.toThrow();
+      await expect(synthesizeOnlineNeuralAudio('Second sentence.', config, 'gemini-language-key', 1, transport, 'en-US'))
+        .rejects.toThrow();
+      expect(calls).toBe(1);
+
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+      await expect(synthesizeOnlineNeuralAudio('After expiry.', config, 'gemini-language-key', 1, transport, 'en-US'))
+        .rejects.toThrow();
+      expect(calls).toBe(2);
+
+      await expect(synthesizeOnlineNeuralAudio('Probe sentence.', config, 'gemini-language-key', 1, transport, 'en-US', false, undefined, true))
+        .resolves.toMatchObject({ fromCache: false });
+      expect(calls).toBe(3);
+    } finally {
+      vi.useRealTimers();
+      clearGeminiLanguageFailures('gemini_tts');
+    }
+  });
+
+  it('discards an in-flight Play result when the active sentence set changes', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'stale-set-key');
+    await saveSlotConnectionTestResult('voice_tts', {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    });
+    const oldSetId = 'en:easy:old-stale-set';
+    const oldGeneration = await activateShadowingAudioSet(oldSetId);
+    const sentence = 'This generated response must not survive a set switch.';
+    const fingerprint = await createAudioCacheAccountFingerprint('stale-set-key');
+    if (!fingerprint) return;
+    const hash = computeAudioCacheHash({
+      providerId: 'openai_tts', endpoint: config.baseUrl, accountFingerprintHash: fingerprint,
+      voiceOrModel: 'tts-1:alloy||en-US', rate: 1, text: sentence
+    });
+    let release: ((response: { url: string; status: number; headers: Record<string, string>; data: string }) => void) | undefined;
+    let calls = 0;
+    const transport = async () => {
+      calls++;
+      return new Promise<{ url: string; status: number; headers: Record<string, string>; data: string }>(resolve => { release = resolve; });
+    };
+    vi.stubGlobal('Audio', undefined);
+    try {
+      const playback = speakSentenceWithTierFallback(sentence, {
+        transport,
+        shadowingSetAudio: { setId: oldSetId, generation: oldGeneration, kind: 'sentence' }
+      });
+      while (!release) await new Promise(resolve => setTimeout(resolve, 0));
+      await activateShadowingAudioSet('en:easy:new-stale-set');
+      release?.({
+        url: 'https://api.openai.com/v1/audio/speech', status: 200, headers: {},
+        data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA'
+      });
+      await playback;
+      expect(calls).toBe(1);
+      await expect(readActiveShadowingAudio(hash, 'en:easy:new-stale-set')).resolves.toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
 });

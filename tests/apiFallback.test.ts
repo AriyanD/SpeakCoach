@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearAllProviderAccountHealth } from '../src/services/providerHealth';
+import { clearAllProviderAccountHealth, createProviderVerificationFingerprint } from '../src/services/providerHealth';
 import type { SlotConfig, SlotId } from '../src/config/types';
 import { getPreset } from '../src/config/providers';
 import { requestAzurePronunciationAssessment, transcribeWithTier2WhisperOrFallback } from '../src/services/whisperSttService';
@@ -95,6 +95,10 @@ describe('Per-slot secondary API fallback', () => {
     };
     await saveSlotConfig(primaryConfig);
     await saveApiKey(slotId, primaryProviderId, 'primary-speech-key');
+    const secondaryFingerprint = await createProviderVerificationFingerprint({
+      slotId, providerId: secondaryPreset.id, baseUrl: secondaryPreset.defaultBaseUrl,
+      modelOrVoice: secondaryPreset.defaultModelOrVoice
+    }, 'secondary-speech-key');
     await saveSlotConnectionTestResult(slotId, {
       ok: true, slotId, providerId: primaryProviderId, tier: primaryPreset.tier,
       label: 'Online AI', latencyMs: 10, message: 'PASS — primary verified'
@@ -104,7 +108,7 @@ describe('Per-slot secondary API fallback', () => {
       baseUrl: secondaryPreset.defaultBaseUrl,
       modelOrVoice: secondaryPreset.defaultModelOrVoice,
       verified: true,
-      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now() }
+      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now(), verificationFingerprint: secondaryFingerprint ?? undefined }
     });
     await saveApiKey(slotId, secondaryProviderId, 'secondary-speech-key', 'secondary');
 
@@ -208,6 +212,10 @@ describe('Per-slot secondary API fallback', () => {
     };
     await saveSlotConfig(primaryConfig);
     await saveApiKey('pronunciation_scoring', 'azure_pronunciation', 'azure-primary-key');
+    const secondaryFingerprint = await createProviderVerificationFingerprint({
+      slotId: 'pronunciation_scoring', providerId: secondaryPreset.id,
+      baseUrl: secondaryPreset.defaultBaseUrl, modelOrVoice: secondaryPreset.defaultModelOrVoice
+    }, 'gemini-secondary-key');
     await saveSlotConnectionTestResult('pronunciation_scoring', {
       ok: true, slotId: 'pronunciation_scoring', providerId: 'azure_pronunciation', tier: 1,
       label: 'Online AI', latencyMs: 10, message: 'PASS — Azure verified'
@@ -217,7 +225,7 @@ describe('Per-slot secondary API fallback', () => {
       baseUrl: secondaryPreset.defaultBaseUrl,
       modelOrVoice: secondaryPreset.defaultModelOrVoice,
       verified: true,
-      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now() }
+      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now(), verificationFingerprint: secondaryFingerprint ?? undefined }
     });
     await saveApiKey('pronunciation_scoring', 'gemini_pronunciation', 'gemini-secondary-key', 'secondary');
 

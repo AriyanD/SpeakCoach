@@ -7,7 +7,7 @@ import { networkMonitor } from './networkMonitor';
 import { clearSlotRuntimeFailure, markSlotRuntimeFailure } from './tierManager';
 import { clearProviderAccountHealth, createProviderVerificationFingerprint, type ProviderAccount } from './providerHealth';
 import { cleanJsonPayload } from './ieltsLlmEvaluator';
-import { normalizeAudioDataUrl, synthesizeOnlineNeuralAudio } from './ttsService';
+import { clearGeminiLanguageFailures, normalizeAudioDataUrl, synthesizeOnlineNeuralAudio } from './ttsService';
 import { buildCapacitorMultipartEntries, parseWhisperWordTimestamps, requestAzurePronunciationAssessment } from './whisperSttService';
 import {
   buildCustomEndpointRequest,
@@ -133,6 +133,7 @@ export async function testSlotConnection(
   }
 ): Promise<ConnectionTestResult> {
   const startTime = Date.now();
+  clearGeminiLanguageFailures(slotConfig.providerId);
   const preset = getPreset(slotConfig.slotId, slotConfig.providerId);
   const label = preset.tier === 3 ? 'Basic offline' : 'Online AI';
 

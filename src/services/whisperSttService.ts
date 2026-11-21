@@ -4,7 +4,8 @@ import type { ResolvedSlotTier, SlotConfig, SlotId, TierLabel } from '../config/
 import { loadApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { nativeHttpRequest } from './httpClient';
-import { executeWithTierFallback } from './tierManager';
+import { CONNECTION_VERIFICATION_TTL_MS, executeWithTierFallback } from './tierManager';
+import { clearProviderAccountHealth, createProviderVerificationFingerprint, getProviderAccountHealth, markProviderAccountFailure } from './providerHealth';
 import { buildSpokenTokensFromTranscript, type SpokenWordToken } from './wordAlignment';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest, resolveWireFormat } from './customEndpointHelper';
 import { getShadowingLanguage } from '../data/shadowingLanguages';
@@ -152,11 +153,32 @@ export interface WhisperVerboseResponse {
   }>;
 }
 
+export async function isWhisperAccountReady(params: {
+  slotId: 'ielts_stt' | 'pronunciation_scoring';
+  account: 'primary' | 'secondary';
+  config: SlotConfig;
+  apiKey: string;
+  verification: { ok: boolean; providerId: string; tier: number; testedAt: number; verificationFingerprint?: string };
+  now?: number;
+}): Promise<boolean> {
+  const preset = getPreset(params.slotId, params.config.providerId);
+  const now = params.now ?? Date.now();
+  if (!params.verification.ok ||
+      params.verification.providerId !== params.config.providerId ||
+      params.verification.tier !== preset.tier ||
+      now - params.verification.testedAt >= CONNECTION_VERIFICATION_TTL_MS ||
+      (preset.requiresKey && !params.apiKey.trim())) return false;
+  const fingerprint = await createProviderVerificationFingerprint(params.config, params.apiKey);
+  if (!fingerprint || fingerprint !== params.verification.verificationFingerprint) return false;
+  return (await getProviderAccountHealth(params.slotId, params.account, now)) === null;
+}
+
 export interface WhisperTranscriptionOutcome {
   transcript: string;
   words: SpokenWordToken[];
   activeTier: ResolvedSlotTier;
   rawProviderResponse?: WhisperVerboseResponse;
+  error?: string;
 }
 
 type TransportFn = (opts: HttpOptions) => Promise<HttpResponse>;
@@ -561,15 +583,56 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   // configured inside that one slot.
   const primary = configs[requestedSlotId];
   const primaryTest = await loadSlotConnectionTestResult(requestedSlotId);
-  const primaryVerified = !!primaryTest?.ok &&
-    primaryTest.providerId === primary.providerId &&
-    primaryTest.tier === getPreset(requestedSlotId, primary.providerId).tier;
+  const verificationNotices: string[] = [];
+  const primaryKey = await loadApiKey(requestedSlotId, primary.providerId, 'primary');
+  const primaryVerified = primaryTest ? await isWhisperAccountReady({
+    slotId: requestedSlotId, account: 'primary', config: primary, apiKey: primaryKey,
+    verification: { ok: primaryTest.ok, providerId: primaryTest.providerId, tier: primaryTest.tier, testedAt: primaryTest.timestamp, verificationFingerprint: primaryTest.verificationFingerprint }
+  }) : false;
+  const primaryHealth = await getProviderAccountHealth(requestedSlotId, 'primary');
+  const primaryProviderName = getPreset(requestedSlotId, primary.providerId).name;
+  if (primaryHealth) {
+    const wait = primaryHealth.state === 'cooldown' && primaryHealth.cooldownUntil
+      ? ` Wait about ${Math.max(1, Math.ceil((primaryHealth.cooldownUntil - Date.now()) / 1000))} seconds.` : '';
+    verificationNotices.push(`API 1 (${primaryProviderName}) is ${primaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${primaryHealth.reason}.${wait}`);
+  } else if (getPreset(requestedSlotId, primary.providerId).requiresKey && !primaryKey.trim()) {
+    verificationNotices.push(`API 1 (${primaryProviderName}) has no API key configured. Add the key in Settings → Voice/TTS and test the provider.`);
+  } else if (!primaryVerified) {
+    verificationNotices.push(`API 1 (${primaryProviderName}) needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.`);
+  }
   if (primaryVerified && compatibleProviderIds.has(primary.providerId) && getPreset(requestedSlotId, primary.providerId).tier !== 3) {
     candidates.push({ slotId: requestedSlotId, config: primary, account: 'primary' });
   }
   const secondary = primary.secondary;
-  if (secondary?.verified && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
-    candidates.push({ slotId: requestedSlotId, config: { slotId: requestedSlotId, ...secondary }, account: 'secondary' });
+  let secondaryVerificationNotice = '';
+  if (secondary?.verified && secondary.testResult) {
+    const secondaryConfig: SlotConfig = { slotId: requestedSlotId, ...secondary };
+    const secondaryKey = await loadApiKey(requestedSlotId, secondary.providerId, 'secondary');
+    const secondaryVerified = await isWhisperAccountReady({
+      slotId: requestedSlotId, account: 'secondary', config: secondaryConfig, apiKey: secondaryKey,
+      verification: {
+        ok: secondary.testResult.ok, providerId: secondary.providerId,
+        tier: getPreset(requestedSlotId, secondary.providerId).tier,
+        testedAt: secondary.testResult.testedAt,
+        verificationFingerprint: secondary.testResult.verificationFingerprint
+      }
+    });
+    const secondaryHealth = await getProviderAccountHealth(requestedSlotId, 'secondary');
+    const secondaryProviderName = getPreset(requestedSlotId, secondary.providerId).name;
+    if (secondaryHealth) {
+      const wait = secondaryHealth.state === 'cooldown' && secondaryHealth.cooldownUntil
+        ? ` Wait about ${Math.max(1, Math.ceil((secondaryHealth.cooldownUntil - Date.now()) / 1000))} seconds.` : '';
+      secondaryVerificationNotice = `API 2 (${secondaryProviderName}) is ${secondaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${secondaryHealth.reason}.${wait}`;
+    } else if (getPreset(requestedSlotId, secondary.providerId).requiresKey && !secondaryKey.trim()) {
+      secondaryVerificationNotice = `API 2 (${secondaryProviderName}) has no API key configured. Add the key in Settings → Voice/TTS and test the provider.`;
+    } else if (!secondaryVerified) {
+      secondaryVerificationNotice = `API 2 (${secondaryProviderName}) needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.`;
+    }
+    if (secondaryVerified && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
+      candidates.push({ slotId: requestedSlotId, config: secondaryConfig, account: 'secondary' });
+    }
+  } else if (secondary) {
+    secondaryVerificationNotice = `API 2 (${getPreset(requestedSlotId, secondary.providerId).name}) needs a successful connection test before it can be used.`;
   }
 
   // Rotate only between the primary and secondary APIs of the requested slot.
@@ -590,14 +653,17 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   let usedProviderId = preferred?.config.providerId ?? configs[requestedSlotId].providerId;
   let usedAccount: 'primary' | 'secondary' = preferred?.account ?? 'primary';
   let rawResponse: WhisperVerboseResponse | undefined;
+  let providerFailureMessage = '';
 
-  const outcome = await executeWithTierFallback(
+  const outcome = await executeWithTierFallback<{ transcript: string; words: SpokenWordToken[]; error?: string }>(
     requestedSlotId,
     async () => {
       if (orderedCandidates.length === 0) {
-        throw new Error('No verified speech API is configured for this feature.');
+        providerFailureMessage = [...verificationNotices, secondaryVerificationNotice].filter(Boolean).join(' ')
+          || 'No verified speech API is configured for this feature.';
+        throw new Error(providerFailureMessage);
       }
-      const errors: string[] = [];
+      const errors: string[] = [...verificationNotices];
       for (const candidate of orderedCandidates) {
         const candidateSlotId = candidate.slotId;
         const candidateCfg = candidate.config;
@@ -632,16 +698,27 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   language: toWhisperLanguageCode(params.languageLocale ?? `${params.languageCode ?? 'en'}-US`),
                   transport: params.transport
                 });
+          if (!res.transcript.trim()) {
+            errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): the provider returned an empty transcription.`);
+            continue;
+          }
+          await clearProviderAccountHealth(candidateSlotId, candidate.account);
           usedSlotId = candidateSlotId;
           usedProviderId = candidateCfg.providerId;
           usedAccount = candidate.account;
           rawResponse = res.raw;
-          return { transcript: res.transcript, words: res.words };
+          const fallbackNotice = errors.length
+            ? `${errors.join(' ')} Using ${candidate.account === 'secondary' ? 'API 2' : 'API 1'} for this transcription.`
+            : undefined;
+          return { transcript: res.transcript, words: res.words, error: fallbackNotice };
         } catch (error) {
-          errors.push(`${candidateSlotId}/${candidate.account} (${candidateCfg.providerId}): ${error instanceof Error ? error.message : String(error)}`);
+          await markProviderAccountFailure(candidateSlotId, candidate.account, error);
+          errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): ${error instanceof Error ? error.message : String(error)}`);
         }
       }
-      throw new Error(`Both speech APIs failed. ${errors.join(' | ')}`);
+      if (secondaryVerificationNotice) errors.push(secondaryVerificationNotice);
+      providerFailureMessage = errors.length ? `Online speech transcription failed: ${errors.join(' | ')}` : 'No verified speech provider is available. Re-test the configured API or use the device recognizer.';
+      throw new Error(providerFailureMessage);
     },
     async () => {
       const cleanOffline = (params.offlineTranscript ?? '').trim();
@@ -654,7 +731,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
       const words = cleanOffline
         ? buildSpokenTokensFromTranscript(cleanOffline, params.durationMs, validOfflineConf, params.languageCode ?? 'en')
         : [];
-      return { transcript: cleanOffline, words };
+      return { transcript: cleanOffline, words, error: providerFailureMessage || 'Online speech API is not verified or its 30-day verification expired. Re-test the provider, or retry with the device recognizer.' };
     }
   );
   const usedPreset = getPreset(usedSlotId, usedProviderId);
@@ -675,6 +752,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     transcript: outcome.result.transcript,
     words: outcome.result.words,
     activeTier,
-    rawProviderResponse: rawResponse
+    rawProviderResponse: rawResponse,
+    error: outcome.result.error
   };
 }

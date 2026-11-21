@@ -1,46 +1,39 @@
 /**
- * Plans low-pressure Shadowing audio prefetch.
- * The current sentence is requested on demand; this scheduler only handles
- * upcoming sentences and advances in two-item batches after two distinct
- * sentences have been successfully practised.
+ * Position-based sliding-window scheduler for Shadowing.
+ * Reaching sentence #2/#6/#10... requests the next four sentences.
+ * A failed/deferred batch does not advance the cursor.
  */
 export class ShadowingPrefetchScheduler {
-  private nextSentenceIndex = 0;
-  private started = false;
-  private readonly practisedSentenceIndices = new Set<number>();
-  private nextPracticeMilestone = 2;
+  private nextTriggerIndex = 1;
+  private nextSentenceIndex = 2;
+  private pending: number[] | null = null;
 
   reset(firstSentenceIndex = 0): void {
-    this.nextSentenceIndex = Math.max(0, firstSentenceIndex);
-    this.started = false;
-    this.practisedSentenceIndices.clear();
-    this.nextPracticeMilestone = 2;
+    this.nextTriggerIndex = Math.max(1, firstSentenceIndex);
+    this.nextSentenceIndex = Math.max(0, firstSentenceIndex + 1);
+    this.pending = null;
   }
 
-  start(totalSentences: number): number[] {
-    if (this.started) return [];
-    this.started = true;
-    return this.takeBatch(totalSentences);
+  reachPosition(sentenceIndex: number, totalSentences: number): number[] {
+    if (this.pending || sentenceIndex < this.nextTriggerIndex || totalSentences <= 0) return [];
+    // If the learner skipped ahead, do not waste quota on sentences already passed.
+    const start = Math.max(this.nextSentenceIndex, sentenceIndex + 1);
+    if (start >= totalSentences) return [];
+    const end = Math.min(totalSentences, start + 4);
+    this.pending = Array.from({ length: end - start }, (_, offset) => start + offset);
+    this.nextSentenceIndex = start;
+    return [...this.pending];
   }
 
-  recordPractice(sentenceIndex: number, totalSentences: number): number[] {
-    if (!this.started || sentenceIndex < 0 || sentenceIndex >= totalSentences) return [];
-    this.practisedSentenceIndices.add(sentenceIndex);
-    if (this.practisedSentenceIndices.size < this.nextPracticeMilestone) return [];
-
-    this.nextPracticeMilestone += 2;
-    return this.takeBatch(totalSentences);
+  completeBatch(completedCount: number): void {
+    if (!this.pending) return;
+    const completed = Math.max(0, Math.min(this.pending.length, Math.floor(completedCount)));
+    this.nextSentenceIndex = this.pending[0] + completed;
+    if (completed === this.pending.length) this.nextTriggerIndex += 4;
+    this.pending = null;
   }
 
-  private takeBatch(totalSentences: number): number[] {
-    const end = Math.min(totalSentences, this.nextSentenceIndex + 2);
-    const indices = Array.from(
-      { length: Math.max(0, end - this.nextSentenceIndex) },
-      (_, offset) => this.nextSentenceIndex + offset
-    );
-    this.nextSentenceIndex = end;
-    return indices;
-  }
+  get hasPendingBatch(): boolean { return this.pending !== null; }
 }
 
 /** Run a serial batch and stop immediately when a prefetch cannot be completed. */

@@ -6,6 +6,7 @@ import { testSlotConnection } from '../src/services/connectionTester';
 import { synthesizeOnlineNeuralAudio } from '../src/services/ttsService';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
+import { saveApiKey } from '../src/storage/keyStore';
 
 const validGeneratorProbe = {
   part1Questions: [
@@ -475,6 +476,7 @@ describe('Functional Deep Connection Tester', () => {
       message: 'PASS — OpenAI (Tier 1) test passed (142 ms).'
     };
 
+    await saveApiKey('llm_evaluator', 'openai_compat_eval', 'persist-test-key');
     await saveSlotConnectionTestResult('llm_evaluator', testResult);
 
     const loaded = await loadSlotConnectionTestResult('llm_evaluator');

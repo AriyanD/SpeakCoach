@@ -239,11 +239,19 @@ export async function resolveSlotTier(
   const secondaryUsable = secondaryReady && !secondaryHealth;
 
   if (!primaryUsable && !secondaryUsable && (primaryHealth || secondaryHealth)) {
-    const blocked = [primaryHealth, secondaryHealth].filter(Boolean);
-    const needsRetest = blocked.some(entry => entry?.state === 'needs-retest');
+    const blocked = [
+      primaryHealth ? { account: 'API 1', provider: getPreset(slotId, slotConfig.providerId).name, health: primaryHealth } : null,
+      secondaryHealth && slotConfig.secondary ? { account: 'API 2', provider: getPreset(slotId, slotConfig.secondary.providerId).name, health: secondaryHealth } : null
+    ].filter((entry): entry is { account: string; provider: string; health: NonNullable<typeof primaryHealth> } => Boolean(entry));
+    const needsRetest = blocked.some(entry => entry.health.state === 'needs-retest');
+    const details = blocked.map(entry => {
+      if (entry.health.state === 'needs-retest') return `${entry.account} (${entry.provider}; ${entry.health.reason}) needs a successful re-test`;
+      const seconds = Math.max(1, Math.ceil(((entry.health.cooldownUntil ?? Date.now()) - (options?.nowMs ?? Date.now())) / 1000));
+      return `${entry.account} (${entry.provider}; ${entry.health.reason}) is cooling down for about ${seconds}s`;
+    }).join('; ');
     const reason = needsRetest
-      ? 'Provider account needs a successful connection re-test.'
-      : 'Provider account is cooling down after a temporary failure.';
+      ? `${details}. Open Settings → Voice/TTS and re-test the affected API, or configure API 2.`
+      : `${details}. Wait for cooldown to expire or use the alternate API.`;
     return {
       slotId,
       providerId: offlinePreset.id,
@@ -257,15 +265,40 @@ export async function resolveSlotTier(
   }
 
   if (!primaryUsable && !secondaryUsable) {
+    const now = options?.nowMs ?? Date.now();
+    const primaryVerificationStale = !!verification?.ok && (
+      verification.providerId !== selectedPreset.id ||
+      verification.tier !== selectedPreset.tier ||
+      !currentFingerprint ||
+      verification.verificationFingerprint !== currentFingerprint ||
+      now - verification.timestamp >= CONNECTION_VERIFICATION_TTL_MS
+    );
+    const secondaryConfig = slotConfig.secondary;
+    const secondaryTest = secondaryConfig?.testResult;
+    const secondaryVerificationStale = !!secondaryConfig?.verified && !!secondaryTest?.ok && (
+      !secondaryPreset ||
+      secondaryTest.verificationFingerprint !== await createProviderVerificationFingerprint(
+        { slotId, ...secondaryConfig },
+        secondaryPreset.requiresKey ? await loadApiKey(slotId, secondaryPreset.id, 'secondary') : ''
+      ) ||
+      now - secondaryTest.testedAt >= CONNECTION_VERIFICATION_TTL_MS
+    );
+    const staleAccounts = [
+      primaryVerificationStale ? `API 1 (${selectedPreset.name})` : '',
+      secondaryVerificationStale && secondaryPreset ? `API 2 (${secondaryPreset.name})` : ''
+    ].filter(Boolean);
+    const reason = staleAccounts.length
+      ? `${staleAccounts.join(' and ')} verification expired or no longer matches the saved key/provider/model/voice. Re-test the affected API in Settings → Voice/TTS. ${getProviderVerificationInstructions(slotId)}`
+      : `Provider has not passed a successful test. ${getProviderVerificationInstructions(slotId)}`;
     return {
       slotId,
       providerId: offlinePreset.id,
       providerName: offlinePreset.name,
       tier: 3,
       label: 'Basic offline',
-      detailLabel: 'Basic offline (Provider not verified — save settings and pass the test)',
+      detailLabel: `Basic offline (${reason})`,
       isFallback: true,
-      reason: `Provider has not passed a successful test. ${getProviderVerificationInstructions(slotId)}`
+      reason
     };
   }
 
@@ -286,15 +319,17 @@ export async function resolveSlotTier(
 
   const label = tierToLabel(selectedPreset.tier);
   const degradedAccount = primaryHealth
-    ? { account: 'API 1', health: primaryHealth }
-    : secondaryHealth
-      ? { account: 'API 2', health: secondaryHealth }
+    ? { account: 'API 1', provider: getPreset(slotId, slotConfig.providerId).name, health: primaryHealth }
+    : secondaryHealth && slotConfig.secondary
+      ? { account: 'API 2', provider: getPreset(slotId, slotConfig.secondary.providerId).name, health: secondaryHealth }
       : null;
   const accountHealthReason = degradedAccount
     ? degradedAccount.health.state === 'needs-retest'
-      ? `${degradedAccount.account} needs a successful connection re-test; the alternate account is available.`
-      : `${degradedAccount.account} is cooling down after a temporary provider failure; the alternate account is available.`
-    : undefined;
+      ? `${degradedAccount.account} (${degradedAccount.provider}) needs a successful connection re-test; the alternate account is available.`
+      : `${degradedAccount.account} (${degradedAccount.provider}) is cooling down after a temporary provider failure; the alternate account is available.`
+    : !primaryUsable && secondaryUsable
+      ? `API 1 (${selectedPreset.name}) verification is missing, expired, or no longer matches the saved key/provider/model/voice. API 2 is being used; re-test API 1 in Settings → Voice/TTS.`
+      : undefined;
   return {
     slotId,
     providerId: selectedPreset.id,

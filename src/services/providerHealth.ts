@@ -74,11 +74,19 @@ function getStatus(error: unknown): { status?: number; retryAfterMs?: number; re
   const networkFailure = /timeout|timed out|network/i.test(rawReason);
   // Persist only a safe classification, never raw provider messages or request URLs
   // that may contain API keys (for example, Gemini's key query parameter).
-  const reason = status !== undefined
-    ? `HTTP ${status}`
-    : networkFailure
-      ? 'Provider network request timed out or failed.'
-      : 'Provider request failed.';
+  const reason = status === 401 || status === 403
+    ? 'API key is invalid, revoked, or not authorized for this model.'
+    : status === 404
+      ? 'Model or endpoint was not found; check the saved model and endpoint.'
+      : status === 400
+        ? 'Provider rejected the request; check model, voice, and request settings.'
+        : status === 429
+          ? 'Provider quota or rate limit was reached.'
+          : status !== undefined && status >= 500
+            ? 'Provider service is temporarily unavailable.'
+            : status === 408 || networkFailure
+              ? 'Network request timed out or the connection failed.'
+              : 'Provider request failed.';
   return { status, retryAfterMs, reason, networkFailure };
 }
 

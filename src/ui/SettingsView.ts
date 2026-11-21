@@ -11,7 +11,8 @@ import {
 } from '../services/customEndpointHelper';
 import { fetchAvailableModels } from '../services/modelFetchService';
 import { fetchAvailableTtsVoices } from '../services/ttsVoiceService';
-import { clearPreloadedSentenceAudio, previewTtsVoice } from '../services/ttsService';
+import { clearGeminiLanguageFailures, clearPreloadedSentenceAudio, previewTtsVoice } from '../services/ttsService';
+import { clearActiveShadowingAudioStore } from '../services/shadowingAudioStore';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { loadApiKeyStrict, saveApiKey } from '../storage/keyStore';
 import { getAppSettingsRecoveryNotices, loadAppSettings, saveAppSettings } from '../storage/appSettings';
@@ -129,7 +130,7 @@ export async function renderSettingsView(
         ? 'needs-retest'
         : resolved.label !== 'Online AI' && resolved.reason?.toLowerCase().includes('cooling down')
           ? 'cooldown'
-          : resolved.label === 'Online AI' && resolved.reason?.includes('needs a successful connection re-test')
+          : resolved.label === 'Online AI' && /needs a successful connection re-test|verification is missing|expired|no longer matches/i.test(resolved.reason ?? '')
             ? 'ready-degraded'
             : resolved.label === 'Online AI' && resolved.reason?.includes('cooling down')
               ? 'ready-cooldown'
@@ -214,19 +215,21 @@ export async function renderSettingsView(
 
     const statusHtml = apiRequiredOfflineSelected
       ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${slotId === 'llm_translation' ? 'Translation requires an online AI API. No offline translation engine is available.' : 'IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.'}</div>`
-      : lastTest
-        ? `<div class="status-box ${lastTest.ok ? 'pass' : 'fail'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
-             ${escapeHtml(lastTest.message)}${ 
-               typeof (lastTest as PersistedConnectionTestResult).timestamp === 'number'
-                 ? ` · <span class="settings-tested-time">Tested: ${new Date(
-                     (lastTest as PersistedConnectionTestResult).timestamp
-                   ).toLocaleTimeString()}</span>`
-                 : ''
-             }
-           </div>`
-        : `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
-             ${escapeHtml(resolved.reason ?? `Active: ${resolved.detailLabel}`)}
-           </div>`;
+      : ['needs-retest', 'cooldown', 'ready-degraded', 'ready-cooldown'].includes(slotStatus) && resolved.reason
+        ? `<div class="status-box ${slotStatus === 'needs-retest' ? 'fail' : 'info'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${escapeHtml(resolved.reason)}</div>`
+        : lastTest
+          ? `<div class="status-box ${lastTest.ok ? 'pass' : 'fail'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
+               ${escapeHtml(lastTest.message)}${ 
+                 typeof (lastTest as PersistedConnectionTestResult).timestamp === 'number'
+                   ? ` · <span class="settings-tested-time">Tested: ${new Date(
+                       (lastTest as PersistedConnectionTestResult).timestamp
+                     ).toLocaleTimeString()}</span>`
+                   : ''
+               }
+             </div>`
+          : `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
+               ${escapeHtml(resolved.reason ?? `Active: ${resolved.detailLabel}`)}
+             </div>`;
     const showVerificationActions = !lastTest?.ok && !dismissedVerificationErrors.has(slotId);
     const verificationActionsHtml = `<div class="btn-row verification-error-actions" id="verification-actions-${slotId}" style="display:${showVerificationActions ? 'flex' : 'none'};gap:8px;margin-top:6px;">
          <button type="button" class="btn btn-secondary settings-verify-action" data-ignore-verification-error="${slotId}">Dismiss error</button>
@@ -841,7 +844,11 @@ export async function renderSettingsView(
           primaryConfig.secondary = previous.secondary;
           if (primaryKey) await saveApiKey(item.slotId, primaryPreset.id, primaryKey, 'primary');
           await saveSlotConfig(primaryConfig);
-clearPreloadedSentenceAudio();
+          clearPreloadedSentenceAudio();
+          if (item.slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
           configs[item.slotId] = primaryConfig;
           lastTestResults.delete(item.slotId);
           await clearSlotConnectionTestResult(item.slotId);
@@ -883,7 +890,11 @@ clearPreloadedSentenceAudio();
             };
             if (secondaryKey) await saveApiKey(item.slotId, secondaryPreset.id, secondaryKey, 'secondary');
             await saveSecondarySlotConfig(item.slotId, secondaryConfig);
-clearPreloadedSentenceAudio();
+            clearPreloadedSentenceAudio();
+            if (item.slotId === 'voice_tts') {
+                  await clearActiveShadowingAudioStore();
+                  clearGeminiLanguageFailures('gemini_tts');
+                }
             configs[item.slotId].secondary = secondaryConfig;
 
             let secondaryStatus = 'API 2 configured — key missing';
@@ -893,7 +904,11 @@ clearPreloadedSentenceAudio();
                 const testResult = { ok: result.ok && result.tier !== 3, latencyMs: result.latencyMs, message: result.message, testedAt: Date.now(), verificationFingerprint: result.verificationFingerprint };
                 secondaryConfig = { ...secondaryConfig, verified: testResult.ok, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
-clearPreloadedSentenceAudio();
+                clearPreloadedSentenceAudio();
+                if (item.slotId === 'voice_tts') {
+                  await clearActiveShadowingAudioStore();
+                  clearGeminiLanguageFailures('gemini_tts');
+                }
                 configs[item.slotId].secondary = secondaryConfig;
                 attempted += 1;
                 if (testResult.ok) { passed += 1; secondaryStatus = 'API 2 verified'; }
@@ -904,7 +919,11 @@ clearPreloadedSentenceAudio();
                 const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
                 secondaryConfig = { ...secondaryConfig, verified: false, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
-clearPreloadedSentenceAudio();
+                clearPreloadedSentenceAudio();
+                if (item.slotId === 'voice_tts') {
+                  await clearActiveShadowingAudioStore();
+                  clearGeminiLanguageFailures('gemini_tts');
+                }
                 configs[item.slotId].secondary = secondaryConfig;
                 secondaryStatus = `API 2 test failed: ${message}`;
               }
@@ -1098,7 +1117,11 @@ clearPreloadedSentenceAudio();
         const config: SlotConfig = { ...item.config, secondary: configs[slotId].secondary };
         await saveApiKey(slotId, config.providerId, apiKey, 'primary');
         await saveSlotConfig(config);
-clearPreloadedSentenceAudio();
+        clearPreloadedSentenceAudio();
+        if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
         configs[slotId] = config;
         const persisted = await saveSlotConnectionTestResult(slotId, item.result);
         lastTestResults.set(slotId, persisted);
@@ -1929,6 +1952,10 @@ clearPreloadedSentenceAudio();
         // provider configuration unsaved and unverified until Save + test.
         try {
           await saveApiKey(slotId, customPreset.id, currentKey);
+          if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           if (saveStatus) {
@@ -2158,7 +2185,13 @@ clearPreloadedSentenceAudio();
         // active in the saved configuration.
         if (preset.requiresKey) {
           if (!rawKey.trim()) throw new Error('Enter an API key or select a provider that already has a saved key.');
-          if (rawKeyInput) await saveApiKey(slotId, preset.id, rawKey);
+          if (rawKeyInput) {
+            await saveApiKey(slotId, preset.id, rawKey);
+            if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
+          }
           if (await loadApiKeyStrict(slotId, preset.id) !== rawKey.trim()) {
             throw new Error('The primary API key could not be verified after saving. Provider settings were not switched.');
           }
@@ -2168,7 +2201,13 @@ clearPreloadedSentenceAudio();
           const secondaryKeyInputValue = secondaryKeyInput?.value.trim() ?? '';
           const secondaryKey = secondaryKeyInputValue || await readKeyForSettings(slotId, secondaryPreset.id, 'secondary');
           if (!secondaryKey.trim()) throw new Error('Enter the API 2 key or choose a provider that already has a saved key.');
-          if (secondaryKeyInputValue) await saveApiKey(slotId, secondaryPreset.id, secondaryKey, 'secondary');
+          if (secondaryKeyInputValue) {
+            await saveApiKey(slotId, secondaryPreset.id, secondaryKey, 'secondary');
+            if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
+          }
           if (await loadApiKeyStrict(slotId, secondaryPreset.id, 'secondary') !== secondaryKey.trim()) {
             throw new Error('The secondary API key could not be verified after saving. Provider settings were not switched.');
           }
@@ -2179,6 +2218,10 @@ clearPreloadedSentenceAudio();
         if (primaryChanged) await saveSlotConfig(cfg);
         else await saveSecondarySlotConfig(slotId, cfg.secondary);
         clearPreloadedSentenceAudio();
+        if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
 
         // Only remove an old secondary credential after the new config is saved.
         if (previousSecondary?.providerId &&
@@ -2263,6 +2306,10 @@ clearPreloadedSentenceAudio();
         };
         if (testResult.ok) {
           await saveApiKey(slotId, secondaryPreset.id, apiKey, 'secondary');
+          if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
           secondaryKeysBySlot[slotId] = apiKey;
           if (secondaryKeyInput) {
             secondaryKeyInput.value = '';
@@ -2271,7 +2318,11 @@ clearPreloadedSentenceAudio();
         }
         const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
         await saveSecondarySlotConfig(slotId, verifiedConfig);
-clearPreloadedSentenceAudio();
+        clearPreloadedSentenceAudio();
+        if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
         configs[slotId].secondary = verifiedConfig;
         secondaryStatus.className = `status-box ${testResult.ok ? 'pass' : 'fail'}`;
         secondaryStatus.textContent = `API 2: ${result.ok && result.tier !== 3 ? 'PASS' : 'FAIL'} — ${result.message}`;
