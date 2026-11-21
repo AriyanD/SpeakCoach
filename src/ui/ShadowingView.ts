@@ -487,7 +487,7 @@ export function renderShadowingView(
         <div>
           <h1 class="card-title shadowing-page-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v3m-4 0h8"/></svg>Shadowing Trainer</h1>
           <p class="card-subtitle">
-            Voice: <strong>${ttsTier.label}</strong> · Practise pronunciation at your own pace
+            Voice: <strong>${ttsTier.label}</strong> · Practise pronunciation at your own pace${ttsTier.reason ? `<span class="sh-provider-notice" role="status">${escapeHtml(ttsTier.reason)}</span>` : ''}
           </p>
         </div>
         <span class="tier-badge ${scoringTier.label === 'Online AI' ? 'online' : 'offline'}">
@@ -849,8 +849,8 @@ export function renderShadowingView(
       });
       if (playbackToken !== shadowingModelPlaybackToken) return;
       const offlineVoiceNote = res.activeTier.tier >= 3
-        ? ' The basic offline system voice is being used; an online TTS API may sound more natural.'
-        : '';
+        ? ` The basic offline system voice is being used. ${res.activeTier.reason ?? 'The online voice is not currently available.'} Open Settings → Voice/TTS to re-test the provider or configure API 2.`
+        : res.activeTier.reason ? ` Notice: ${res.activeTier.reason}` : '';
       state.statusMessage = mode === 'normal'
         ? `Played model audio via ${res.activeTier.detailLabel}${res.fromCache ? ' [Cached]' : ''}.${offlineVoiceNote}`
         : `Played slow model audio (0.72x) via ${res.activeTier.detailLabel}.${offlineVoiceNote}`;
