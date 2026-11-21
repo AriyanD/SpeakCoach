@@ -11,7 +11,7 @@ import {
 } from '../services/customEndpointHelper';
 import { fetchAvailableModels } from '../services/modelFetchService';
 import { fetchAvailableTtsVoices } from '../services/ttsVoiceService';
-import { clearPreloadedSentenceAudio, previewTtsVoice } from '../services/ttsService';
+import { clearGeminiLanguageFailures, clearPreloadedSentenceAudio, previewTtsVoice } from '../services/ttsService';
 import { clearActiveShadowingAudioStore } from '../services/shadowingAudioStore';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { loadApiKeyStrict, saveApiKey } from '../storage/keyStore';
@@ -845,7 +845,10 @@ export async function renderSettingsView(
           if (primaryKey) await saveApiKey(item.slotId, primaryPreset.id, primaryKey, 'primary');
           await saveSlotConfig(primaryConfig);
           clearPreloadedSentenceAudio();
-          if (item.slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+          if (item.slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
           configs[item.slotId] = primaryConfig;
           lastTestResults.delete(item.slotId);
           await clearSlotConnectionTestResult(item.slotId);
@@ -1106,7 +1109,10 @@ export async function renderSettingsView(
         await saveApiKey(slotId, config.providerId, apiKey, 'primary');
         await saveSlotConfig(config);
         clearPreloadedSentenceAudio();
-        if (slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+        if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
         configs[slotId] = config;
         const persisted = await saveSlotConnectionTestResult(slotId, item.result);
         lastTestResults.set(slotId, persisted);
