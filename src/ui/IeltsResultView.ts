@@ -455,9 +455,11 @@ export function renderIeltsResultView(
     `;
   }
 
-  // CASE 1: No evaluation / Evaluation failed / Offline / Very short answers -> DO NOT produce any band score
-  if (!evalRes || record.overallBand === null || record.evaluationError || hasUnverifiedLegacyScore || (evalRes.activeTier?.tier ?? 3) >= 3) {
-    const errorReason = record.evaluationError;
+  // CASE 1: No evaluation / initial evaluation failed / Offline / Very short answers -> DO NOT produce any band score.
+  // Ignore stale retry errors on records that already contain a valid online evaluation.
+  const hasValidStoredBand = Boolean(evalRes && typeof record.overallBand === 'number' && Number.isFinite(record.overallBand) && (evalRes.activeTier?.tier ?? 3) < 3);
+  if (!evalRes || record.overallBand === null || (record.evaluationError && !hasValidStoredBand) || hasUnverifiedLegacyScore || (evalRes.activeTier?.tier ?? 3) >= 3) {
+    const errorReason = hasValidStoredBand ? null : record.evaluationError;
     const noScoreNotice = evalRes?.noScoreNotice || (wordCount < 15 ? 'Candidate gave no or very short answers: no scores produced.' : 'An AI evaluator was not available for this attempt.');
     const badgeLabel = errorReason ? 'Evaluation pending' : hasUnverifiedLegacyScore ? 'Legacy score hidden' : 'No band score';
     const friendlyNoScoreMessage = hasLegacyPronunciationScore
