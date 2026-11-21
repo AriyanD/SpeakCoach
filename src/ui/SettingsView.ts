@@ -549,8 +549,8 @@ export async function renderSettingsView(
             <div class="form-field"><label class="form-label" for="secondary-endpoint-${slotId}">Endpoint path override (optional)</label>
               <input type="text" class="form-input" id="secondary-endpoint-${slotId}" value="${escapeHtml(slotCfg.secondary?.endpointPathOverride ?? '')}" placeholder="/v1/chat/completions" /></div>
             </div>
-              </div>
             </details>
+          </div>
           </div>
         </section>
 
