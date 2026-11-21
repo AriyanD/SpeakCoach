@@ -282,25 +282,26 @@ export async function persistActiveShadowingAudio(params: {
   if (!params.dataUrl || params.setId !== activeSetId || params.generation !== generation || index?.setId !== params.setId) return false;
   const path = filePath(params.setId, params.hash);
   const existing = index.entries.find(entry => entry.hash === params.hash);
-  if (!existing) {
-    // Preserve all canonical sentence audio. Evict slow/word replay extras first.
-    const evictions = selectActiveSetAudioEvictions(index.entries, params.dataUrl.length);
-    for (const hash of evictions) {
-      const extra = index.entries.find(entry => entry.hash === hash);
-      if (extra) await removeFile(extra.file);
-      ram.delete(ramKey(params.setId, hash));
-      removeTtsAudioFromMemory(hash);
-      index.entries = index.entries.filter(entry => entry.hash !== hash);
-    }
-    await removeTtsAudioCacheEntries(evictions);
-    const total = index.entries.reduce((sum, entry) => sum + entry.size, 0);
-    // If sentence audio alone exceeds the budget, retain it rather than evicting
-    // one of the active set's canonical sentences. Extras may be declined.
-    if (params.kind === 'extra' && total + params.dataUrl.length > MAX_SET_CHARS) return false;
+  const kind: Entry['kind'] = existing?.kind === 'sentence' || params.kind === 'sentence' ? 'sentence' : 'extra';
+  const entriesWithoutCurrent = index.entries.filter(entry => entry.hash !== params.hash);
+  // Preserve all canonical sentence audio. Evict slow/word replay extras first,
+  // including when an existing extra grows or is promoted to a sentence.
+  const evictions = selectActiveSetAudioEvictions(entriesWithoutCurrent, params.dataUrl.length);
+  for (const hash of evictions) {
+    const extra = index.entries.find(entry => entry.hash === hash);
+    if (extra) await removeFile(extra.file);
+    ram.delete(ramKey(params.setId, hash));
+    removeTtsAudioFromMemory(hash);
+    index.entries = index.entries.filter(entry => entry.hash !== hash);
   }
+  await removeTtsAudioCacheEntries(evictions);
+  const total = index.entries.filter(entry => entry.hash !== params.hash).reduce((sum, entry) => sum + entry.size, 0);
+  // If sentence audio alone exceeds the budget, retain it rather than evicting
+  // one of the active set's canonical sentences. Extras may be declined.
+  if (kind === 'extra' && total + params.dataUrl.length > MAX_SET_CHARS) return false;
   await writeFile(path, params.dataUrl);
   index.entries = index.entries.filter(entry => entry.hash !== params.hash);
-  index.entries.push({ hash: params.hash, file: path, size: params.dataUrl.length, createdAt: Date.now(), kind: params.kind });
+  index.entries.push({ hash: params.hash, file: path, size: params.dataUrl.length, createdAt: Date.now(), kind });
   rememberSetRam(params.setId, params.hash, params.dataUrl);
   await writeIndex();
   return true;
