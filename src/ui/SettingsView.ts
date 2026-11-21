@@ -124,6 +124,17 @@ export async function renderSettingsView(
     ? `<aside class="offline-quality-notice" role="alert" aria-label="API key recovery notice"><strong>Saved API key needs recovery</strong><ul>${unreadableApiKeyWarnings.map(escapeHtml).map(message => `<li>${message}</li>`).join('')}</ul><p>Do not save an empty value for these providers. Restore the key from an AI Settings backup, enter a replacement key, or switch providers. SpeakCoach will not silently erase the unreadable saved value.</p></aside>`
     : '';
 
+  const accountHealthBySlot = new Map<SlotId, {
+    primary: Awaited<ReturnType<typeof getProviderAccountHealth>>;
+    secondary: Awaited<ReturnType<typeof getProviderAccountHealth>>;
+  }>();
+  for (const slotId of SLOT_ORDER) {
+    accountHealthBySlot.set(slotId, {
+      primary: await getProviderAccountHealth(slotId, 'primary'),
+      secondary: await getProviderAccountHealth(slotId, 'secondary')
+    });
+  }
+
   const cardsHtml = SLOT_ORDER.map((slotId) => {
     const def = SLOT_DEFINITIONS[slotId];
     const slotCfg = configs[slotId];
@@ -134,7 +145,12 @@ export async function renderSettingsView(
     const lastTest = storedLastTest?.providerId === slotCfg.providerId ? storedLastTest : undefined;
     const apiRequiredOfflineSelected = (slotId === 'llm_evaluator' || slotId === 'llm_translation') && preset.tier === 3;
     const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
-    const slotStatus = apiRequiredOfflineSelected
+    const accountHealth = accountHealthBySlot.get(slotId);
+    const primaryAccountReady = lastTest?.ok === true && lastTest.tier !== 3;
+    const secondaryAccountReady = !!slotCfg.secondary && slotCfg.secondary.verified === true && secondaryTestResult?.ok === true;
+    const bothConfiguredApisReady = !!slotCfg.secondary && primaryAccountReady && secondaryAccountReady;
+    const mixedApiReadiness = !!slotCfg.secondary && primaryAccountReady !== secondaryAccountReady;
+    let slotStatus = apiRequiredOfflineSelected
       ? 'api-required'
       : resolved.label !== 'Online AI' && (lastTest?.ok || resolved.reason?.toLowerCase().includes('re-test'))
         ? 'needs-retest'
@@ -168,7 +184,31 @@ export async function renderSettingsView(
     const secondaryStatusText = secondaryTestResult
       ? `${escapeHtml(secondaryTestResult.message)} · <span class="settings-tested-time">Tested: ${new Date(secondaryTestResult.testedAt).toLocaleTimeString()}</span>`
       : (slotCfg.secondary?.verified ? 'PASS — Verified (test details unavailable)' : 'Not tested');
-    const secondaryStatusHtml = `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
+    const renderAccountStatus = (
+      account: 'primary' | 'secondary',
+      providerName: string,
+      ready: boolean,
+      result: ConnectionTestResult | undefined,
+      health: Awaited<ReturnType<typeof getProviderAccountHealth>>
+    ): string => {
+      const label = account === 'primary' ? 'API 1' : 'API 2';
+      if (ready) return `<div class="status-box pass" id="${account === 'primary' ? `status-${slotId}` : `secondary-status-${slotId}`}">${label} (${escapeHtml(providerName)}): Ready</div>`;
+      const healthText = health
+        ? `${health.state === 'cooldown' ? 'Cooling down' : 'Needs re-test'} — ${health.reason}`
+        : result
+          ? `Error — ${describeConnectionTestFailure(result)}`
+          : account === 'primary'
+            ? (resolved.reason ?? 'Not tested')
+            : secondaryStatusText;
+      const statusClass = health?.state === 'cooldown' ? 'info' : 'fail';
+      return `<div class="status-box ${statusClass}" id="${account === 'primary' ? `status-${slotId}` : `secondary-status-${slotId}`}">${label} (${escapeHtml(providerName)}): ${escapeHtml(healthText)}</div>`;
+    };
+    if (bothConfiguredApisReady || mixedApiReadiness) slotStatus = 'ready';
+    const secondaryStatusHtml = bothConfiguredApisReady
+      ? ''
+      : mixedApiReadiness && secondaryPreset
+        ? renderAccountStatus('secondary', secondaryPreset.name, secondaryAccountReady, secondaryTestResult, accountHealth?.secondary ?? null)
+        : `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
     const showVoiceInput = slotId === 'voice_tts' && preset.id !== 'android_native_tts';
     const mismatchInfo = detectProviderUrlMismatch(slotCfg);
 
@@ -223,23 +263,27 @@ export async function renderSettingsView(
       .map((source, index) => `<button type="button" class="provider-picker-option ${index === 0 ? 'active' : ''}" data-secondary-copy-key-source="${source.slotId}|${source.account}">${escapeHtml(source.label)}</button>`)
       .join('');
 
-    const statusHtml = apiRequiredOfflineSelected
-      ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${slotId === 'llm_translation' ? 'Translation requires an online AI API. No offline translation engine is available.' : 'IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.'}</div>`
-      : ['needs-retest', 'cooldown', 'ready-degraded', 'ready-cooldown'].includes(slotStatus) && resolved.reason
-        ? `<div class="status-box ${slotStatus === 'needs-retest' ? 'fail' : 'info'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${escapeHtml(resolved.reason)}</div>`
-        : lastTest
-          ? `<div class="status-box ${lastTest.ok ? 'pass' : 'fail'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
-               ${escapeHtml(lastTest.message)}${ 
-                 typeof (lastTest as PersistedConnectionTestResult).timestamp === 'number'
-                   ? ` · <span class="settings-tested-time">Tested: ${new Date(
-                       (lastTest as PersistedConnectionTestResult).timestamp
-                     ).toLocaleTimeString()}</span>`
-                   : ''
-               }
-             </div>`
-          : `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
-               ${escapeHtml(resolved.reason ?? `Active: ${resolved.detailLabel}`)}
-             </div>`;
+    const statusHtml = bothConfiguredApisReady
+      ? `<div class="status-box pass" id="status-${slotId}">Ready</div>`
+      : mixedApiReadiness && secondaryPreset
+        ? renderAccountStatus('primary', preset.name, primaryAccountReady, lastTest, accountHealth?.primary ?? null)
+        : apiRequiredOfflineSelected
+          ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${slotId === 'llm_translation' ? 'Translation requires an online AI API. No offline translation engine is available.' : 'IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.'}</div>`
+          : ['needs-retest', 'cooldown', 'ready-degraded', 'ready-cooldown'].includes(slotStatus) && resolved.reason
+            ? `<div class="status-box ${slotStatus === 'needs-retest' ? 'fail' : 'info'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${escapeHtml(resolved.reason)}</div>`
+            : lastTest
+              ? `<div class="status-box ${lastTest.ok ? 'pass' : 'fail'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
+                   ${escapeHtml(lastTest.message)}${ 
+                     typeof (lastTest as PersistedConnectionTestResult).timestamp === 'number'
+                       ? ` · <span class="settings-tested-time">Tested: ${new Date(
+                           (lastTest as PersistedConnectionTestResult).timestamp
+                         ).toLocaleTimeString()}</span>`
+                       : ''
+                   }
+                 </div>`
+              : `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">
+                   ${escapeHtml(resolved.reason ?? `Active: ${resolved.detailLabel}`)}
+                 </div>`;
     const showVerificationActions = !lastTest?.ok && !dismissedVerificationErrors.has(slotId);
     const verificationActionsHtml = `<div class="btn-row verification-error-actions" id="verification-actions-${slotId}" style="display:${showVerificationActions ? 'flex' : 'none'};gap:8px;margin-top:6px;">
          <button type="button" class="btn btn-secondary settings-verify-action" data-ignore-verification-error="${slotId}">Dismiss error</button>
@@ -635,6 +679,7 @@ export async function renderSettingsView(
           <input type="file" id="import-ai-file" accept="application/json,.json" hidden />
         </div>
         <p class="card-subtitle">Tests run sequentially and may use a small amount of API quota. A slot is marked saved only when every configured online account in that slot passes; otherwise its previous verification is preserved.</p>
+        <div id="backup-status" class="status-box info" role="status" aria-live="polite">AI settings can be exported with API keys for device migration, or without keys for safer sharing. Importing a no-key backup leaves the API keys already stored on this device unchanged.</div>
       </div>
       <div class="backup-section">
         <strong>Test data &amp; practice history</strong>
@@ -645,7 +690,7 @@ export async function renderSettingsView(
           <input type="file" id="import-test-file" accept="application/json,.json" hidden />
         </div>
       </div>
-      <div id="backup-status" class="status-box info" role="status" aria-live="polite">AI settings can be exported with API keys for device migration, or without keys for safer sharing. Importing a no-key backup leaves the API keys already stored on this device unchanged.</div>
+      <div id="test-data-backup-status" class="status-box info" role="status" aria-live="polite" hidden></div>
     </section>
     <section class="card settings-language-card">
       <div class="card-header"><h2 class="card-title">Language / زبان</h2></div>
@@ -1311,6 +1356,7 @@ export async function renderSettingsView(
   });
 
   const backupStatus = container.querySelector<HTMLElement>('#backup-status');
+  const testDataBackupStatus = container.querySelector<HTMLElement>('#test-data-backup-status');
   let testAllApisButton: HTMLButtonElement | null = null;
   const persistSlotDrafts: Partial<Record<SlotId, () => Promise<void>>> = {};
 
@@ -1335,24 +1381,28 @@ export async function renderSettingsView(
     );
     if (importButton) importButton.disabled = true;
     if (testAllApisButton) testAllApisButton.disabled = true;
-    if (backupStatus) {
-      backupStatus.className = 'status-box info';
-      backupStatus.textContent = 'Reading and validating the selected backup…';
+    const operationStatus = kind === 'ai-settings' ? backupStatus : testDataBackupStatus;
+    if (operationStatus) {
+      operationStatus.hidden = false;
+      operationStatus.className = 'status-box info';
+      operationStatus.textContent = 'Reading and validating the selected backup…';
     }
     try {
       const payload = await readPayload();
       await restoreBackup(kind, payload);
-      if (backupStatus) {
-        backupStatus.className = 'status-box pass';
-        backupStatus.textContent = kind === 'ai-settings'
+      if (operationStatus) {
+        operationStatus.hidden = false;
+        operationStatus.className = 'status-box pass';
+        operationStatus.textContent = kind === 'ai-settings'
           ? 'AI provider settings and API keys restored and verified in storage. Keep the backup file private. Run the test for each provider.'
           : 'Test history and practice data restored.';
       }
       await _onSettingsUpdated();
     } catch (error) {
-      if (backupStatus) {
-        backupStatus.className = 'status-box fail';
-        backupStatus.textContent = error instanceof Error ? error.message : String(error);
+      if (operationStatus) {
+        operationStatus.hidden = false;
+        operationStatus.className = 'status-box fail';
+        operationStatus.textContent = error instanceof Error ? error.message : String(error);
       }
     } finally {
       if (importButton) importButton.disabled = false;
@@ -1365,13 +1415,14 @@ export async function renderSettingsView(
     const exportButton = container.querySelector<HTMLButtonElement>(`#export-${suffix}-backup`);
     const importButton = container.querySelector<HTMLButtonElement>(`#import-${suffix}-backup`);
     const fileInput = container.querySelector<HTMLInputElement>(`#import-${suffix}-file`);
+    const operationStatus = kind === 'ai-settings' ? backupStatus : testDataBackupStatus;
     exportButton?.addEventListener('click', async () => {
       if (exportButton) exportButton.disabled = true;
       try {
         if (kind === 'ai-settings') {
-          if (backupStatus) {
-            backupStatus.className = 'status-box info';
-            backupStatus.textContent = 'Saving the current provider settings and API keys before export...';
+          if (operationStatus) {
+            operationStatus.className = 'status-box info';
+            operationStatus.textContent = 'Saving the current provider settings and API keys before export...';
           }
           // Capture the values currently shown in every provider form so recently
           // entered API keys are not silently omitted from the backup.
@@ -1381,7 +1432,7 @@ export async function renderSettingsView(
         }
         const payload = await createBackup(kind);
         await downloadBackupFile(kind, payload);
-        if (backupStatus) {
+        if (operationStatus) {
           if (kind === 'ai-settings') {
             const backupConfigs = payload.configs as AllSlotsConfig;
             const backupKeys = payload.apiKeys as Record<string, { primary?: string; secondary?: string }> | undefined;
@@ -1399,19 +1450,19 @@ export async function renderSettingsView(
               !(backupKeys?.[slotId]?.[account] ?? '').trim()
             );
             const includedCount = requiredKeyAccounts.length - missingKeyAccounts.length;
-            backupStatus.className = missingKeyAccounts.length ? 'status-box info' : 'status-box pass';
-            backupStatus.textContent = missingKeyAccounts.length
+            operationStatus.className = missingKeyAccounts.length ? 'status-box info' : 'status-box pass';
+            operationStatus.textContent = missingKeyAccounts.length
               ? `AI settings backup created. Saved API keys included for ${includedCount}/${requiredKeyAccounts.length} configured provider accounts. No saved key was found for: ${missingKeyAccounts.map(item => item.label).join(', ')}. Keep this file private and secure.`
               : `AI settings backup created. Saved API keys included for all ${includedCount} configured provider accounts. Keep this file private and secure.`;
           } else {
-            backupStatus.className = 'status-box pass';
-            backupStatus.textContent = 'Test data backup created.';
+            operationStatus.className = 'status-box pass';
+            operationStatus.textContent = 'Test data backup created.';
           }
         }
       } catch (error) {
-        if (backupStatus) {
-          backupStatus.className = 'status-box fail';
-          backupStatus.textContent = error instanceof Error ? error.message : String(error);
+        if (operationStatus) {
+          operationStatus.className = 'status-box fail';
+          operationStatus.textContent = error instanceof Error ? error.message : String(error);
         }
       } finally { if (exportButton) exportButton.disabled = false; }
     });
