@@ -125,19 +125,23 @@ export async function renderSettingsView(
     const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
     const slotStatus = apiRequiredOfflineSelected
       ? 'api-required'
-      : slotOnlineVerified
-        ? 'ready'
-        : lastTest
-          ? 'error'
-          : resolved.label === 'Online AI'
+      : resolved.label !== 'Online AI' && resolved.reason?.toLowerCase().includes('re-test')
+        ? 'needs-retest'
+        : resolved.label !== 'Online AI' && resolved.reason?.toLowerCase().includes('cooling down')
+          ? 'cooldown'
+          : slotOnlineVerified && resolved.label === 'Online AI'
             ? 'ready'
-            : preset.requiresKey && !currentKey.trim()
-              ? 'needs-key'
-              : preset.requiresKey
-                ? 'not-tested'
-                : 'offline-ready';
-    const badgeClass = slotStatus === 'ready' ? 'online' : slotStatus === 'error' ? 'error' : 'offline';
-    const badgeLabel = slotStatus === 'ready' ? 'Ready' : slotStatus === 'error' ? 'Error' : slotStatus === 'needs-key' ? 'API key needed' : slotStatus === 'offline-ready' ? 'Offline ready' : slotStatus === 'api-required' ? 'API required' : 'Not tested';
+            : lastTest
+              ? 'error'
+              : resolved.label === 'Online AI'
+                ? 'ready'
+                : preset.requiresKey && !currentKey.trim()
+                  ? 'needs-key'
+                  : preset.requiresKey
+                    ? 'not-tested'
+                    : 'offline-ready';
+    const badgeClass = slotStatus === 'ready' ? 'online' : slotStatus === 'error' || slotStatus === 'needs-retest' ? 'error' : 'offline';
+    const badgeLabel = slotStatus === 'ready' ? 'Ready' : slotStatus === 'needs-retest' ? 'Needs re-test' : slotStatus === 'cooldown' ? 'Cooling down' : slotStatus === 'error' ? 'Error' : slotStatus === 'needs-key' ? 'API key needed' : slotStatus === 'offline-ready' ? 'Offline ready' : slotStatus === 'api-required' ? 'API required' : 'Not tested';
     const isCustom = preset.id.startsWith('custom_openai_');
     const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
     const secondaryIsCustom = secondaryPreset?.id.startsWith('custom_openai_') ?? false;
