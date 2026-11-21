@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { clearMemoryAudioCache, setCachedTtsAudio } from '../src/services/audioCache';
 import {
   activateShadowingAudioSet,
+  initializeShadowingAudioStore,
   clearActiveShadowingAudioStore,
   getActiveShadowingAudioSet,
   persistActiveShadowingAudio,
@@ -106,6 +107,14 @@ describe('durable active-set AI audio store', () => {
     });
     for (let i = 0; i < 35; i++) await setCachedTtsAudio(`generic-${i}`, `generic-audio-${i}`);
     await expect(readActiveShadowingAudio('protected-sentence', setId)).resolves.toBe('durable-sentence-audio');
+  });
+
+
+  it('removes orphan set files during startup reconciliation when there is no active set', async () => {
+    const orphanKey = 'speakcoach.shadowing.audio.SpeakCoach/shadowing-audio/orphan-set/orphan.txt';
+    localStorage.setItem(orphanKey, 'orphan-audio');
+    await initializeShadowingAudioStore();
+    expect(localStorage.getItem(orphanKey)).toBeNull();
   });
 
 });
