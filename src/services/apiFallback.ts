@@ -121,7 +121,13 @@ export async function runWithSlotApiFallback<T>(
   const errors: string[] = [];
   if (primaryHealth) errors.push(primaryHealth.state === 'needs-retest' ? 'API 1 needs a successful connection re-test.' : 'API 1 is cooling down after a temporary provider failure.');
   if (selectedAttempts.length === 0) {
-    throw new Error(`No verified AI provider is ready for this feature. ${getProviderVerificationInstructions(slotId)}`);
+    if (preferredAccount !== 'auto') {
+      const readiness = await getSlotAccountReadiness(slotId, preferredAccount);
+      throw new Error(`${preferredAccount === 'primary' ? 'API 1' : 'API 2'} is not ready: ${readiness.reason}`);
+    }
+    const primaryReadiness = await getSlotAccountReadiness(slotId, 'primary');
+    const secondaryReadiness = await getSlotAccountReadiness(slotId, 'secondary');
+    throw new Error(`No verified AI provider is ready for this feature. API 1: ${primaryReadiness.reason} API 2: ${secondaryReadiness.reason} ${getProviderVerificationInstructions(slotId)}`);
   }
   for (const attempt of selectedAttempts) {
     const preset = getPreset(slotId, attempt.config.providerId);
