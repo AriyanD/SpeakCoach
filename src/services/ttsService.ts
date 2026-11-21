@@ -46,6 +46,7 @@ async function storeGeneratedAudio(
   cacheEnabled: boolean,
   setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
 ): Promise<void> {
+  if (memoryOnly && cacheGeneration !== temporaryCacheGeneration) return;
   if (setAudio && cacheEnabled) {
     try {
       const stored = await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl });
