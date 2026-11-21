@@ -583,15 +583,20 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   // configured inside that one slot.
   const primary = configs[requestedSlotId];
   const primaryTest = await loadSlotConnectionTestResult(requestedSlotId);
+  const verificationNotices: string[] = [];
   const primaryKey = await loadApiKey(requestedSlotId, primary.providerId, 'primary');
   const primaryVerified = primaryTest ? await isWhisperAccountReady({
     slotId: requestedSlotId, account: 'primary', config: primary, apiKey: primaryKey,
     verification: { ok: primaryTest.ok, providerId: primaryTest.providerId, tier: primaryTest.tier, testedAt: primaryTest.timestamp, verificationFingerprint: primaryTest.verificationFingerprint }
   }) : false;
+  const primaryHealth = await getProviderAccountHealth(requestedSlotId, 'primary');
+  if (primaryHealth) verificationNotices.push(`API 1 is ${primaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${primaryHealth.reason}`);
+  else if (!primaryVerified) verificationNotices.push('API 1 needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.');
   if (primaryVerified && compatibleProviderIds.has(primary.providerId) && getPreset(requestedSlotId, primary.providerId).tier !== 3) {
     candidates.push({ slotId: requestedSlotId, config: primary, account: 'primary' });
   }
   const secondary = primary.secondary;
+  let secondaryVerificationNotice = '';
   if (secondary?.verified && secondary.testResult) {
     const secondaryConfig: SlotConfig = { slotId: requestedSlotId, ...secondary };
     const secondaryKey = await loadApiKey(requestedSlotId, secondary.providerId, 'secondary');
@@ -604,6 +609,9 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
         verificationFingerprint: secondary.testResult.verificationFingerprint
       }
     });
+    const secondaryHealth = await getProviderAccountHealth(requestedSlotId, 'secondary');
+    if (secondaryHealth) secondaryVerificationNotice = `API 2 is ${secondaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${secondaryHealth.reason}`;
+    else if (!secondaryVerified) secondaryVerificationNotice = 'API 2 needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.';
     if (secondaryVerified && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
       candidates.push({ slotId: requestedSlotId, config: secondaryConfig, account: 'secondary' });
     }
@@ -633,9 +641,11 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     requestedSlotId,
     async () => {
       if (orderedCandidates.length === 0) {
-        throw new Error('No verified speech API is configured for this feature.');
+        providerFailureMessage = [...verificationNotices, secondaryVerificationNotice].filter(Boolean).join(' ')
+          || 'No verified speech API is configured for this feature.';
+        throw new Error(providerFailureMessage);
       }
-      const errors: string[] = [];
+      const errors: string[] = [...verificationNotices];
       for (const candidate of orderedCandidates) {
         const candidateSlotId = candidate.slotId;
         const candidateCfg = candidate.config;
@@ -679,12 +689,16 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
           usedProviderId = candidateCfg.providerId;
           usedAccount = candidate.account;
           rawResponse = res.raw;
-          return { transcript: res.transcript, words: res.words, error: undefined };
+          const fallbackNotice = errors.length
+            ? `${errors.join(' ')} Using ${candidate.account === 'secondary' ? 'API 2' : 'API 1'} for this transcription.`
+            : undefined;
+          return { transcript: res.transcript, words: res.words, error: fallbackNotice };
         } catch (error) {
           await markProviderAccountFailure(candidateSlotId, candidate.account, error);
           errors.push(`${candidateSlotId}/${candidate.account} (${candidateCfg.providerId}): ${error instanceof Error ? error.message : String(error)}`);
         }
       }
+      if (secondaryVerificationNotice) errors.push(secondaryVerificationNotice);
       providerFailureMessage = errors.length ? `Online speech transcription failed: ${errors.join(' | ')}` : 'No verified speech provider is available. Re-test the configured API or use the device recognizer.';
       throw new Error(providerFailureMessage);
     },
