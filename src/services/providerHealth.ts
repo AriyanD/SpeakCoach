@@ -23,10 +23,21 @@ function key(slotId: SlotId, account: ProviderAccount): string {
 async function hydrate(): Promise<void> {
   if (!hydration) {
     hydration = (async () => {
+      let raw: string | null = null;
       try {
-        const stored = await Preferences.get({ key: STORAGE_KEY });
-        const raw = stored.value ?? (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null);
-        if (!raw) return;
+        raw = (await Preferences.get({ key: STORAGE_KEY })).value;
+      } catch {
+        // Fall back to Web Storage below.
+      }
+      if (!raw) {
+        try {
+          raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+        } catch {
+          // Health is advisory. An unavailable store must not block app startup.
+        }
+      }
+      if (!raw) return;
+      try {
         const parsed = JSON.parse(raw) as Record<string, ProviderAccountHealth>;
         for (const [entryKey, entry] of Object.entries(parsed)) {
           if (entry && (entry.state === 'needs-retest' || entry.state === 'cooldown')) {
@@ -34,7 +45,7 @@ async function hydrate(): Promise<void> {
           }
         }
       } catch {
-        // Health is advisory. A damaged/unavailable store must not block app startup.
+        // A damaged health snapshot is ignored; the next failure will recreate it.
       }
     })();
   }
