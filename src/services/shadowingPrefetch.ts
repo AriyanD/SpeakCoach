@@ -42,3 +42,16 @@ export class ShadowingPrefetchScheduler {
     return indices;
   }
 }
+
+/** Run a serial batch and stop immediately when a prefetch cannot be completed. */
+export async function runShadowingPrefetchBatch<T>(
+  items: T[],
+  prefetch: (item: T) => Promise<boolean>
+): Promise<number> {
+  let completed = 0;
+  for (const item of items) {
+    if (!await prefetch(item)) break;
+    completed++;
+  }
+  return completed;
+}
