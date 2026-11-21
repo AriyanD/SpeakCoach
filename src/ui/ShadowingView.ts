@@ -580,8 +580,7 @@ export function renderShadowingView(
     </section>
 
     ${state.lastReport ? `<div class="sh-result-strip" role="status" aria-live="polite"><div class="sh-result-strip-score"><strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace</span></div><div class="sh-result-strip-words">${state.lastReport.words.slice(0, 12).map(word => `<span class="sh-result-chip ${word.status}" title="${escapeHtml(word.referenceWord || word.spokenWord || '')}">${escapeHtml(word.referenceWord || word.spokenWord || '')}</span>`).join('')}</div></div>` : ''}
-    ${state.lastReport ? renderReportHtml(state.lastReport, Boolean(state.lastRecording?.wavBase64)) : ''}
-      <details class="sh-transcript-details" ${state.recognizerError ? 'open' : ''}>
+    ${state.lastReport ? `<details class="sh-result-details" ${state.recognizerError ? "open" : ""}><summary>Score &amp; recognition details</summary>${renderReportHtml(state.lastReport, Boolean(state.lastRecording?.wavBase64))}      <details class="sh-transcript-details" ${state.recognizerError ? 'open' : ''}>
         <summary>Transcript &amp; recognition details</summary>
         <div class="form-field sh-transcript-field">
           <label class="form-label" for="sh-transcript-input">Recognized speech</label>
@@ -598,7 +597,25 @@ export function renderShadowingView(
             ${state.recognizerError ? ` · Recognizer Note: ${escapeHtml(state.recognizerError)}` : ''}
           </div>
         </div>
-      </details>
+      </details></details>` : '      <details class="sh-transcript-details" ${state.recognizerError ? 'open' : ''}>
+        <summary>Transcript &amp; recognition details</summary>
+        <div class="form-field sh-transcript-field">
+          <label class="form-label" for="sh-transcript-input">Recognized speech</label>
+          <input
+            type="text"
+            class="form-input"
+            id="sh-transcript-input"
+            readonly
+            placeholder="Your speech will appear here."
+            value="${escapeHtml(state.recognizedTranscript)}"
+          />
+          <div class="card-subtitle sh-recognizer-meta" id="sh-recognizer-meta">
+            Alternatives / Confidence: ${altsHtml}
+            ${state.recognizerError ? ` · Recognizer Note: ${escapeHtml(state.recognizerError)}` : ''}
+          </div>
+        </div>
+      </details>'}
+
       <details class="sh-sentence-set-details" ${(!hasSentence || state.isGeneratingAi || state.aiGenerationError) ? "open" : ""}>
         <summary><strong>Sentence set</strong><span class="sh-sentence-set-summary">${state.difficulty[0].toUpperCase()+state.difficulty.slice(1)} · Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id)+1 : 0} of ${activeHistory.sets.length} · Change${state.isGeneratingAi ? " · Generating…" : state.aiGenerationError ? " · Error" : ""}</span></summary>
       <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
