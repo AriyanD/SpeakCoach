@@ -27,6 +27,7 @@ let temporaryCacheGeneration = 0;
 const temporaryCacheHashes = new Set<string>();
 const prefetchTasks = new Map<string, Promise<boolean>>();
 const inFlightAudioRequests = new Map<string, Promise<{ dataUrl: string; fromCache: boolean }>>();
+let userInitiatedSynthesisInFlight = 0;
 const geminiLanguageFailures = new Map<string, string>();
 let prefetchQueueTail: Promise<void> = Promise.resolve();
 
@@ -601,9 +602,14 @@ export async function speakSentenceWithTierFallback(
   const outcome = await executeWithTierFallback(
     'voice_tts',
     async () => {
-      const attempt = await runWithSlotApiFallback('voice_tts', voiceSlot, (apiConfig, apiKey) =>
-        synthesizeOnlineNeuralAudio(text, apiConfig, apiKey, rate, options?.transport, locale)
-      );
+      const attempt = await runWithSlotApiFallback('voice_tts', voiceSlot, async (apiConfig, apiKey) => {
+        userInitiatedSynthesisInFlight++;
+        try {
+          return await synthesizeOnlineNeuralAudio(text, apiConfig, apiKey, rate, options?.transport, locale);
+        } finally {
+          userInitiatedSynthesisInFlight = Math.max(0, userInitiatedSynthesisInFlight - 1);
+        }
+      });
       usedProviderConfig.current = { config: attempt.config, account: attempt.account };
       const { dataUrl, fromCache } = attempt.result;
       if (activePlaybackGeneration !== playbackGeneration) {
@@ -680,11 +686,11 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
   const generation = temporaryCacheGeneration;
   const task = prefetchQueueTail.then(async (): Promise<boolean> => {
     try {
-      if (generation !== temporaryCacheGeneration) return false;
+      if (generation !== temporaryCacheGeneration || userInitiatedSynthesisInFlight > 0) return false;
       const configs = await loadAllSlotsConfig();
       const resolved = await resolveSlotTier(configs.voice_tts);
       // Prefetch is opportunistic: never probe an offline/unverified provider.
-      if (resolved.tier === 3) return false;
+      if (resolved.tier === 3 || userInitiatedSynthesisInFlight > 0) return false;
       await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) =>
         synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, options?.transport, locale, true, generation)
       );
