@@ -72,7 +72,8 @@ These checks require a real Android device. CI unit tests and APK compilation do
 
 
 - [ ] Generate audio by normal Play and by Prefetch for the active 20-sentence set; force-stop the app, relaunch, replay the same-set sentences and confirm zero additional TTS requests.
-- [ ] Switch to a genuinely different sentence set; confirm the previous set's audio index/files and RAM entries are removed. Leave/re-enter the same set, re-render, background/resume, and restart without changing sets; confirm the audio remains available.
+- [ ] Switch to a genuinely different sentence set; confirm the previous set's audio index/files and RAM entries are removed (except a file currently playing, which is deleted after playback ends). Leave/re-enter the same set, re-render, background/resume, and restart without changing sets; confirm the audio remains available.
+- [ ] Change the Voice/TTS provider, endpoint, model, voice or API key in Settings; confirm the active-set audio store is invalidated and the next generation uses the updated configuration.
 - [ ] Start TTS synthesis and switch sets before the request finishes; confirm the stale result is neither written into the new set nor added to its persistent index.
 - [ ] Fill the active-set audio budget with canonical sentence audio plus slow/word-replay extras; confirm extras are evicted first and no canonical sentence entry is selected for eviction. Confirm generic 30-entry LRU activity cannot remove active-set audio.
 - [ ] On sentence #2, trigger prefetch immediately before Play; confirm the user's request is not blocked and the deferred prefetch is retried after playback synthesis starts/finishes. Confirm the scheduler cursor does not advance on a failed/deferred batch.
