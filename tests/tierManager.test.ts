@@ -345,11 +345,15 @@ describe('IELTS STT online tier detection', () => {
     expect((await resolveSlotTier(config, { isOnline: true })).tier).toBe(1);
 
     await saveApiKey('voice_tts', 'openai_tts', 'fingerprint-key-two');
-    expect((await resolveSlotTier(config, { isOnline: true })).tier).toBe(3);
+    const keyChanged = await resolveSlotTier(config, { isOnline: true });
+    expect(keyChanged.tier).toBe(3);
+    expect(keyChanged.reason).toMatch(/verification expired or no longer matches/i);
 
     await saveApiKey('voice_tts', 'openai_tts', 'fingerprint-key-one');
     const changedModel = { ...config, modelOrVoice: 'tts-1:nova' };
-    expect((await resolveSlotTier(changedModel, { isOnline: true })).tier).toBe(3);
+    const modelChanged = await resolveSlotTier(changedModel, { isOnline: true });
+    expect(modelChanged.tier).toBe(3);
+    expect(modelChanged.reason).toMatch(/verification expired or no longer matches/i);
   });
 
   it.each([400, 401, 404])('moves a verified TTS account to Needs re-test after HTTP %i', async status => {
