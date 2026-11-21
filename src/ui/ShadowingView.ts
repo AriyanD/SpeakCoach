@@ -447,6 +447,7 @@ export function renderShadowingView(
           shadowingSetAudio: { ...context, kind: 'sentence' }
         });
       });
+      if (queuedEpoch !== shadowingPrefetchEpoch) return;
       shadowingPrefetchScheduler.completeBatch(completed);
       // If the learner crossed the next position threshold while this serial
       // batch was running, release the next window now instead of waiting for
