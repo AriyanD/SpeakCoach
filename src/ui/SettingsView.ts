@@ -11,7 +11,7 @@ import {
 } from '../services/customEndpointHelper';
 import { fetchAvailableModels } from '../services/modelFetchService';
 import { fetchAvailableTtsVoices } from '../services/ttsVoiceService';
-import { previewTtsVoice } from '../services/ttsService';
+import { clearPreloadedSentenceAudio, previewTtsVoice } from '../services/ttsService';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { loadApiKeyStrict, saveApiKey } from '../storage/keyStore';
 import { getAppSettingsRecoveryNotices, loadAppSettings, saveAppSettings } from '../storage/appSettings';
@@ -841,6 +841,7 @@ export async function renderSettingsView(
           primaryConfig.secondary = previous.secondary;
           if (primaryKey) await saveApiKey(item.slotId, primaryPreset.id, primaryKey, 'primary');
           await saveSlotConfig(primaryConfig);
+clearPreloadedSentenceAudio();
           configs[item.slotId] = primaryConfig;
           lastTestResults.delete(item.slotId);
           await clearSlotConnectionTestResult(item.slotId);
@@ -882,6 +883,7 @@ export async function renderSettingsView(
             };
             if (secondaryKey) await saveApiKey(item.slotId, secondaryPreset.id, secondaryKey, 'secondary');
             await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+clearPreloadedSentenceAudio();
             configs[item.slotId].secondary = secondaryConfig;
 
             let secondaryStatus = 'API 2 configured — key missing';
@@ -891,6 +893,7 @@ export async function renderSettingsView(
                 const testResult = { ok: result.ok && result.tier !== 3, latencyMs: result.latencyMs, message: result.message, testedAt: Date.now(), verificationFingerprint: result.verificationFingerprint };
                 secondaryConfig = { ...secondaryConfig, verified: testResult.ok, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+clearPreloadedSentenceAudio();
                 configs[item.slotId].secondary = secondaryConfig;
                 attempted += 1;
                 if (testResult.ok) { passed += 1; secondaryStatus = 'API 2 verified'; }
@@ -901,6 +904,7 @@ export async function renderSettingsView(
                 const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
                 secondaryConfig = { ...secondaryConfig, verified: false, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+clearPreloadedSentenceAudio();
                 configs[item.slotId].secondary = secondaryConfig;
                 secondaryStatus = `API 2 test failed: ${message}`;
               }
@@ -1094,6 +1098,7 @@ export async function renderSettingsView(
         const config: SlotConfig = { ...item.config, secondary: configs[slotId].secondary };
         await saveApiKey(slotId, config.providerId, apiKey, 'primary');
         await saveSlotConfig(config);
+clearPreloadedSentenceAudio();
         configs[slotId] = config;
         const persisted = await saveSlotConnectionTestResult(slotId, item.result);
         lastTestResults.set(slotId, persisted);
@@ -2173,6 +2178,7 @@ export async function renderSettingsView(
         // A secondary-only edit must not clear the verified primary connection.
         if (primaryChanged) await saveSlotConfig(cfg);
         else await saveSecondarySlotConfig(slotId, cfg.secondary);
+        clearPreloadedSentenceAudio();
 
         // Only remove an old secondary credential after the new config is saved.
         if (previousSecondary?.providerId &&
@@ -2265,6 +2271,7 @@ export async function renderSettingsView(
         }
         const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
         await saveSecondarySlotConfig(slotId, verifiedConfig);
+clearPreloadedSentenceAudio();
         configs[slotId].secondary = verifiedConfig;
         secondaryStatus.className = `status-box ${testResult.ok ? 'pass' : 'fail'}`;
         secondaryStatus.textContent = `API 2: ${result.ok && result.tier !== 3 ? 'PASS' : 'FAIL'} — ${result.message}`;
@@ -2281,6 +2288,7 @@ export async function renderSettingsView(
         try {
           const failedConfig = { ...secondaryCfg, verified: false, testResult };
           await saveSecondarySlotConfig(slotId, failedConfig);
+clearPreloadedSentenceAudio();
           configs[slotId].secondary = failedConfig;
         } catch { /* Keep the visible test error even if storage is unavailable. */ }
         secondaryStatus.className = 'status-box fail';
