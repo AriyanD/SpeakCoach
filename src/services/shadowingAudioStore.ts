@@ -195,6 +195,10 @@ async function ensureInitialized(): Promise<void> {
   await initialization;
 }
 
+export async function initializeShadowingAudioStore(): Promise<void> {
+  await ensureInitialized();
+}
+
 export function activateShadowingAudioSet(setId: string): Promise<number> {
   const task = activationQueue.then(async () => {
     await ensureInitialized();
