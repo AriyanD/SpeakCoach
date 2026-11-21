@@ -358,22 +358,22 @@ export async function renderSettingsView(
             <input
               type="password"
               class="form-input"
-              id="key-\${slotId}"
+              id="key-${slotId}"
               value=""
-              placeholder="\${currentKey ? 'Key already stored securely. Leave blank to keep it, or type a replacement.' : (preset.requiresKey ? 'Enter your API key...' : 'No API key needed')}"
+              placeholder="${currentKey ? 'Key already stored securely. Leave blank to keep it, or type a replacement.' : (preset.requiresKey ? 'Enter your API key...' : 'No API key needed')}"
               autocomplete="off"
-              \${preset.requiresKey ? '' : 'disabled'}
+              ${preset.requiresKey ? '' : 'disabled'}
             />
-            \${preset.requiresKey && copyKeyOptionsHtml ? \`
+            ${preset.requiresKey && copyKeyOptionsHtml ? \`
               <div class="form-field settings-copy-key-field">
-                <label class="form-label" for="copy-key-source-\${slotId}">Or copy from</label>
-                <select class="form-select provider-native-select" id="copy-key-source-\${slotId}" aria-hidden="true" tabindex="-1">\${copyKeyOptionsHtml}</select>
+                <label class="form-label" for="copy-key-source-${slotId}">Or copy from</label>
+                <select class="form-select provider-native-select" id="copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${copyKeyOptionsHtml}</select>
                 <div class="settings-copy-key">
-                  <div class="provider-picker copy-key-provider-picker" id="copy-key-picker-\${slotId}">
-                    <button type="button" class="provider-picker-trigger" id="copy-key-trigger-\${slotId}" aria-expanded="false"><span>\${escapeHtml(copyKeySources[0]?.label ?? 'Choose source')}</span><span class="provider-picker-chevron">⌄</span></button>
-                    <div class="provider-picker-options" id="copy-key-options-\${slotId}" hidden>\${copyKeyPickerOptionsHtml}</div>
+                  <div class="provider-picker copy-key-provider-picker" id="copy-key-picker-${slotId}">
+                    <button type="button" class="provider-picker-trigger" id="copy-key-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(copyKeySources[0]?.label ?? 'Choose source')}</span><span class="provider-picker-chevron">⌄</span></button>
+                    <div class="provider-picker-options" id="copy-key-options-${slotId}" hidden>${copyKeyPickerOptionsHtml}</div>
                   </div>
-                  <button type="button" class="btn btn-secondary settings-copy-key-btn" id="copy-key-btn-\${slotId}">Copy API key</button>
+                  <button type="button" class="btn btn-secondary settings-copy-key-btn" id="copy-key-btn-${slotId}">Copy API key</button>
                 </div>
               </div>\` : ''}
           </div>
