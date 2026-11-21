@@ -1324,7 +1324,6 @@ export async function renderSettingsView(
     );
     if (importButton) importButton.disabled = true;
     if (testAllApisButton) testAllApisButton.disabled = true;
-    if (testAllApisButton) testAllApisButton.disabled = true;
     if (backupStatus) {
       backupStatus.className = 'status-box info';
       backupStatus.textContent = 'Reading and validating the selected backup…';
@@ -1346,7 +1345,6 @@ export async function renderSettingsView(
       }
     } finally {
       if (importButton) importButton.disabled = false;
-      if (testAllApisButton) testAllApisButton.disabled = settingsProviderTestRunning || !hasConfiguredOnlineAccount;
       if (testAllApisButton) testAllApisButton.disabled = settingsProviderTestRunning || !hasConfiguredOnlineAccount;
     }
   };
@@ -1475,20 +1473,21 @@ export async function renderSettingsView(
         if (cancelTestAllApis) break;
         const slotTitle = SLOT_DEFINITIONS[slotId].title.replace(/^\\d+\\.\\s*/, '');
         const accounts: Array<{ account: 'primary' | 'secondary'; config: SlotConfig; key: string; providerName: string }> = [];
+        const skippedAccounts: string[] = [];
         const primaryConfig = configs[slotId];
         const primaryPreset = getPreset(slotId, primaryConfig.providerId);
-        if (primaryPreset.tier !== 3 && (!primaryPreset.requiresKey || !!keysBySlot[slotId].trim())) {
-          accounts.push({ account: 'primary', config: primaryConfig, key: keysBySlot[slotId], providerName: primaryPreset.name });
-        }
+        if (primaryPreset.tier === 3) skippedAccounts.push('API 1 skipped — offline provider');
+        else if (primaryPreset.requiresKey && !keysBySlot[slotId].trim()) skippedAccounts.push('API 1 skipped — API key missing');
+        else accounts.push({ account: 'primary', config: primaryConfig, key: keysBySlot[slotId], providerName: primaryPreset.name });
         const secondarySaved = configs[slotId].secondary;
         if (secondarySaved) {
           const secondaryPreset = getPreset(slotId, secondarySaved.providerId);
-          if (secondaryPreset.tier !== 3 && (!secondaryPreset.requiresKey || !!secondaryKeysBySlot[slotId].trim())) {
-            accounts.push({ account: 'secondary', config: { slotId, ...secondarySaved }, key: secondaryKeysBySlot[slotId], providerName: secondaryPreset.name });
-          }
-        }
+          if (secondaryPreset.tier === 3) skippedAccounts.push('API 2 skipped — offline provider');
+          else if (secondaryPreset.requiresKey && !secondaryKeysBySlot[slotId].trim()) skippedAccounts.push('API 2 skipped — API key missing');
+          else accounts.push({ account: 'secondary', config: { slotId, ...secondarySaved }, key: secondaryKeysBySlot[slotId], providerName: secondaryPreset.name });
+        } else skippedAccounts.push('API 2 skipped — not configured');
         if (!accounts.length) {
-          reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: API 1/2 skipped — offline provider, not configured, or key missing. Not saved.</li>`);
+          reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: ${skippedAccounts.join(' · ')}. Not saved.</li>`);
           continue;
         }
 
@@ -1497,11 +1496,21 @@ export async function renderSettingsView(
           if (cancelTestAllApis) break;
           completedAccounts += 1;
           backupStatus.textContent = `Testing ${completedAccounts} of ${Math.max(plannedAccounts, completedAccounts)}: ${slotTitle} — ${item.account === 'primary' ? 'API 1' : 'API 2'}…`;
-          const result = await testAndPersistSlotAccount(item.config, {
-            account: item.account,
-            apiKeyOverride: item.key,
-            persist: false
-          });
+          let result: ConnectionTestResult;
+          try {
+            result = await testAndPersistSlotAccount(item.config, {
+              account: item.account,
+              apiKeyOverride: item.key,
+              persist: false
+            });
+          } catch (error) {
+            const preset = getPreset(slotId, item.config.providerId);
+            result = {
+              ok: false, slotId, providerId: item.config.providerId, tier: preset.tier,
+              label: preset.tier === 3 ? 'Basic offline' : 'Online AI', latencyMs: 0,
+              message: `FAIL — ${error instanceof Error ? error.message : String(error)}`
+            };
+          }
           tested.push({ account: item.account, config: item.config, result });
           if (completedAccounts < plannedAccounts) await pause();
         }
@@ -1520,11 +1529,11 @@ export async function renderSettingsView(
             } };
           }
           savedSlots += 1;
-          reports.push(`<li class="pass"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} PASS`).join(' · ')} — <strong>Saved</strong></li>`);
+          reports.push(`<li class="pass"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} PASS`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Saved</strong></li>`);
         } else {
           notSavedSlots += 1;
           const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} failed: ${escapeHtml(item.result.message)}`).join(' · ');
-          reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')} — <strong>Not saved</strong>. ${reasons}. Previous verification preserved.</li>`);
+          reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Not saved</strong>. ${reasons}. Previous verification preserved.</li>`);
         }
 
         const primaryResult = lastTestResults.get(slotId);
