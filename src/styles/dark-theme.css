@@ -29,6 +29,7 @@ html[data-theme="dark"] {
   --record-bg: #B4233C;
   --record-bg-hover: #951B31;
   --record-border: #951B31;
+  --record-disabled-bg: #7E1B2F;
   --record-text: #FFFFFF;
 }
 html, body { background: var(--bg-primary); color: var(--text-primary); }
