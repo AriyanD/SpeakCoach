@@ -1,7 +1,8 @@
 import { getPreset } from '../config/providers';
-import { getProviderVerificationInstructions } from './tierManager';
+import { CONNECTION_VERIFICATION_TTL_MS, getProviderVerificationInstructions } from './tierManager';
 import type { SlotConfig, SlotId, SlotProviderConfig } from '../config/types';
 import { loadApiKey } from '../storage/keyStore';
+import { createProviderVerificationFingerprint } from './providerHealth';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { clearProviderAccountHealth, getProviderAccountHealth, markProviderAccountFailure } from './providerHealth';
 
@@ -26,16 +27,32 @@ export async function runWithSlotApiFallback<T>(
   const allConfigs = await loadAllSlotsConfig();
   const primaryPreset = getPreset(slotId, primaryConfig.providerId);
   const primaryTest = await loadSlotConnectionTestResult(slotId);
-  const primaryVerified = !!primaryTest?.ok && primaryTest.providerId === primaryPreset.id && primaryTest.tier === primaryPreset.tier;
+  const primaryKey = primaryPreset.requiresKey ? await loadApiKey(slotId, primaryPreset.id, 'primary') : '';
+  const primaryFingerprint = await createProviderVerificationFingerprint(primaryConfig, primaryKey);
+  const primaryVerified = !!primaryTest?.ok && primaryTest.providerId === primaryPreset.id &&
+    primaryTest.tier === primaryPreset.tier && !!primaryFingerprint &&
+    primaryTest.verificationFingerprint === primaryFingerprint &&
+    Date.now() - primaryTest.timestamp < CONNECTION_VERIFICATION_TTL_MS &&
+    (!primaryPreset.requiresKey || !!primaryKey.trim());
   const primaryHealth = await getProviderAccountHealth(slotId, 'primary');
   if (primaryVerified && !primaryHealth) attempts.push({ config: primaryConfig, account: 'primary' });
   const secondary = allConfigs[slotId].secondary as SlotProviderConfig | undefined;
   let secondarySkipReason = '';
   if (secondary?.verified) {
     const secondaryConfig: SlotConfig = { slotId, ...secondary };
+    const secondaryPreset = getPreset(slotId, secondaryConfig.providerId);
+    const secondaryKey = secondaryPreset.requiresKey ? await loadApiKey(slotId, secondaryPreset.id, 'secondary') : '';
+    const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, secondaryKey);
+    const secondaryTest = secondary.testResult;
+    const secondaryVerified = !!secondaryFingerprint && !!secondaryTest?.verificationFingerprint &&
+      secondaryTest.verificationFingerprint === secondaryFingerprint &&
+      Date.now() - secondaryTest.testedAt < CONNECTION_VERIFICATION_TTL_MS &&
+      (!secondaryPreset.requiresKey || !!secondaryKey.trim());
     const secondaryHealth = await getProviderAccountHealth(slotId, 'secondary');
-    if (getPreset(slotId, secondaryConfig.providerId).tier !== 3 && !secondaryHealth) {
+    if (secondaryPreset.tier !== 3 && secondaryVerified && !secondaryHealth) {
       attempts.push({ config: secondaryConfig, account: 'secondary' });
+    } else if (!secondaryVerified) {
+      secondarySkipReason = 'API 2 verification no longer matches its saved provider configuration or key. Run Test API 2 again.';
     } else if (secondaryHealth) {
       secondarySkipReason = secondaryHealth.state === 'needs-retest'
         ? 'API 2 needs a successful connection re-test.'
