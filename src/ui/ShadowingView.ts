@@ -872,9 +872,10 @@ export function renderShadowingView(
           : ` The basic offline system voice is being used. ${res.activeTier.reason ?? 'The online voice is not currently available.'} Open Settings → Voice/TTS to re-test the provider or configure API 2.`
         : res.activeTier.reason ? ` Notice: ${res.activeTier.reason}` : '';
       if (res.activeTier.tier >= 3) shadowingTier3FallbackNoticeShown = true;
+      const playbackTierLabel = res.activeTier.tier >= 3 ? 'Basic offline' : res.activeTier.detailLabel;
       state.statusMessage = mode === 'normal'
-        ? `Played model audio via ${res.activeTier.detailLabel}${res.fromCache ? ' [Cached]' : ''}.${offlineVoiceNote}`
-        : `Played slow model audio (0.72x) via ${res.activeTier.detailLabel}.${offlineVoiceNote}`;
+        ? `Played model audio via ${playbackTierLabel}${res.fromCache ? ' [Cached]' : ''}.${offlineVoiceNote}`
+        : `Played slow model audio (0.72x) via ${playbackTierLabel}.${offlineVoiceNote}`;
     } catch (error) {
       if (playbackToken !== shadowingModelPlaybackToken) return;
       reopenSpeechApiNoticeForError(error);
