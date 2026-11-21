@@ -18,6 +18,7 @@ export interface SpeakResult {
   activeTier: ResolvedSlotTier;
   fromCache: boolean;
   durationEstimateMs: number;
+  storageWarning?: string;
 }
 
 type TransportFn = (opts: HttpOptions) => Promise<HttpResponse>;
@@ -28,7 +29,8 @@ let activePlaybackGeneration = 0;
 let temporaryCacheGeneration = 0;
 const temporaryCacheHashes = new Set<string>();
 const prefetchTasks = new Map<string, Promise<boolean>>();
-const inFlightAudioRequests = new Map<string, Promise<{ dataUrl: string; fromCache: boolean; cacheHash: string }>>();
+type SynthesizedAudioResult = { dataUrl: string; fromCache: boolean; cacheHash: string; persistedToActiveSet?: boolean };
+const inFlightAudioRequests = new Map<string, Promise<SynthesizedAudioResult>>();
 let userInitiatedSynthesisInFlight = 0;
 const GEMINI_LANGUAGE_FAILURE_TTL_MS = 5 * 60 * 1000;
 const geminiLanguageFailures = new Map<string, { message: string; expiresAt: number }>();
@@ -44,27 +46,31 @@ async function storeGeneratedAudio(
   cacheGeneration: number,
   cacheEnabled: boolean,
   setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
-): Promise<void> {
-  if (memoryOnly && cacheGeneration !== temporaryCacheGeneration) return;
-  if (setAudio && cacheEnabled) {
+): Promise<boolean> {
+  if (memoryOnly && cacheGeneration !== temporaryCacheGeneration) return false;
+  let persistedToActiveSet = !setAudio;
+  if (setAudio) {
+    if (!cacheEnabled) return false;
     try {
-      const stored = await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl });
+      persistedToActiveSet = await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl });
       // A set switch invalidates this request completely: do not leak its
       // result into the generic LRU where the new set could accidentally reuse it.
-      if (!stored) return;
+      if (!persistedToActiveSet) return false;
     } catch (error) {
+      persistedToActiveSet = false;
       console.warn('[ttsService] Could not persist active-set audio; continuing playback with the generated result.', error);
     }
   }
-  if (!cacheEnabled) return;
+  if (!cacheEnabled) return persistedToActiveSet;
   if (memoryOnly) {
     if (cacheGeneration === temporaryCacheGeneration) {
       setMemoryOnlyTtsAudio(hash, dataUrl);
       temporaryCacheHashes.add(hash);
     }
-    return;
+    return persistedToActiveSet;
   }
   await setCachedTtsAudio(hash, dataUrl);
+  return persistedToActiveSet;
 }
 
 export function stopAllTts(): void {
@@ -120,7 +126,7 @@ async function findCachedActiveSetAudio(
   locale: string,
   setAudio: { setId: string; generation: number; kind: 'sentence' | 'extra' },
   voiceSlot: SlotConfig
-): Promise<{ dataUrl: string; hash: string; config: SlotConfig; preset: ReturnType<typeof getPreset> } | null> {
+): Promise<{ dataUrl: string; hash: string; config: SlotConfig; preset: ReturnType<typeof getPreset>; persistedToActiveSet: boolean } | null> {
   const accounts: Array<{ config: SlotConfig; account: 'primary' | 'secondary' }> = [
     { config: voiceSlot, account: 'primary' },
     ...(voiceSlot.secondary ? [{ config: { slotId: 'voice_tts' as const, ...voiceSlot.secondary }, account: 'secondary' as const }] : [])
@@ -142,11 +148,12 @@ async function findCachedActiveSetAudio(
     const fromSet = await readActiveShadowingAudio(hash, setAudio.setId);
     const dataUrl = fromSet ?? await getCachedTtsAudio(hash);
     if (!dataUrl) continue;
+    let persistedToActiveSet = !!fromSet;
     if (!fromSet) {
-      try { await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl }); }
+      try { persistedToActiveSet = await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl }); }
       catch (error) { console.warn('[ttsService] Could not copy an existing TTS cache entry into the active set store.', error); }
     }
-    return { dataUrl, hash, config: account.config, preset };
+    return { dataUrl, hash, config: account.config, preset, persistedToActiveSet };
   }
   return null;
 }
@@ -163,7 +170,7 @@ export async function synthesizeOnlineNeuralAudio(
   bypassCache = false,
   requestTimeoutMs = 15000,
   setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
-): Promise<{ dataUrl: string; fromCache: boolean; cacheHash: string }> {
+): Promise<SynthesizedAudioResult> {
   // Explicit probes/previews must always issue their own live request. Normal
   // playback and prefetch share one promise so overlapping callers cannot
   // spend quota twice for the same account/model/voice/language/text/rate.
@@ -248,13 +255,15 @@ async function synthesizeOnlineNeuralAudioUnshared(
   const safeSetAudio = cacheEnabled ? setAudio : undefined;
   if (safeSetAudio) {
     const activeSetAudio = await readActiveShadowingAudio(hash, safeSetAudio.setId);
-    if (activeSetAudio) return { dataUrl: activeSetAudio, fromCache: true, cacheHash: hash };
+    if (activeSetAudio) return { dataUrl: activeSetAudio, fromCache: true, cacheHash: hash, persistedToActiveSet: true };
   }
   if (cacheEnabled) {
     const cached = await getCachedTtsAudio(hash);
     if (cached) {
-      if (safeSetAudio) await persistActiveShadowingAudio({ ...safeSetAudio, hash, dataUrl: cached });
-      return { dataUrl: cached, fromCache: true, cacheHash: hash };
+      const persistedToActiveSet = safeSetAudio
+        ? await persistActiveShadowingAudio({ ...safeSetAudio, hash, dataUrl: cached }).catch(() => false)
+        : undefined;
+      return { dataUrl: cached, fromCache: true, cacheHash: hash, persistedToActiveSet };
     }
   }
 
@@ -301,8 +310,8 @@ async function synthesizeOnlineNeuralAudioUnshared(
     );
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error(`Empty audio payload from ${slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
-    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, safeSetAudio);
-    return { dataUrl, fromCache: false, cacheHash: hash };
+    const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
+    return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
   }
 
   if (slotCfg.providerId === 'gemini_tts') {
@@ -392,8 +401,8 @@ async function synthesizeOnlineNeuralAudioUnshared(
     const dataUrl = mimeType.includes('wav')
       ? `data:audio/wav;base64,${cleanB64}`
       : convertPcmBase64ToWavDataUrl(cleanB64, 24000);
-    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
-    return { dataUrl, fromCache: false, cacheHash: hash };
+    const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
+    return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
   }
 
   if (slotCfg.providerId === 'azure_tts') {
@@ -692,7 +701,12 @@ export async function speakSentenceWithTierFallback(
       } finally {
         await releaseActiveSetAudioPlaying(options.shadowingSetAudio.setId, cachedSetAudio.hash);
       }
-      return { activeTier: cachedTier, fromCache: true, durationEstimateMs };
+      return {
+        activeTier: cachedTier,
+        fromCache: true,
+        durationEstimateMs,
+        storageWarning: cachedSetAudio.persistedToActiveSet ? undefined : 'This generated audio could not be copied into durable active-set storage; replay may require an internet connection.'
+      };
     }
   }
 
@@ -713,7 +727,7 @@ export async function speakSentenceWithTierFallback(
         }
       });
       usedProviderConfig.current = { config: attempt.config, account: attempt.account };
-      const { dataUrl, fromCache, cacheHash } = attempt.result;
+      const { dataUrl, fromCache, cacheHash, persistedToActiveSet } = attempt.result;
       activeSetAudioHash = cacheHash;
       if (options?.shadowingSetAudio) {
         const activeSet = await getActiveShadowingAudioSet();
@@ -761,7 +775,10 @@ export async function speakSentenceWithTierFallback(
         isFallback: usedProviderConfig.current.account === 'secondary'
       }
     : outcome.activeTier;
-  return { activeTier, fromCache: usedCache, durationEstimateMs };
+  const storageWarning = options?.shadowingSetAudio && usedProviderConfig.current && outcome.activeTier.tier !== 3 && outcome.result?.persistedToActiveSet === false
+    ? 'This generated audio could not be saved for offline replay. Check available device storage and try again.'
+    : undefined;
+  return { activeTier, fromCache: usedCache, durationEstimateMs, storageWarning };
 }
 
 
@@ -810,17 +827,20 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
     try {
       if (generation !== temporaryCacheGeneration || userInitiatedSynthesisInFlight > 0) return false;
       const configs = await loadAllSlotsConfig();
-      if (options?.shadowingSetAudio && await findCachedActiveSetAudio(normalizedText, 1, locale, options.shadowingSetAudio, configs.voice_tts)) return true;
+      if (options?.shadowingSetAudio) {
+        const cached = await findCachedActiveSetAudio(normalizedText, 1, locale, options.shadowingSetAudio, configs.voice_tts);
+        if (cached) return cached.persistedToActiveSet;
+      }
       const resolved = await resolveSlotTier(configs.voice_tts);
       // Prefetch is opportunistic: never probe an offline/unverified provider.
       if (resolved.tier === 3 || userInitiatedSynthesisInFlight > 0) return false;
-      await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) => {
+      const attempt = await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) => {
         if (userInitiatedSynthesisInFlight > 0) {
           throw new Error('Shadowing prefetch deferred while user-initiated playback is in flight.');
         }
         return synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, options?.transport, locale, true, generation, false, 15000, options?.shadowingSetAudio);
       });
-      return true;
+      return attempt.result.persistedToActiveSet !== false;
     } catch {
       // The caller stops the current batch on failure; playback can retry online.
       return false;
