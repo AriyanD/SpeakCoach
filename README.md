@@ -16,15 +16,17 @@
 
 <img src="docs/screenshots/overview-light.png" alt="SpeakCoach screens: Shadowing, IELTS, history and settings" width="100%">
 
-<br>
+</div>
 
-<a href="https://www.coffeebede.com/ariyand"><img src="docs/assets/coffee-en.png" alt="Buy me a coffee" height="104"></a>
+> Screenshots were captured from the app UI with **clearly fictional sample data** (sample question sets and one sample IELTS result). The Shadowing score was produced with simulated speech-recognition output and no provider connected. No real provider or account is shown.
+
+<div align="center">
+
+<h2><a href="https://www.coffeebede.com/ariyand">☕ Buy me a coffee</a></h2>
 
 <sub>SpeakCoach is free, has no server and no subscription. If it helps your practice, a coffee keeps it going. 💜</sub>
 
 </div>
-
-> Screenshots were captured from the app UI with **clearly fictional sample data** (sample question sets and one sample IELTS result). The Shadowing score was produced with simulated speech-recognition output and no provider connected. No real provider or account is shown.
 
 ## What is SpeakCoach?
 
@@ -165,9 +167,7 @@ TypeScript · vanilla DOM UI · Vite · Capacitor 6 (Android) · Vitest · GitHu
 
 SpeakCoach is free and built in spare time. If it helps your practice and you would like to support further development:
 
-<p align="center">
-  <a href="https://www.coffeebede.com/ariyand"><img src="docs/assets/coffee-en.png" alt="Buy me a coffee" height="104"></a>
-</p>
+<h3 align="center"><a href="https://www.coffeebede.com/ariyand">☕ Buy me a coffee</a></h3>
 
 Support is entirely optional. Starring the repository, reporting bugs and sharing the app with a friend help just as much. 💜
 
