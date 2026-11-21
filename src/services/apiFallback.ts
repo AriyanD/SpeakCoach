@@ -91,9 +91,9 @@ export async function runWithSlotApiFallback<T>(
     const secondaryKey = secondaryPreset.requiresKey ? await loadApiKey(slotId, secondaryPreset.id, 'secondary') : '';
     const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, secondaryKey);
     const secondaryTest = secondary.testResult;
-    const secondaryVerified = !!secondaryFingerprint &&
-      (!secondaryTest?.verificationFingerprint || secondaryTest.verificationFingerprint === secondaryFingerprint) &&
-      Date.now() - (secondaryTest?.testedAt ?? 0) < CONNECTION_VERIFICATION_TTL_MS &&
+    const secondaryVerified = secondaryTest?.ok === true && !!secondaryTest.verificationFingerprint &&
+      secondaryTest.verificationFingerprint === secondaryFingerprint &&
+      Date.now() - (secondaryTest.testedAt ?? 0) < CONNECTION_VERIFICATION_TTL_MS &&
       (!secondaryPreset.requiresKey || !!secondaryKey.trim());
     const secondaryHealth = await getProviderAccountHealth(slotId, 'secondary');
     if (secondaryPreset.tier !== 3 && secondaryVerified && !secondaryHealth) {
