@@ -519,21 +519,6 @@ export function renderShadowingView(
           ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
         </select>
       </div>
-      <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
-      <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
-        <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
-        <strong>Important: speech APIs have separate capabilities</strong>
-        <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
-        <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
-        <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
-      </details>
-      
-      ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate. <button type="button" class="btn btn-primary" id="sh-empty-generate-btn">Generate now</button></div>` : ''}
-
-      ${scoringTier.tier === 3 ? `<details class="offline-quality-notice shadowing-offline-notice" aria-label="Offline pronunciation accuracy notice">
-        <summary><strong>Pronunciation accuracy notice</strong><span class="offline-quality-learn-more">Learn more</span></summary>
-        <p>Offline feedback uses the device or browser speech recognizer and approximate word/timing checks. It is still useful for practising repetition, fluency and matching the target sentence, but it is not a precise pronunciation score. For more dependable transcription and word-level timing, connect and test an online speech-to-text provider in Slot 2 (for example, Groq Whisper when available for your account). This improves the information available to the practice feedback, but true phoneme-level pronunciation assessment requires a dedicated pronunciation-assessment service.</p>
-      </details>` : ''}
       <section class="sh-sentence-set-details" aria-labelledby="sh-sentence-set-title">
         <div class="sh-sentence-set-heading"><h2 id="sh-sentence-set-title">Sentence set</h2><span class="sh-sentence-set-summary">${state.difficulty[0].toUpperCase()+state.difficulty.slice(1)} · Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id)+1 : 0} of ${activeHistory.sets.length} · Change${state.isGeneratingAi ? " · Generating…" : state.aiGenerationError ? " · Error" : ""}</span></div>
       <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
@@ -566,6 +551,22 @@ export function renderShadowingView(
         ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
       </div>
       </section>
+      <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
+      <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
+        <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
+        <strong>Important: speech APIs have separate capabilities</strong>
+        <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
+        <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
+        <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
+      </details>
+      
+      ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate. <button type="button" class="btn btn-primary" id="sh-empty-generate-btn">Generate now</button></div>` : ''}
+
+      ${scoringTier.tier === 3 ? `<details class="offline-quality-notice shadowing-offline-notice" aria-label="Offline pronunciation accuracy notice">
+        <summary><strong>Pronunciation accuracy notice</strong><span class="offline-quality-learn-more">Learn more</span></summary>
+        <p>Offline feedback uses the device or browser speech recognizer and approximate word/timing checks. It is still useful for practising repetition, fluency and matching the target sentence, but it is not a precise pronunciation score. For more dependable transcription and word-level timing, connect and test an online speech-to-text provider in Slot 2 (for example, Groq Whisper when available for your account). This improves the information available to the practice feedback, but true phoneme-level pronunciation assessment requires a dedicated pronunciation-assessment service.</p>
+      </details>` : ''}
+
 
       <p class="card-subtitle sh-ai-sentence-count shadowing-topic-label">${state.customDrillText ? 'Weak-word drill' : `${hasLanguageSentenceSet ? `Sentence ${state.index + 1} of ${activeSet?.sentences.length ?? 0}` : 'No sentence set yet'} · Topic: ${escapeHtml(sentence?.topic ?? 'Offline practice')}`}</p>
       <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div>
@@ -608,7 +609,9 @@ export function renderShadowingView(
               state.emptyAttemptError
             )} (Score: 0)</div>`
           : `<div class="status-box info" id="sh-status-msg" role="status" aria-live="polite">${escapeHtml(state.statusMessage)}</div>`
-      }    ${state.lastReport ? `<div class="sh-result-strip" role="status" aria-live="polite"><div class="sh-result-strip-score"><strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace</span></div><div class="sh-result-strip-words">${state.lastReport.words.slice(0, 12).map(word => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); return `<button type="button" class="sh-result-chip ${word.status}" data-word-replay="${escapeHtml(replayWord)}" aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord ? '' : 'disabled'}>${escapeHtml(replayWord)}</button>`; }).join('')}</div><p class="sh-result-replay-help">Tap a word to hear it. For more details and practice with difficult words, see Score &amp; recognition details below.</p></div>` : ''}
+      }
+
+      ${state.lastReport ? `<div class="sh-result-strip" role="status" aria-live="polite"><div class="sh-result-strip-score"><strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace</span></div><div class="sh-result-strip-words">${state.lastReport.words.slice(0, 12).map(word => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); return `<button type="button" class="sh-result-chip ${word.status}" data-word-replay="${escapeHtml(replayWord)}" aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord ? '' : 'disabled'}>${escapeHtml(replayWord)}</button>`; }).join('')}</div><p class="sh-result-replay-help">Tap a word to hear it. For more details and practice with difficult words, see Score &amp; recognition details below.</p></div>` : ''}
     <section class="sh-result-details" aria-labelledby="sh-result-details-title">
       <h2 id="sh-result-details-title">Score &amp; recognition details</h2>
       ${state.lastReport ? renderReportHtml(state.lastReport, Boolean(state.lastRecording?.wavBase64)) : ''}
