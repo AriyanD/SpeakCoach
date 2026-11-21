@@ -364,7 +364,7 @@ export async function renderSettingsView(
               autocomplete="off"
               ${preset.requiresKey ? '' : 'disabled'}
             />
-            ${preset.requiresKey && copyKeyOptionsHtml ? \`
+            ${preset.requiresKey && copyKeyOptionsHtml ? `
               <div class="settings-copy-key-field">
                 <label class="form-label" for="copy-key-source-${slotId}">Or copy from</label>
                 <select class="form-select provider-native-select" id="copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${copyKeyOptionsHtml}</select>
@@ -375,7 +375,7 @@ export async function renderSettingsView(
                   </div>
                   <button type="button" class="btn btn-secondary settings-copy-key-btn" id="copy-key-btn-${slotId}">Copy API key</button>
                 </div>
-              </div>\` : ''}
+              </div>` : ''}
           </div>
           <div class="form-field">
             <div class="settings-field-heading">
