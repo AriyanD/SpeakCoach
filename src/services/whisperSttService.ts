@@ -675,7 +675,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
           usedProviderId = candidateCfg.providerId;
           usedAccount = candidate.account;
           rawResponse = res.raw;
-          return { transcript: res.transcript, words: res.words };
+          return { transcript: res.transcript, words: res.words, error: undefined };
         } catch (error) {
           await markProviderAccountFailure(candidateSlotId, candidate.account, error);
           errors.push(`${candidateSlotId}/${candidate.account} (${candidateCfg.providerId}): ${error instanceof Error ? error.message : String(error)}`);
