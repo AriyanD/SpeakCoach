@@ -98,3 +98,15 @@ These checks require a real Android device. CI unit tests and APK compilation do
 - [ ] Open a dropdown or model picker; press Back and confirm it closes before any page navigation.
 - [ ] Confirm expanded Settings and IELTS-result accordions remain open/closed as page content and are not treated as navigation layers.
 - [ ] Repeat with Android gesture navigation and three-button navigation, in light and dark themes.
+
+
+## IELTS, Shadowing layout and bulk API checks
+
+- [ ] On a scored IELTS record, trigger a failed API 1/API 2 retry; verify the failure is visible inline and the previous band remains unchanged after reopening the record.
+- [ ] On an unscored record, verify retry progress and failure are visible in the same inline status area.
+- [ ] Verify API 1/API 2 selection is disabled when its verification is missing, expired, fingerprint-mismatched or its runtime health requires re-test/cooldown.
+- [ ] In Shadowing, verify sentence, Play, Record and the compact score strip appear before sentence-set controls; verify setup remains collapsed for an existing set and expands for an empty set.
+- [ ] Check 390x844 and 360x640 in light and dark themes, before and after scoring, including a long three-line sentence and increased system font size.
+- [ ] Check recording button idle, pressed, disabled, recording and stopping states in both themes; confirm white text contrast and visible focus.
+- [ ] In Settings > Backup & Restore, run Test all APIs with API 1 only, API 1 + API 2, one failing account, offline provider, missing key, no network and cancellation. Verify sequential requests, no keys in the report, and previous slot verification remains unchanged if any configured online account fails.
+- [ ] Confirm Gemini TTS probes generate a live request (no cache hit) and that one failing slot does not prevent later slots from being tested.
