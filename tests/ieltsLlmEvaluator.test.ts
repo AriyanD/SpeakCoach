@@ -17,8 +17,9 @@ import { clearIeltsSessionLogs, getIeltsSessionLogs } from '../src/services/ielt
 import { generateIeltsSessionPlan } from './fixtures/legacyIeltsQuestionBank';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
-import { saveApiKey } from '../src/storage/keyStore';
-import { saveSlotConfig, saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../src/storage/localStore';
+import { createProviderVerificationFingerprint } from '../src/services/providerHealth';
+import { loadApiKey, saveApiKey } from '../src/storage/keyStore';
+import { loadAllSlotsConfig, saveSlotConfig, saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../src/storage/localStore';
 import {
   clearIeltsDraft,
   clearIeltsTestHistory,
@@ -33,9 +34,13 @@ import { renderIeltsResultView } from '../src/ui/IeltsResultView';
 
 
 async function verifyEvaluator(providerId: 'openai_compat_eval' | 'gemini_eval'): Promise<void> {
+  const config = (await loadAllSlotsConfig()).llm_evaluator;
+  const apiKey = await loadApiKey('llm_evaluator', providerId);
+  const verificationFingerprint = await createProviderVerificationFingerprint(config, apiKey);
   await saveSlotConnectionTestResult('llm_evaluator', {
     ok: true, slotId: 'llm_evaluator', providerId, tier: 1,
-    label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture',
+    verificationFingerprint: verificationFingerprint ?? undefined
   });
 }
 
@@ -273,12 +278,14 @@ describe('IELTS LLM Evaluator Engine (Stage 3.4 · Tier 1 & Fallback)', () => {
     });
     await saveApiKey('llm_evaluator', 'gemini_eval', 'primary-evaluator-key');
     await verifyEvaluator('gemini_eval');
+    const secondaryEvaluatorConfig = { slotId: 'llm_evaluator' as const, providerId: 'openai_compat_eval', baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'gpt-4o-mini' };
+    const secondaryEvaluatorFingerprint = await createProviderVerificationFingerprint(secondaryEvaluatorConfig, 'secondary-evaluator-key');
     await saveSecondarySlotConfig('llm_evaluator', {
       providerId: 'openai_compat_eval',
       baseUrl: 'https://api.openai.com/v1',
       modelOrVoice: 'gpt-4o-mini',
       verified: true,
-      testResult: { ok: true, latencyMs: 1, message: 'PASS — API 2', testedAt: Date.now() }
+      testResult: { ok: true, latencyMs: 1, message: 'PASS — API 2', testedAt: Date.now(), verificationFingerprint: secondaryEvaluatorFingerprint ?? undefined }
     });
     await saveApiKey('llm_evaluator', 'openai_compat_eval', 'secondary-evaluator-key', 'secondary');
 
