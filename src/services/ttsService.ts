@@ -29,7 +29,12 @@ const temporaryCacheHashes = new Set<string>();
 const prefetchTasks = new Map<string, Promise<boolean>>();
 const inFlightAudioRequests = new Map<string, Promise<{ dataUrl: string; fromCache: boolean }>>();
 let userInitiatedSynthesisInFlight = 0;
-const geminiLanguageFailures = new Map<string, string>();
+const GEMINI_LANGUAGE_FAILURE_TTL_MS = 5 * 60 * 1000;
+const geminiLanguageFailures = new Map<string, { message: string; expiresAt: number }>();
+
+export function clearGeminiLanguageFailures(providerId?: string): void {
+  if (!providerId || providerId === 'gemini_tts') geminiLanguageFailures.clear();
+}
 let prefetchQueueTail: Promise<void> = Promise.resolve();
 
 async function storeGeneratedAudio(
@@ -40,7 +45,7 @@ async function storeGeneratedAudio(
   cacheEnabled: boolean,
   setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
 ): Promise<void> {
-  if (setAudio) {
+  if (setAudio && cacheEnabled) {
     await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl });
   }
   if (!cacheEnabled) return;
@@ -118,9 +123,11 @@ export async function synthesizeOnlineNeuralAudio(
   // playback and prefetch share one promise so overlapping callers cannot
   // spend quota twice for the same account/model/voice/language/text/rate.
   const fingerprint = await createAudioCacheAccountFingerprint(apiKey);
-  const languageFailureKey = `${slotCfg.providerId}|${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${locale}`;
-  if (slotCfg.providerId === 'gemini_tts' && geminiLanguageFailures.has(languageFailureKey)) {
-    throw new Error(geminiLanguageFailures.get(languageFailureKey));
+  const languageFailureKey = `${slotCfg.providerId}|${slotCfg.baseUrl.trim()}|${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${fingerprint ?? ''}|${locale}`;
+  const languageFailure = geminiLanguageFailures.get(languageFailureKey);
+  if (!bypassCache && slotCfg.providerId === 'gemini_tts' && languageFailure) {
+    if (languageFailure.expiresAt > Date.now()) throw new Error(languageFailure.message);
+    geminiLanguageFailures.delete(languageFailureKey);
   }
   if (!fingerprint || bypassCache) {
     try {
@@ -132,7 +139,7 @@ export async function synthesizeOnlineNeuralAudio(
     } catch (error) {
       const status = error && typeof error === 'object' && 'status' in error ? Number((error as { status?: unknown }).status) : undefined;
       if (slotCfg.providerId === 'gemini_tts' && (status === 400 || status === 404)) {
-        geminiLanguageFailures.set(languageFailureKey, error instanceof Error ? error.message : String(error));
+        geminiLanguageFailures.set(languageFailureKey, { message: error instanceof Error ? error.message : String(error), expiresAt: Date.now() + GEMINI_LANGUAGE_FAILURE_TTL_MS });
       }
       throw error;
     }
@@ -193,13 +200,17 @@ async function synthesizeOnlineNeuralAudioUnshared(
     accountFingerprintHash: accountFingerprint ?? undefined
   });
 
-  if (setAudio) {
-    const activeSetAudio = await readActiveShadowingAudio(hash, setAudio.setId);
+  const safeSetAudio = cacheEnabled ? setAudio : undefined;
+  if (safeSetAudio) {
+    const activeSetAudio = await readActiveShadowingAudio(hash, safeSetAudio.setId);
     if (activeSetAudio) return { dataUrl: activeSetAudio, fromCache: true };
   }
   if (cacheEnabled) {
     const cached = await getCachedTtsAudio(hash);
-    if (cached) return { dataUrl: cached, fromCache: true };
+    if (cached) {
+      if (safeSetAudio) await persistActiveShadowingAudio({ ...safeSetAudio, hash, dataUrl: cached });
+      return { dataUrl: cached, fromCache: true };
+    }
   }
 
   const baseUrl = normalizeBaseUrl(slotCfg.baseUrl);
@@ -245,7 +256,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
     );
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error(`Empty audio payload from ${slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
-    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
+    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, safeSetAudio);
     return { dataUrl, fromCache: false };
   }
 
