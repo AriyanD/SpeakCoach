@@ -46,7 +46,14 @@ async function storeGeneratedAudio(
   setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
 ): Promise<void> {
   if (setAudio && cacheEnabled) {
-    await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl });
+    try {
+      const stored = await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl });
+      // A set switch invalidates this request completely: do not leak its
+      // result into the generic LRU where the new set could accidentally reuse it.
+      if (!stored) return;
+    } catch (error) {
+      console.warn('[ttsService] Could not persist active-set audio; continuing playback with the generated result.', error);
+    }
   }
   if (!cacheEnabled) return;
   if (memoryOnly) {
