@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearAllProviderAccountHealth, markProviderAccountFailure } from '../src/services/providerHealth';
-import { createDefaultSlotConfig } from '../src/config/providers';
+import { createDefaultSlotConfig, getPreset } from '../src/config/providers';
 import { nativeHttpRequest, SpeakCoachHttpError } from '../src/services/httpClient';
 import { networkMonitor } from '../src/services/networkMonitor';
 import {
@@ -14,9 +14,19 @@ import {
 } from '../src/services/tierManager';
 import { testSlotConnection } from '../src/services/connectionTester';
 import { saveApiKey } from '../src/storage/keyStore';
-import { saveSlotConfig, saveSlotConnectionTestResult } from '../src/storage/localStore';
+import { loadAllSlotsConfig, saveSlotConfig, saveSlotConnectionTestResult } from '../src/storage/localStore';
 
 async function markSlotVerified(slotId: 'voice_tts' | 'llm_evaluator' | 'llm_generator', providerId: string, tier: 1 | 2 = 1): Promise<void> {
+  const current = await loadAllSlotsConfig();
+  if (current[slotId].providerId !== providerId) {
+    const preset = getPreset(slotId, providerId);
+    await saveSlotConfig({
+      ...createDefaultSlotConfig(slotId),
+      providerId,
+      baseUrl: preset.defaultBaseUrl,
+      modelOrVoice: preset.defaultModelOrVoice
+    });
+  }
   await saveSlotConnectionTestResult(slotId, {
     ok: true,
     slotId,
