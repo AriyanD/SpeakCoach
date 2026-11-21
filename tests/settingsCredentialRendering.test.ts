@@ -83,4 +83,32 @@ describe('Settings credential rendering', () => {
     expect(after.voice_tts.secondary?.verified).toBe(false);
   });
 
+
+  it('shows API 2 only when its switch is enabled and clears the draft when disabled', async () => {
+    const configs = await loadAllSlotsConfig();
+    const summary = await resolveGlobalTierSummary(configs);
+    const container = document.createElement('div');
+    await renderSettingsView(container, configs, summary, async () => {});
+
+    const toggle = container.querySelector<HTMLInputElement>('#secondary-enabled-llm_generator');
+    const content = container.querySelector<HTMLElement>('#secondary-api-content-llm_generator');
+    const provider = container.querySelector<HTMLSelectElement>('#secondary-provider-llm_generator');
+    const testButton = container.querySelector<HTMLButtonElement>('#test-secondary-llm_generator');
+
+    expect(toggle).not.toBeNull();
+    expect(toggle?.checked).toBe(false);
+    expect(content?.hidden).toBe(true);
+    expect(testButton?.hidden).toBe(true);
+
+    toggle!.checked = true;
+    toggle!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(content?.hidden).toBe(false);
+    expect(provider?.value).not.toBe('');
+
+    toggle!.checked = false;
+    toggle!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(content?.hidden).toBe(true);
+    expect(provider?.value).toBe('');
+    expect(testButton?.hidden).toBe(true);
+  });
 });
