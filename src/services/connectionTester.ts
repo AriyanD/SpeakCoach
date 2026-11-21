@@ -570,8 +570,15 @@ export async function testSlotConnection(
           slotConfig,
           apiKey,
           1.0,
-          options?.transport
+          options?.transport,
+          'en-US',
+          false,
+          undefined,
+          true
         );
+        if (synthRes.fromCache) {
+          throw new Error('Connection test must make a live network request; cached TTS audio cannot verify provider connectivity.');
+        }
         dataUrl = synthRes.dataUrl;
       } else if (preset.id === 'azure_tts') {
         const voiceName = (slotConfig.modelOrVoice || preset.defaultModelOrVoice).trim();
