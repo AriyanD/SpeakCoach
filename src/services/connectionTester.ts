@@ -7,6 +7,7 @@ import { networkMonitor } from './networkMonitor';
 import { clearSlotRuntimeFailure, markSlotRuntimeFailure } from './tierManager';
 import { clearProviderAccountHealth, createProviderVerificationFingerprint, markProviderAccountFailure, type ProviderAccount } from './providerHealth';
 import { saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../storage/localStore';
+import type { PersistedConnectionTestResult } from '../storage/localStore';
 import { cleanJsonPayload } from './ieltsLlmEvaluator';
 import { clearGeminiLanguageFailures, normalizeAudioDataUrl, synthesizeOnlineNeuralAudio } from './ttsService';
 import { buildCapacitorMultipartEntries, parseWhisperWordTimestamps, requestAzurePronunciationAssessment } from './whisperSttService';
@@ -844,11 +845,10 @@ export async function persistSlotAccountTestResult(
   slotConfig: SlotConfig,
   result: ConnectionTestResult,
   account: ProviderAccount
-): Promise<void> {
+): Promise<PersistedConnectionTestResult | null> {
   const passed = result.ok && result.tier !== 3;
   if (account === 'primary') {
-    await saveSlotConnectionTestResult(slotConfig.slotId, { ...result, ok: passed });
-    return;
+    return await saveSlotConnectionTestResult(slotConfig.slotId, { ...result, ok: passed });
   }
   const testResult = {
     ok: passed,
@@ -868,6 +868,7 @@ export async function persistSlotAccountTestResult(
     if (Number.isFinite(status) && status > 0) healthError.status = status;
     await markProviderAccountFailure(slotConfig.slotId, 'secondary', healthError);
   }
+  return null;
 }
 
 /** Shared single-account probe + persistence path. */
