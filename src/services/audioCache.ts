@@ -179,9 +179,9 @@ export function computeAudioCacheHash(params: {
   rate: number;
   text: string;
   endpoint?: string;
-  accountFingerprint?: string;
+  accountFingerprintHash?: string;
 }): string {
-  const input = `${params.providerId}|${params.endpoint ?? ''}|${params.accountFingerprint ?? ''}|${params.voiceOrModel.trim()}|${params.rate.toFixed(
+  const input = `${params.providerId}|${params.endpoint ?? ''}|${params.accountFingerprintHash ?? ''}|${params.voiceOrModel.trim()}|${params.rate.toFixed(
     2
   )}|${params.text.trim()}`;
   // Deterministic 64-bit FNV-1a twin hash in hex
