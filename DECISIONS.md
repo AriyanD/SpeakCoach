@@ -39,7 +39,7 @@
 - Network connectivity changes update connectivity state and diagnostics without rebuilding an active view. A stale asynchronous refresh must not overwrite a newer route.
 - Background/foreground transitions must release microphone and TTS resources. Interrupted answers are not silently submitted as complete answers.
 - UI controls must remain usable on narrow phone screens, with adequate touch targets in both light and dark themes.
-- The app's interface language is currently English. RTL support in the Android manifest does not by itself mean the UI is translated or right-to-left.
+- The app interface supports English and Persian (فارسی). Shadowing practice supports the languages available in its language catalogue; IELTS prompts and examiner feedback remain in English.
 
 ## 7. Backup & Restore Compatibility
 - AI settings restore validates the full import, snapshots the previous configuration, verifies key/config writes, and attempts rollback if any stage fails.
@@ -47,7 +47,7 @@
 - Changes to storage schemas must be additive and backward-compatible where possible. Do not rename existing API-key storage identifiers without a tested migration.
 
 ## 8. Android Release & Distribution
-- The Android application ID is `com.ariyand.speakcoach`; the first public release is `1.0.0` with Android `versionCode` 1.
+- The Android application ID is `com.ariyand.speakcoach`. The initial public release was `1.0.0` (`versionCode` 1); the current published release is `1.0.14` (`versionCode` 14).
 - A stable Release APK requires a persistent signing keystore. The current development workflow may build Debug and unsigned Release artifacts until the user chooses to configure release signing.
 - Keep the same package ID and signing certificate for every future update. GitHub Releases are the update source; the in-app updater compares semantic versions and only offers signed APK assets attached to published full releases.
 - Capacitor/Target SDK upgrades are scheduled for the point when distribution requirements make them necessary; they should be done in an isolated branch with device verification.
