@@ -1540,8 +1540,8 @@ export async function renderSettingsView(
           const previousLastTest = lastTestResults.get(slotId);
           try {
             for (const item of tested) {
-              await persistSlotAccountTestResult(item.config, item.result, item.account);
-              if (item.account === 'primary') lastTestResults.set(slotId, item.result);
+              const persistedResult = await persistSlotAccountTestResult(item.config, item.result, item.account);
+              if (item.account === 'primary' && persistedResult) lastTestResults.set(slotId, persistedResult);
               else configs[slotId].secondary = { ...item.config, verified: true, testResult: {
                 ok: true, latencyMs: item.result.latencyMs, message: item.result.message,
                 testedAt: Date.now(), verificationFingerprint: item.result.verificationFingerprint
@@ -2615,7 +2615,8 @@ clearPreloadedSentenceAudio();
       try {
         const { cfg, key } = await persistCurrentSlot();
         const result = await testAndPersistSlotAccount(cfg, { apiKeyOverride: key, account: 'primary' });
-        lastTestResults.set(slotId, result);
+        const persistedResult = await loadSlotConnectionTestResult(slotId);
+        lastTestResults.set(slotId, persistedResult ?? result);
         dismissedVerificationErrors.delete(slotId);
         if (verificationActions) verificationActions.style.display = result.ok ? 'none' : 'flex';
         if (slotBadge) {
