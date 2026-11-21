@@ -125,7 +125,7 @@ export async function renderSettingsView(
     const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
     const slotStatus = apiRequiredOfflineSelected
       ? 'api-required'
-      : resolved.label !== 'Online AI' && resolved.reason?.toLowerCase().includes('re-test')
+      : resolved.label !== 'Online AI' && (lastTest?.ok || resolved.reason?.toLowerCase().includes('re-test'))
         ? 'needs-retest'
         : resolved.label !== 'Online AI' && resolved.reason?.toLowerCase().includes('cooling down')
           ? 'cooldown'
