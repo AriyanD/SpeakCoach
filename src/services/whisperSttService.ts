@@ -153,6 +153,26 @@ export interface WhisperVerboseResponse {
   }>;
 }
 
+export async function isWhisperAccountReady(params: {
+  slotId: 'ielts_stt' | 'pronunciation_scoring';
+  account: 'primary' | 'secondary';
+  config: SlotConfig;
+  apiKey: string;
+  verification: { ok: boolean; providerId: string; tier: number; testedAt: number; verificationFingerprint?: string };
+  now?: number;
+}): Promise<boolean> {
+  const preset = getPreset(params.slotId, params.config.providerId);
+  const now = params.now ?? Date.now();
+  if (!params.verification.ok ||
+      params.verification.providerId !== params.config.providerId ||
+      params.verification.tier !== preset.tier ||
+      now - params.verification.testedAt >= CONNECTION_VERIFICATION_TTL_MS ||
+      (preset.requiresKey && !params.apiKey.trim())) return false;
+  const fingerprint = await createProviderVerificationFingerprint(params.config, params.apiKey);
+  if (!fingerprint || fingerprint !== params.verification.verificationFingerprint) return false;
+  return (await getProviderAccountHealth(params.slotId, params.account, now)) === null;
+}
+
 export interface WhisperTranscriptionOutcome {
   transcript: string;
   words: SpokenWordToken[];
@@ -564,27 +584,27 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   const primary = configs[requestedSlotId];
   const primaryTest = await loadSlotConnectionTestResult(requestedSlotId);
   const primaryKey = await loadApiKey(requestedSlotId, primary.providerId, 'primary');
-  const primaryFingerprint = await createProviderVerificationFingerprint(primary, primaryKey);
-  const primaryVerified = !!primaryTest?.ok &&
-    primaryTest.providerId === primary.providerId &&
-    primaryTest.tier === getPreset(requestedSlotId, primary.providerId).tier &&
-    !!primaryFingerprint && primaryTest.verificationFingerprint === primaryFingerprint &&
-    Date.now() - primaryTest.timestamp < CONNECTION_VERIFICATION_TTL_MS &&
-    (!getPreset(requestedSlotId, primary.providerId).requiresKey || !!primaryKey.trim());
-  const primaryHealth = await getProviderAccountHealth(requestedSlotId, 'primary');
-  if (primaryVerified && !primaryHealth && compatibleProviderIds.has(primary.providerId) && getPreset(requestedSlotId, primary.providerId).tier !== 3) {
+  const primaryVerified = primaryTest ? await isWhisperAccountReady({
+    slotId: requestedSlotId, account: 'primary', config: primary, apiKey: primaryKey,
+    verification: { ok: primaryTest.ok, providerId: primaryTest.providerId, tier: primaryTest.tier, testedAt: primaryTest.timestamp, verificationFingerprint: primaryTest.verificationFingerprint }
+  }) : false;
+  if (primaryVerified && compatibleProviderIds.has(primary.providerId) && getPreset(requestedSlotId, primary.providerId).tier !== 3) {
     candidates.push({ slotId: requestedSlotId, config: primary, account: 'primary' });
   }
   const secondary = primary.secondary;
-  if (secondary?.verified && secondary.testResult && Date.now() - secondary.testResult.testedAt < CONNECTION_VERIFICATION_TTL_MS) {
+  if (secondary?.verified && secondary.testResult) {
     const secondaryConfig: SlotConfig = { slotId: requestedSlotId, ...secondary };
     const secondaryKey = await loadApiKey(requestedSlotId, secondary.providerId, 'secondary');
-    const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, secondaryKey);
-    const secondaryHealth = await getProviderAccountHealth(requestedSlotId, 'secondary');
-    const secondaryVerified = !!secondaryFingerprint &&
-      secondary.testResult.verificationFingerprint === secondaryFingerprint &&
-      (!getPreset(requestedSlotId, secondary.providerId).requiresKey || !!secondaryKey.trim());
-    if (secondaryVerified && !secondaryHealth && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
+    const secondaryVerified = await isWhisperAccountReady({
+      slotId: requestedSlotId, account: 'secondary', config: secondaryConfig, apiKey: secondaryKey,
+      verification: {
+        ok: secondary.testResult.ok, providerId: secondary.providerId,
+        tier: getPreset(requestedSlotId, secondary.providerId).tier,
+        testedAt: secondary.testResult.testedAt,
+        verificationFingerprint: secondary.testResult.verificationFingerprint
+      }
+    });
+    if (secondaryVerified && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
       candidates.push({ slotId: requestedSlotId, config: secondaryConfig, account: 'secondary' });
     }
   }
