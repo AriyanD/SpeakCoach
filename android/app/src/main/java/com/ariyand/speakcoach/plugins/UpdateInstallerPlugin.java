@@ -19,6 +19,13 @@ import java.security.MessageDigest;
 
 @CapacitorPlugin(name = "UpdateInstaller")
 public class UpdateInstallerPlugin extends Plugin {
+    @PluginMethod
+    public void getAndroidSdkInt(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("sdkInt", Build.VERSION.SDK_INT);
+        call.resolve(result);
+    }
+
     private boolean matchesSha256(File file, String expected) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] buffer = new byte[8192];
@@ -33,6 +40,11 @@ public class UpdateInstallerPlugin extends Plugin {
 
     @PluginMethod
     public void installApk(PluginCall call) {
+        if (Build.VERSION.SDK_INT < 23) {
+            call.reject("This update requires Android 6.0 (API 23) or newer. Android 5.1 and older are not supported.");
+            return;
+        }
+
         String suppliedPath = call.getString("path");
         String expectedSha256 = call.getString("sha256");
         if (suppliedPath == null || suppliedPath.trim().isEmpty()) {

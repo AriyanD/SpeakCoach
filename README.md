@@ -4,7 +4,7 @@
 
 # SpeakCoach
 
-**English shadowing and IELTS Speaking practice for Android — bring your own AI, no backend, your keys stay on your phone.**
+**Multilingual shadowing and English IELTS Speaking practice for Android — bring your own AI, no backend, your keys stay on your phone.**
 
 [English](README.md) · [فارسی](README.fa.md)
 
@@ -24,7 +24,7 @@
 
 ## What is SpeakCoach?
 
-SpeakCoach is a practice coach for people who want to speak English more naturally and prepare for the IELTS Speaking test. It has two main tools:
+SpeakCoach is a practice coach for people who want to practise speaking in multiple languages and prepare for the IELTS Speaking test in English. It has two main tools:
 
 - **Shadowing Trainer** – listen to a sentence, repeat it, and get word-level feedback on what you said and how closely your timing followed the model.
 - **IELTS Speaking** – practise Full test, Part 1, Part 2 (with a preparation timer and notes) or Part 3 using AI-generated question sets, then receive a practice-estimate evaluation.
@@ -34,7 +34,7 @@ There is **no SpeakCoach server and no subscription**. You connect your own AI p
 ## Features
 
 ### Shadowing
-- Built-in sentence library by **topic** and **difficulty** (Easy / Medium / Hard).
+- Built-in multilingual sentence library by **language**, **topic** and **difficulty** (Easy / Medium / Hard).
 - **AI-generated sentences** on demand, optionally on a topic you choose.
 - Playback with **speed control**, word-by-word alignment and timing, and replay of your own recording where available.
 - Approximate scores for pronunciation, fluency, pace and completeness, with weak words highlighted for a quick retry.
@@ -124,6 +124,7 @@ TypeScript · vanilla DOM UI · Vite · Capacitor 6 (Android) · Vitest · GitHu
 - [Technical notes: release, signing, updates, backups](docs/TECHNICAL_NOTES.md)
 - [Device test checklist](docs/DEVICE_TEST_CHECKLIST.md)
 - [Architecture decisions](DECISIONS.md)
+- [Changelog and upcoming release notes](CHANGELOG.md)
 - [Mobile preview in the browser](MOBILE_PREVIEW.md)
 
 ## Screenshots

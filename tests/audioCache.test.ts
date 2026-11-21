@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearMemoryAudioCache,
   computeAudioCacheHash,
+  createAudioCacheAccountFingerprint,
   getCachedTtsAudio,
   setCachedTtsAudio
 } from '../src/services/audioCache';
@@ -21,6 +22,22 @@ describe('bounded TTS audio cache', () => {
     };
     expect(computeAudioCacheHash(input)).toBe(computeAudioCacheHash(input));
     expect(computeAudioCacheHash(input)).not.toBe(computeAudioCacheHash({ ...input, rate: 1 }));
+  });
+
+  it('uses a SHA-256-derived account fingerprint without exposing the API key', async () => {
+    if (!globalThis.crypto?.subtle) {
+      await expect(createAudioCacheAccountFingerprint('secret-api-key-one')).resolves.toBeNull();
+      return;
+    }
+
+    const first = await createAudioCacheAccountFingerprint('secret-api-key-one');
+    const same = await createAudioCacheAccountFingerprint('secret-api-key-one');
+    const other = await createAudioCacheAccountFingerprint('secret-api-key-two');
+
+    expect(first).toMatch(/^[a-f0-9]{32}$/);
+    expect(same).toBe(first);
+    expect(other).not.toBe(first);
+    expect(first).not.toContain('secret-api-key-one');
   });
 
   it('stores and retrieves generated audio', async () => {

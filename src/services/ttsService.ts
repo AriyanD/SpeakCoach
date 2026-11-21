@@ -3,7 +3,7 @@ import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { getPreset, normalizeBaseUrl } from '../config/providers';
 import type { ResolvedSlotTier, SlotConfig } from '../config/types';
 import { loadAllSlotsConfig } from '../storage/localStore';
-import { computeAudioCacheHash, getCachedTtsAudio, setCachedTtsAudio, setMemoryOnlyTtsAudio, removeMemoryOnlyTtsAudio } from './audioCache';
+import { createAudioCacheAccountFingerprint, computeAudioCacheHash, getCachedTtsAudio, setCachedTtsAudio, setMemoryOnlyTtsAudio, removeMemoryOnlyTtsAudio } from './audioCache';
 import { nativeHttpRequest, redactUrlForLog } from './httpClient';
 import { executeWithTierFallback } from './tierManager';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest } from './customEndpointHelper';
@@ -27,6 +27,24 @@ let temporaryCacheGeneration = 0;
 const temporaryCacheHashes = new Set<string>();
 const prefetchTasks = new Map<string, Promise<void>>();
 let prefetchQueueTail: Promise<void> = Promise.resolve();
+
+async function storeGeneratedAudio(
+  hash: string,
+  dataUrl: string,
+  memoryOnly: boolean,
+  cacheGeneration: number,
+  cacheEnabled: boolean
+): Promise<void> {
+  if (!cacheEnabled) return;
+  if (memoryOnly) {
+    if (cacheGeneration === temporaryCacheGeneration) {
+      setMemoryOnlyTtsAudio(hash, dataUrl);
+      temporaryCacheHashes.add(hash);
+    }
+    return;
+  }
+  await setCachedTtsAudio(hash, dataUrl);
+}
 
 export function stopAllTts(): void {
   activePlaybackGeneration++;
@@ -85,18 +103,22 @@ export async function synthesizeOnlineNeuralAudio(
   memoryOnly = false,
   cacheGeneration = temporaryCacheGeneration
 ): Promise<{ dataUrl: string; fromCache: boolean }> {
+  const accountFingerprint = await createAudioCacheAccountFingerprint(apiKey);
+  // If Web Crypto is unavailable, synthesize normally but bypass cache so
+  // audio from separate provider accounts can never share a cache namespace.
+  const cacheEnabled = accountFingerprint !== null;
   const hash = computeAudioCacheHash({
     providerId: slotCfg.providerId,
     voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${locale}`,
     rate,
     text,
     endpoint: slotCfg.baseUrl?.trim() ?? '',
-    accountFingerprint: apiKey
+    accountFingerprintHash: accountFingerprint ?? undefined
   });
 
-  const cached = await getCachedTtsAudio(hash);
-  if (cached) {
-    return { dataUrl: cached, fromCache: true };
+  if (cacheEnabled) {
+    const cached = await getCachedTtsAudio(hash);
+    if (cached) return { dataUrl: cached, fromCache: true };
   }
 
   const baseUrl = normalizeBaseUrl(slotCfg.baseUrl);
@@ -142,14 +164,7 @@ export async function synthesizeOnlineNeuralAudio(
     );
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error(`Empty audio payload from ${slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
-    if (memoryOnly) {
-      if (cacheGeneration === temporaryCacheGeneration) {
-        setMemoryOnlyTtsAudio(hash, dataUrl);
-        temporaryCacheHashes.add(hash);
-      }
-    } else {
-      await setCachedTtsAudio(hash, dataUrl);
-    }
+    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
     return { dataUrl, fromCache: false };
   }
 
@@ -240,14 +255,7 @@ export async function synthesizeOnlineNeuralAudio(
     const dataUrl = mimeType.includes('wav')
       ? `data:audio/wav;base64,${cleanB64}`
       : convertPcmBase64ToWavDataUrl(cleanB64, 24000);
-    if (memoryOnly) {
-      if (cacheGeneration === temporaryCacheGeneration) {
-        setMemoryOnlyTtsAudio(hash, dataUrl);
-        temporaryCacheHashes.add(hash);
-      }
-    } else {
-      await setCachedTtsAudio(hash, dataUrl);
-    }
+    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
     return { dataUrl, fromCache: false };
   }
 
@@ -280,14 +288,7 @@ export async function synthesizeOnlineNeuralAudio(
     );
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error('Empty audio payload from Azure Neural TTS');
-    if (memoryOnly) {
-      if (cacheGeneration === temporaryCacheGeneration) {
-        setMemoryOnlyTtsAudio(hash, dataUrl);
-        temporaryCacheHashes.add(hash);
-      }
-    } else {
-      await setCachedTtsAudio(hash, dataUrl);
-    }
+    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
     return { dataUrl, fromCache: false };
   }
 
@@ -322,14 +323,7 @@ export async function synthesizeOnlineNeuralAudio(
     );
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error('Empty audio payload from ElevenLabs TTS');
-    if (memoryOnly) {
-      if (cacheGeneration === temporaryCacheGeneration) {
-        setMemoryOnlyTtsAudio(hash, dataUrl);
-        temporaryCacheHashes.add(hash);
-      }
-    } else {
-      await setCachedTtsAudio(hash, dataUrl);
-    }
+    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
     return { dataUrl, fromCache: false };
   }
 

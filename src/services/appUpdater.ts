@@ -1,4 +1,4 @@
-import { registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { APP_VERSION } from '../config/appVersion';
 
@@ -22,10 +22,26 @@ export interface SpeakCoachUpdate {
 }
 
 interface UpdateInstallerPlugin {
+  getAndroidSdkInt(): Promise<{ sdkInt: number }>;
   installApk(options: { path: string; sha256: string }): Promise<{ permissionRequired: boolean }>;
 }
 
 const UpdateInstaller = registerPlugin<UpdateInstallerPlugin>('UpdateInstaller');
+
+export function assertMinimumAndroidSdk(sdkInt: number): void {
+  if (!Number.isInteger(sdkInt) || sdkInt < 1) {
+    throw new Error('SpeakCoach could not verify this device’s Android version. Update checking and installation have been stopped for safety.');
+  }
+  if (sdkInt < 23) {
+    throw new Error(`This update requires Android 6.0 (API 23) or newer. This device reports API ${sdkInt}; Android 5.1 and older are not supported.`);
+  }
+}
+
+async function assertSupportedAndroidDevice(): Promise<void> {
+  if (Capacitor.getPlatform() !== 'android') return;
+  const device = await UpdateInstaller.getAndroidSdkInt();
+  assertMinimumAndroidSdk(device.sdkInt);
+}
 
 function parseVersion(value: string): [number, number, number] | null {
   const match = value.trim().replace(/^v/i, '').match(/^(\d+)\.(\d+)\.(\d+)$/);
@@ -44,6 +60,7 @@ function isNewerVersion(candidate: string, current: string): boolean {
 }
 
 export async function checkForSpeakCoachUpdate(): Promise<SpeakCoachUpdate | null> {
+  await assertSupportedAndroidDevice();
   const response = await fetch(LATEST_RELEASE_API, {
     method: 'GET',
     headers: { Accept: 'application/vnd.github+json' },
@@ -142,6 +159,7 @@ export async function downloadSpeakCoachUpdate(asset: SpeakCoachReleaseAsset): P
 }
 
 export async function installSpeakCoachUpdate(path: string, sha256: string): Promise<boolean> {
+  await assertSupportedAndroidDevice();
   const result = await UpdateInstaller.installApk({ path, sha256 });
   return result.permissionRequired;
 }

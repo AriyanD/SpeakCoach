@@ -638,6 +638,20 @@ export async function renderSettingsView(
         <div id="app-language-status" class="appearance-status" role="status" aria-live="polite">Language preference is saved on this device.</div>
       </div>
     </section>
+    <section class="card settings-shadowing-performance-card">
+      <div class="card-header"><h2 class="card-title">Shadowing performance</h2></div>
+      <div class="appearance-setting">
+        <div class="appearance-setting-copy">
+          <label class="form-label" for="shadowing-prefetch-enabled">Prepare upcoming model audio in advance</label>
+          <p class="card-subtitle">When enabled, SpeakCoach prepares up to four upcoming sentences in the background to reduce waiting. This uses your configured TTS provider's quota, even if you do not reach every sentence. Turn it off to avoid background TTS requests.</p>
+        </div>
+        <label class="form-label" for="shadowing-prefetch-enabled">
+          <input type="checkbox" id="shadowing-prefetch-enabled" ${appSettings.prefetchShadowingAudio ? 'checked' : ''} />
+          Enable audio prefetch
+        </label>
+        <div id="shadowing-prefetch-status" class="appearance-status" role="status" aria-live="polite">This preference is saved on this device.</div>
+      </div>
+    </section>
     <section class="card settings-appearance-card">
       <div class="card-header"><h2 class="card-title">Appearance</h2></div>
       <div class="appearance-setting">
@@ -1085,6 +1099,9 @@ export async function renderSettingsView(
       customProviderStatus.textContent = `Applied to ${applied} of ${compatible.length} compatible slots. Existing API 2 backups were preserved.`;
     }
     customProviderApplyButton.disabled = applied === 0;
+    if (applied > 0 && applied === compatible.length && customProviderKey) {
+      customProviderKey.value = '';
+    }
     refreshRequiredApiStatus();
     await _onSettingsUpdated();
   });
@@ -1193,6 +1210,25 @@ export async function renderSettingsView(
       if (status) status.textContent = 'Could not save the language setting. Please try again.';
     } finally { languageSelect.disabled = false; }
   });
+  const shadowingPrefetchToggle = container.querySelector<HTMLInputElement>('#shadowing-prefetch-enabled');
+  shadowingPrefetchToggle?.addEventListener('change', async () => {
+    const enabled = shadowingPrefetchToggle.checked;
+    shadowingPrefetchToggle.disabled = true;
+    const status = container.querySelector<HTMLElement>('#shadowing-prefetch-status');
+    try {
+      await saveAppSettings({ prefetchShadowingAudio: enabled });
+      appSettings.prefetchShadowingAudio = enabled;
+      if (status) status.textContent = enabled
+        ? 'Audio prefetch is enabled. Upcoming sentences may use your TTS provider quota.'
+        : 'Audio prefetch is disabled. Model audio will be requested when you play each sentence.';
+    } catch {
+      shadowingPrefetchToggle.checked = appSettings.prefetchShadowingAudio;
+      if (status) status.textContent = 'Could not save this preference. Please try again.';
+    } finally {
+      shadowingPrefetchToggle.disabled = false;
+    }
+  });
+
   container.querySelector<HTMLButtonElement>('#settings-open-setup-guide')?.addEventListener('click', () => { void showSetupGuide(); });
 
   const themeSelect = container.querySelector<HTMLSelectElement>('#app-theme');

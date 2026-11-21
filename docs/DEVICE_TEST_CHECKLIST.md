@@ -40,6 +40,8 @@ These checks require a real Android device. CI unit tests and APK compilation do
 - [ ] While Shadowing is recording, background the app; confirm recording stops and the UI returns to a non-recording state when reopened.
 - [ ] Test on a device with an on-device speech service available and another configuration without one. Airplane-mode recognition must not be assumed unless verified on that device.
 - [ ] Confirm the UI explains that Android system speech recognition may use a network service when offline processing is only preferred.
+- [ ] In IELTS History, delete one record and confirm its saved telemetry is cleared when it was the latest evaluation; then Delete all history and confirm the last evaluation plus local session logs are removed.
+- [ ] In Diagnostics, clear the saved Shadowing attempt and confirm raw recognizer text, alternatives and word timings disappear from both the view and persistent storage.
 
 ## 5. Shadowing and visual regression
 - [ ] Test normal Play, Slow Play, Record, Stop & Score, retry, and weak-word practice; verify visible loading/pressed states and no double actions.
@@ -48,6 +50,7 @@ These checks require a real Android device. CI unit tests and APK compilation do
 - [ ] Confirm TTS prefetch starts only after the first normal-play/record action, initially queues up to four upcoming sentences, and queues the next batch only after two distinct sentences have been successfully practised and scored.
 - [ ] Change language or sentence set while prefetch is queued; verify stale queued batches are discarded and do not generate audio for the previous set.
 - [ ] Check that failed prefetch does not lock playback to offline TTS; pressing Play on that sentence should attempt online TTS again before falling back.
+- [ ] In Settings → Shadowing performance, disable prefetch; verify normal Play/Record makes no background TTS requests. Re-enable it and confirm the four-at-a-time schedule resumes.
 - [ ] Monitor provider usage/quota and memory on a long session; confirm prefetched audio is RAM-only and remains within the bounded cache.
 - [ ] In Settings, preview multiple voices and confirm previews play correctly without creating persistent audio-cache entries.
 - [ ] Confirm Tier 2/3 feedback is labelled as word-match/timing guidance, not phoneme-level pronunciation assessment.
@@ -55,8 +58,9 @@ These checks require a real Android device. CI unit tests and APK compilation do
 - [ ] Check keyboard-open layout, landscape, large system font, reduced motion, safe areas, and bottom navigation.
 
 ## 6. Android minimum-version and update compatibility
-- [ ] On Android 6.0 (API 23), install the current APK and verify the app launches, saves settings, records audio, and installs a later signed update.
-- [ ] On Android 5.1 (API 22), verify the current release is not offered as an installable update; the platform cannot install an APK whose minimum SDK is 23. Confirm release notes clearly state Android 6.0+ is required.
+- [ ] On Android 6.0 (API 23), install the next API-23+ APK and verify the app launches, saves settings, records audio, checks for updates and installs a later signed update.
+- [ ] On Android 5.1 (API 22), test the already-published 1.0.14 updater separately: it may still offer a future API-23+ APK because its old updater cannot be retrofitted, but Android's installer must reject that APK. Do not describe the old updater as blocking the offer.
+- [ ] Before publishing any API-23+ release, state prominently in the GitHub Release notes and download instructions that Android 6.0+ is required; do not publish a new APK as a routine update without this warning.
 
 ## 7. Android Back navigation and bottom navigation
 - [ ] From Diagnostics, press Back; confirm the Settings root is restored at the top. Press Back again; confirm “Press back again to exit.” appears. Press Back once more within two seconds; confirm the app exits.
