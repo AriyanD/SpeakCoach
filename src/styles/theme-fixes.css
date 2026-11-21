@@ -62,4 +62,4 @@
   outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
-.sh-record-controls .sh-record-action.btn-record:disabled { opacity: .48; }
+.sh-record-controls .sh-record-action.btn-record:disabled { background: var(--record-disabled-bg); opacity: 1; border-style: dashed; }
