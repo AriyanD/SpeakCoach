@@ -114,6 +114,43 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;');
 }
 
+async function findCachedActiveSetAudio(
+  text: string,
+  rate: number,
+  locale: string,
+  setAudio: { setId: string; generation: number; kind: 'sentence' | 'extra' },
+  voiceSlot: SlotConfig
+): Promise<{ dataUrl: string; hash: string; config: SlotConfig; preset: ReturnType<typeof getPreset> } | null> {
+  const accounts: Array<{ config: SlotConfig; account: 'primary' | 'secondary' }> = [
+    { config: voiceSlot, account: 'primary' },
+    ...(voiceSlot.secondary ? [{ config: { slotId: 'voice_tts' as const, ...voiceSlot.secondary }, account: 'secondary' as const }] : [])
+  ];
+  for (const account of accounts) {
+    const preset = getPreset('voice_tts', account.config.providerId);
+    if (preset.tier === 3) continue;
+    const key = await loadApiKey('voice_tts', account.config.providerId, account.account);
+    const fingerprint = await createAudioCacheAccountFingerprint(key);
+    if (!fingerprint) continue;
+    const hash = computeAudioCacheHash({
+      providerId: account.config.providerId,
+      endpoint: account.config.baseUrl?.trim() ?? '',
+      accountFingerprintHash: fingerprint,
+      voiceOrModel: `${account.config.modelOrVoice}|${account.config.customTtsVoice?.trim() ?? ''}|${locale}`,
+      rate,
+      text
+    });
+    const fromSet = await readActiveShadowingAudio(hash, setAudio.setId);
+    const dataUrl = fromSet ?? await getCachedTtsAudio(hash);
+    if (!dataUrl) continue;
+    if (!fromSet) {
+      try { await persistActiveShadowingAudio({ ...setAudio, hash, dataUrl }); }
+      catch (error) { console.warn('[ttsService] Could not copy an existing TTS cache entry into the active set store.', error); }
+    }
+    return { dataUrl, hash, config: account.config, preset };
+  }
+  return null;
+}
+
 export async function synthesizeOnlineNeuralAudio(
   text: string,
   slotCfg: SlotConfig,
@@ -629,31 +666,11 @@ export async function speakSentenceWithTierFallback(
   const configs = await loadAllSlotsConfig();
   const voiceSlot = configs.voice_tts;
 
-  // A durable active-set entry is usable even when the device is offline or
-  // the provider currently resolves to Tier 3. Look up both configured
-  // accounts using the same provider/key/model/voice/rate/text hash.
+  // Durable active-set audio is checked before tier resolution so it remains
+  // playable offline and in Tier 3 without contacting a provider.
   if (options?.shadowingSetAudio) {
-    const localeKey = locale;
-    const accounts: Array<{ config: SlotConfig; account: 'primary' | 'secondary' }> = [
-      { config: voiceSlot, account: 'primary' },
-      ...(voiceSlot.secondary ? [{ config: { slotId: 'voice_tts' as const, ...voiceSlot.secondary }, account: 'secondary' as const }] : [])
-    ];
-    for (const account of accounts) {
-      const preset = getPreset('voice_tts', account.config.providerId);
-      if (preset.tier === 3) continue;
-      const key = await loadApiKey('voice_tts', account.config.providerId, account.account);
-      const fingerprint = await createAudioCacheAccountFingerprint(key);
-      if (!fingerprint) continue;
-      const hash = computeAudioCacheHash({
-        providerId: account.config.providerId,
-        endpoint: account.config.baseUrl?.trim() ?? '',
-        accountFingerprintHash: fingerprint,
-        voiceOrModel: `${account.config.modelOrVoice}|${account.config.customTtsVoice?.trim() ?? ''}|${localeKey}`,
-        rate,
-        text
-      });
-      const cachedSetAudio = await readActiveShadowingAudio(hash, options.shadowingSetAudio.setId);
-      if (!cachedSetAudio) continue;
+    const cachedSetAudio = await findCachedActiveSetAudio(text, rate, locale, options.shadowingSetAudio, voiceSlot);
+    if (cachedSetAudio) {
       const activeSet = await getActiveShadowingAudioSet();
       if (activeSet.setId !== options.shadowingSetAudio.setId || activeSet.generation !== options.shadowingSetAudio.generation) {
         return { activeTier: await resolveSlotTier(voiceSlot), fromCache: false, durationEstimateMs };
@@ -661,19 +678,19 @@ export async function speakSentenceWithTierFallback(
       const resolved = await resolveSlotTier(voiceSlot);
       const cachedTier: ResolvedSlotTier = {
         ...resolved,
-        providerId: account.config.providerId,
-        providerName: preset.name,
-        tier: preset.tier,
+        providerId: cachedSetAudio.config.providerId,
+        providerName: cachedSetAudio.preset.name,
+        tier: cachedSetAudio.preset.tier,
         label: 'Online AI',
-        detailLabel: `Cached audio · ${preset.name}`,
+        detailLabel: `Cached audio · ${cachedSetAudio.preset.name}`,
         isFallback: false,
         reason: resolved.tier === 3 ? 'Playing saved generated audio while offline; no provider request was needed.' : undefined
       };
-      markActiveSetAudioPlaying(options.shadowingSetAudio.setId, hash);
+      markActiveSetAudioPlaying(options.shadowingSetAudio.setId, cachedSetAudio.hash);
       try {
-        await playAudioDataUrl(cachedSetAudio, 1.0, 30000, options.onPlaybackStart);
+        await playAudioDataUrl(cachedSetAudio.dataUrl, 1.0, 30000, options.onPlaybackStart);
       } finally {
-        await releaseActiveSetAudioPlaying(options.shadowingSetAudio.setId, hash);
+        await releaseActiveSetAudioPlaying(options.shadowingSetAudio.setId, cachedSetAudio.hash);
       }
       return { activeTier: cachedTier, fromCache: true, durationEstimateMs };
     }
@@ -793,6 +810,7 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
     try {
       if (generation !== temporaryCacheGeneration || userInitiatedSynthesisInFlight > 0) return false;
       const configs = await loadAllSlotsConfig();
+      if (options?.shadowingSetAudio && await findCachedActiveSetAudio(normalizedText, 1, locale, options.shadowingSetAudio, configs.voice_tts)) return true;
       const resolved = await resolveSlotTier(configs.voice_tts);
       // Prefetch is opportunistic: never probe an offline/unverified provider.
       if (resolved.tier === 3 || userInitiatedSynthesisInFlight > 0) return false;
