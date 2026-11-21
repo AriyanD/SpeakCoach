@@ -910,7 +910,8 @@ export async function renderSettingsView(
                 const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
                 secondaryConfig = { ...secondaryConfig, verified: false, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
-clearPreloadedSentenceAudio();
+                clearPreloadedSentenceAudio();
+                if (item.slotId === 'voice_tts') await clearActiveShadowingAudioStore();
                 configs[item.slotId].secondary = secondaryConfig;
                 secondaryStatus = `API 2 test failed: ${message}`;
               }
