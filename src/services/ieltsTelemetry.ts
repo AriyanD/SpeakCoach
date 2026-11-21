@@ -109,10 +109,14 @@ export async function getLastIeltsEvaluation(): Promise<IeltsTestRecord | null> 
 
 export async function clearIeltsTelemetry(): Promise<void> {
   inMemoryLastRecord = null;
-  if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem(LAST_IELTS_KEY);
-  }
-  // Preferences is the primary store on Android; removing only the browser
-  // copy lets the supposedly cleared record reappear on the next read.
+  clearIeltsSessionLogs();
+
+  // Preferences is the primary store on Android; clear both stores so stale
+  // evaluation data cannot reappear after the browser fallback is cleared.
   await Preferences.remove({ key: LAST_IELTS_KEY });
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(LAST_IELTS_KEY);
+  } catch {
+    // Preferences remains the source of truth on Android.
+  }
 }
