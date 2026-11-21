@@ -597,4 +597,52 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     clearGeminiLanguageFailures('gemini_tts');
   });
 
+  it('discards an in-flight Play result when the active sentence set changes', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'stale-set-key');
+    await saveSlotConnectionTestResult('voice_tts', {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    });
+    const oldSetId = 'en:easy:old-stale-set';
+    const oldGeneration = await activateShadowingAudioSet(oldSetId);
+    const sentence = 'This generated response must not survive a set switch.';
+    const fingerprint = await createAudioCacheAccountFingerprint('stale-set-key');
+    if (!fingerprint) return;
+    const hash = computeAudioCacheHash({
+      providerId: 'openai_tts', endpoint: config.baseUrl, accountFingerprintHash: fingerprint,
+      voiceOrModel: 'tts-1:alloy||en-US', rate: 1, text: sentence
+    });
+    let release: ((response: { url: string; status: number; headers: Record<string, string>; data: string }) => void) | undefined;
+    let calls = 0;
+    const transport = async (opts: { url: string }) => {
+      calls++;
+      return new Promise<{ url: string; status: number; headers: Record<string, string>; data: string }>(resolve => { release = resolve; });
+    };
+    vi.stubGlobal('Audio', undefined);
+    try {
+      const playback = speakSentenceWithTierFallback(sentence, {
+        transport,
+        shadowingSetAudio: { setId: oldSetId, generation: oldGeneration, kind: 'sentence' }
+      });
+      while (!release) await new Promise(resolve => setTimeout(resolve, 0));
+      await activateShadowingAudioSet('en:easy:new-stale-set');
+      release?.({
+        url: 'https://api.openai.com/v1/audio/speech', status: 200, headers: {},
+        data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA'
+      });
+      await playback;
+      expect(calls).toBe(1);
+      await expect(readActiveShadowingAudio(hash, 'en:easy:new-stale-set')).resolves.toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
 });
