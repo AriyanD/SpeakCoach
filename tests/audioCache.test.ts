@@ -25,6 +25,11 @@ describe('bounded TTS audio cache', () => {
   });
 
   it('uses a SHA-256-derived account fingerprint without exposing the API key', async () => {
+    if (!globalThis.crypto?.subtle) {
+      await expect(createAudioCacheAccountFingerprint('secret-api-key-one')).resolves.toBeNull();
+      return;
+    }
+
     const first = await createAudioCacheAccountFingerprint('secret-api-key-one');
     const same = await createAudioCacheAccountFingerprint('secret-api-key-one');
     const other = await createAudioCacheAccountFingerprint('secret-api-key-two');
