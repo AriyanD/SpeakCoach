@@ -1463,7 +1463,11 @@ export async function renderSettingsView(
     settingsProviderTestRunning = true;
     cancelTestAllApis = false;
     testAllButton.textContent = 'Cancel tests';
-    const singleTestButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('.settings-test-button'));
+    const singleTestButtons = [
+      ...Array.from(container.querySelectorAll<HTMLButtonElement>('.settings-test-button')),
+      container.querySelector<HTMLButtonElement>('#quick-setup-run-btn'),
+      container.querySelector<HTMLButtonElement>('#quick-custom-test')
+    ].filter((button): button is HTMLButtonElement => !!button);
     const importButtons = ['#import-ai-backup', '#import-test-backup'].map(selector => container.querySelector<HTMLButtonElement>(selector)).filter((button): button is HTMLButtonElement => !!button);
     const previousDisabled = [...singleTestButtons, ...importButtons].map(button => button.disabled);
     [...singleTestButtons, ...importButtons].forEach(button => { button.disabled = true; });
