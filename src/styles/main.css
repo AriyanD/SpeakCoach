@@ -3929,3 +3929,38 @@ body {
 .sh-result-details { margin: 12px 0 0; }
 .sh-result-details > h2 { padding: 0 2px 8px; border-bottom: 1px solid var(--border); margin: 0 0 8px; }
 .sh-result-details #sh-score-card { margin-top: 0; }
+
+
+/* Keep the bulk API test button aligned with the full-width backup action. */
+.backup-card #test-all-apis-btn {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 48px;
+}
+
+/* Compact Shadowing score chips so four words fit across the trainer card. */
+.sh-result-details .word-tokens-wrap {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+.sh-result-details .word-chip {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 3px;
+  gap: 2px;
+  font-size: .76rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.sh-result-details .word-chip-status {
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+}
+.sh-result-details .word-chip-meta {
+  font-size: .66rem;
+  line-height: 1.15;
+  text-align: center;
+}
