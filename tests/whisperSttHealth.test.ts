@@ -16,7 +16,7 @@ describe('Whisper STT provider verification', () => {
   it('requires a matching API-key/config fingerprint and a fresh 30-day test', async () => {
     const config = {
       slotId: 'pronunciation_scoring' as const,
-      providerId: 'whisper_stt',
+      providerId: 'whisper_alignment',
       baseUrl: 'https://api.groq.com/openai/v1',
       modelOrVoice: 'whisper-large-v3'
     };
@@ -24,7 +24,7 @@ describe('Whisper STT provider verification', () => {
     const fingerprint = await createProviderVerificationFingerprint(config, apiKey);
     if (!fingerprint) return;
     const verification = {
-      ok: true, providerId: 'whisper_stt', tier: 2,
+      ok: true, providerId: 'whisper_alignment', tier: 2,
       testedAt: 10_000, verificationFingerprint: fingerprint
     };
     const params = { slotId: 'pronunciation_scoring' as const, account: 'primary' as const, config, apiKey, verification, now: 20_000 };
@@ -36,7 +36,7 @@ describe('Whisper STT provider verification', () => {
   it('skips an account in persistent needs-retest health and accepts it after a successful re-test', async () => {
     const config = {
       slotId: 'pronunciation_scoring' as const,
-      providerId: 'whisper_stt',
+      providerId: 'whisper_alignment',
       baseUrl: 'https://api.groq.com/openai/v1',
       modelOrVoice: 'whisper-large-v3'
     };
@@ -49,7 +49,7 @@ describe('Whisper STT provider verification', () => {
       config,
       apiKey,
       verification: {
-        ok: true, providerId: 'whisper_stt', tier: 2,
+        ok: true, providerId: 'whisper_alignment', tier: 2,
         testedAt: Date.now(), verificationFingerprint: fingerprint
       }
     };
