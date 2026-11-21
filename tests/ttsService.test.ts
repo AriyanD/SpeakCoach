@@ -582,22 +582,32 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     const transport = async (opts: { url: string }) => {
       calls++;
       return {
-        url: opts.url, status: calls === 1 ? 404 : 200, headers: {},
-        data: calls === 1
+        url: opts.url, status: calls <= 2 ? 404 : 200, headers: {},
+        data: calls <= 2
           ? { error: { message: 'Model not found' } }
           : { candidates: [{ content: { parts: [{ inlineData: { data: 'UklGRg==', mimeType: 'audio/wav' } }] } }] }
       };
     };
-    await expect(synthesizeOnlineNeuralAudio('First sentence.', config, 'gemini-language-key', 1, transport, 'en-US'))
-      .rejects.toThrow();
-    await expect(synthesizeOnlineNeuralAudio('Second sentence.', config, 'gemini-language-key', 1, transport, 'en-US'))
-      .rejects.toThrow();
-    expect(calls).toBe(1);
+    vi.useFakeTimers();
+    try {
+      await expect(synthesizeOnlineNeuralAudio('First sentence.', config, 'gemini-language-key', 1, transport, 'en-US'))
+        .rejects.toThrow();
+      await expect(synthesizeOnlineNeuralAudio('Second sentence.', config, 'gemini-language-key', 1, transport, 'en-US'))
+        .rejects.toThrow();
+      expect(calls).toBe(1);
 
-    await expect(synthesizeOnlineNeuralAudio('Probe sentence.', config, 'gemini-language-key', 1, transport, 'en-US', false, undefined, true))
-      .resolves.toMatchObject({ fromCache: false });
-    expect(calls).toBe(2);
-    clearGeminiLanguageFailures('gemini_tts');
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+      await expect(synthesizeOnlineNeuralAudio('After expiry.', config, 'gemini-language-key', 1, transport, 'en-US'))
+        .rejects.toThrow();
+      expect(calls).toBe(2);
+
+      await expect(synthesizeOnlineNeuralAudio('Probe sentence.', config, 'gemini-language-key', 1, transport, 'en-US', false, undefined, true))
+        .resolves.toMatchObject({ fromCache: false });
+      expect(calls).toBe(3);
+    } finally {
+      vi.useRealTimers();
+      clearGeminiLanguageFailures('gemini_tts');
+    }
   });
 
   it('discards an in-flight Play result when the active sentence set changes', async () => {
