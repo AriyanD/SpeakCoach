@@ -19,7 +19,7 @@ import {
 import { recordLastShadowingAttempt } from '../services/shadowingTelemetry';
 import { loadAppSettings } from '../storage/appSettings';
 import type { GlobalTierSummary } from '../services/tierManager';
-import { playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
+import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
 import { activateShadowingAudioSet } from '../services/shadowingAudioStore';
 import { translateShadowingText } from '../services/translationService';
 import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavVadAnalyzer';
@@ -147,6 +147,7 @@ let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
 let shadowingModelPlaybackToken = 0;
 let shadowingIsStopping = false;
 let shadowingPrefetchWindowKey = '';
+let shadowingActiveAudioSetId: string | null = null;
 let shadowingPrefetchEpoch = 0;
 const shadowingPrefetchScheduler = new ShadowingPrefetchScheduler();
 let shadowingPrefetchQueue: Promise<void> = Promise.resolve();
@@ -419,6 +420,10 @@ export function renderShadowingView(
     : Promise.resolve(null);
   // Stable identity is the persisted sentence-set ID, not view lifecycle or the first sentence.
   const prefetchWindowKey = `${activeAudioSetId ?? 'none'}:${state.customDrillText ?? ''}`;
+  if (activeAudioSetId !== shadowingActiveAudioSetId) {
+    shadowingActiveAudioSetId = activeAudioSetId;
+    clearPreloadedSentenceAudio(); // Clear RAM-only entries only on a real active-set change.
+  }
   if (prefetchWindowKey !== shadowingPrefetchWindowKey) {
     shadowingPrefetchWindowKey = prefetchWindowKey;
     shadowingPrefetchEpoch++;
