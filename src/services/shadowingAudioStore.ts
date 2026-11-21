@@ -6,7 +6,7 @@ import { removeTtsAudioCacheEntries, removeTtsAudioFromMemory } from './audioCac
 const INDEX_KEY = 'speakcoach.shadowing.audio-set-index.v1';
 const ACTIVE_SET_KEY = 'speakcoach.shadowing.audio-active-set.v1';
 const ROOT = 'SpeakCoach/shadowing-audio';
-const MAX_SET_CHARS = 80_000_000;
+const MAX_SET_CHARS = 40_000_000;
 
 interface Entry {
   hash: string;
