@@ -59,6 +59,7 @@ These checks require a real Android device. CI unit tests and APK compilation do
 
 - [ ] Run the same Gemini TTS connection test twice with a valid key; each test must make a live request. Revoke the key or simulate HTTP 401 on the second test and confirm it fails instead of reusing cached audio.
 - [ ] Start prefetch for a sentence, then immediately play that same sentence; confirm the provider receives exactly one synthesis request.
+- [ ] Start a long user-initiated TTS request and trigger a different prefetch batch; confirm the prefetch worker does not start another provider request until playback synthesis has finished.
 - [ ] With the voice slot unverified, offline, or in cooldown, trigger Shadowing prefetch and confirm zero provider requests are sent.
 - [ ] Make the first prefetch in a batch fail with HTTP 429/5xx; confirm the remaining sentences in that batch are not requested.
 - [ ] Simulate HTTP 400/401/403/404 for API 1 and confirm it is marked Needs re-test and skipped while a healthy API 2 can still be used. Confirm the status survives force-close/relaunch.
