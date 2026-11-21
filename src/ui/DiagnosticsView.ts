@@ -2,6 +2,7 @@ import { confirmInApp } from './confirmDialog';
 import { SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { runFullDiagnostics, type DiagnosticsReport } from '../services/diagnostics';
 import { getLastIeltsEvaluation, getIeltsSessionLogs } from '../services/ieltsTelemetry';
+import { clearLastShadowingAttempt } from '../services/shadowingTelemetry';
 
 let cachedReport: DiagnosticsReport | null = null;
 
@@ -67,6 +68,7 @@ function renderLastAttemptSection(report: DiagnosticsReport): string {
           <p class="card-subtitle">Recorded at ${attempt.timestamp.slice(11, 19)} UTC${
             attempt.sttActiveTierLabel ? ` · STT Tier: ${escapeHtml(attempt.sttActiveTierLabel)}` : ''
           }</p>
+          <button type="button" class="btn btn-secondary" id="diag-clear-shadowing-attempt-btn">Clear saved attempt</button>
         </div>
         ${badgeForBool(!attempt.wasEmptyRecognition, `SCORE ${attempt.overallScore}`, 'EMPTY (0)')}
       </div>
@@ -380,6 +382,27 @@ export async function renderDiagnosticsView(
 
   const reqMicBtn = container.querySelector<HTMLButtonElement>('#diag-request-mic-btn');
   const runAllBtn = container.querySelector<HTMLButtonElement>('#diag-run-all-btn');
+  const clearShadowingAttemptBtn = container.querySelector<HTMLButtonElement>('#diag-clear-shadowing-attempt-btn');
+
+  clearShadowingAttemptBtn?.addEventListener('click', async () => {
+    const confirmed = await confirmInApp({
+      title: 'Clear the saved Shadowing attempt?',
+      message: 'The latest recognizer transcript, alternatives, word timing and score details will be permanently removed from this device.',
+      confirmLabel: 'Clear attempt',
+      cancelLabel: 'Keep attempt',
+      tone: 'danger'
+    });
+    if (!confirmed) return;
+    clearShadowingAttemptBtn.disabled = true;
+    try {
+      await clearLastShadowingAttempt();
+      cachedReport = null;
+      await onRefreshShell();
+    } catch (error) {
+      clearShadowingAttemptBtn.disabled = false;
+      clearShadowingAttemptBtn.textContent = error instanceof Error ? error.message : 'Could not clear attempt';
+    }
+  });
 
   reqMicBtn?.addEventListener('click', async () => {
     reqMicBtn.disabled = true;
