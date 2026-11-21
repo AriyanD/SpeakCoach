@@ -285,7 +285,7 @@ export async function clearActiveShadowingAudioStore(): Promise<void> {
   await ensureInitialized();
   generation++;
   if (index) {
-    if (hasPlayingAudio(index.setId)) deferredSetDeletes.set(index.setId, [...index.entries]);
+    if (hasPlayingAudio(index.setId)) deferSetFiles(index.setId, index.entries);
     else await removeSetFiles(index.setId, index.entries);
   }
   ram.clear();
