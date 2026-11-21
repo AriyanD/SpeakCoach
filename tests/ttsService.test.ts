@@ -466,8 +466,10 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
       customTtsVoice: 'Kore'
     };
     let calls = 0;
-    const failingTransport = async (opts: { url: string }) => {
+    let interactiveTimeoutMs = 0;
+    const failingTransport = async (opts: { url: string; connectTimeout?: number }) => {
       calls++;
+      interactiveTimeoutMs = opts.connectTimeout ?? 0;
       return {
         url: opts.url, status: 400, headers: {},
         data: { error: { message: 'Language sv-SE is not supported by this model.' } }
@@ -478,6 +480,7 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     await expect(synthesizeOnlineNeuralAudio('Second Swedish sentence.', config, 'language-session-key', 1, failingTransport, 'sv-SE'))
       .rejects.toThrow();
     expect(calls).toBe(1);
+    expect(interactiveTimeoutMs).toBe(15000);
   });
 
 });
