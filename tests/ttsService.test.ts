@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearAllProviderAccountHealth } from '../src/services/providerHealth';
+import { clearAllProviderAccountHealth, markProviderAccountFailure } from '../src/services/providerHealth';
 import { clearMemoryAudioCache } from '../src/services/audioCache';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
@@ -387,6 +387,32 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
       clearPreloadedSentenceAudio();
       vi.unstubAllGlobals();
     }
+  });
+
+  it('makes zero prefetch requests while the provider account is cooling down', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'cooldown-prefetch-key');
+    await saveSlotConnectionTestResult('voice_tts', {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    });
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error('HTTP 429'), { status: 429 }));
+
+    let calls = 0;
+    const ok = await preloadSentenceAudio('Do not prefetch during cooldown.', {
+      transport: async opts => {
+        calls++;
+        return { url: opts.url, status: 200, headers: {}, data: 'audio' };
+      }
+    });
+    expect(ok).toBe(false);
+    expect(calls).toBe(0);
   });
 
 });
