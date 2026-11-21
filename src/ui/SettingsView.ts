@@ -144,7 +144,7 @@ export async function renderSettingsView(
                   : preset.requiresKey
                     ? 'not-tested'
                     : 'offline-ready';
-    const badgeClass = slotStatus === 'ready' ? 'online' : slotStatus === 'error' || slotStatus === 'needs-retest' ? 'error' : 'offline';
+    const badgeClass = slotStatus === 'ready' || slotStatus === 'ready-degraded' || slotStatus === 'ready-cooldown' ? 'online' : slotStatus === 'error' || slotStatus === 'needs-retest' ? 'error' : 'offline';
     const badgeLabel = slotStatus === 'ready' ? 'Ready' : slotStatus === 'ready-degraded' ? `Ready · ${resolved.reason?.startsWith('API 1') ? 'API 1 needs re-test' : 'API 2 needs re-test'}` : slotStatus === 'ready-cooldown' ? `Ready · ${resolved.reason?.startsWith('API 1') ? 'API 1 cooling down' : 'API 2 cooling down'}` : slotStatus === 'needs-retest' ? 'Needs re-test' : slotStatus === 'cooldown' ? 'Cooling down' : slotStatus === 'error' ? 'Error' : slotStatus === 'needs-key' ? 'API key needed' : slotStatus === 'offline-ready' ? 'Offline ready' : slotStatus === 'api-required' ? 'API required' : 'Not tested';
     const isCustom = preset.id.startsWith('custom_openai_');
     const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
