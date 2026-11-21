@@ -589,11 +589,22 @@ export async function retryIeltsEvaluation(
         : err instanceof Error
           ? err.message
           : 'Evaluation failed';
-    const updated: IeltsTestRecord = {
-      ...record,
-      evaluationError: reason
-    };
-    await saveIeltsTestResult(updated, { clearDraft: false });
+    // A failed manual re-evaluation must never invalidate a previously
+    // successful score. Keep evaluationError only for records that have no
+    // valid online evaluation yet (the initial-evaluation failure case).
+    const hasValidExistingEvaluation = Boolean(
+      record.evaluation &&
+      typeof record.overallBand === 'number' &&
+      Number.isFinite(record.overallBand) &&
+      (record.evaluation.activeTier?.tier ?? 3) < 3
+    );
+    if (!hasValidExistingEvaluation) {
+      const updated: IeltsTestRecord = {
+        ...record,
+        evaluationError: reason
+      };
+      await saveIeltsTestResult(updated, { clearDraft: false });
+    }
     throw err;
   }
 }
