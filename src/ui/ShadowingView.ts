@@ -442,19 +442,26 @@ export function renderShadowingView(
   const startShadowingPrefetch = (): void => {
     if (!activeSet || state.customDrillText) return;
     void loadAppSettings().then(settings => {
-      if (settings.prefetchShadowingAudio) {
-        enqueueShadowingPrefetch(shadowingPrefetchScheduler.start(activeSet.sentences.length));
+      if (prefetchWindowKey !== shadowingPrefetchWindowKey) return;
+      if (!settings.prefetchShadowingAudio) {
+        shadowingPrefetchScheduler.reset(state.index + 1);
+        return;
       }
+      enqueueShadowingPrefetch(shadowingPrefetchScheduler.start(activeSet.sentences.length));
     }).catch(() => {
       // Fail closed: do not spend provider quota when the preference cannot be read.
     });
   };
   const recordShadowingPracticeForPrefetch = (): void => {
     if (!activeSet || state.customDrillText) return;
+    const practicedIndex = state.index;
     void loadAppSettings().then(settings => {
-      if (settings.prefetchShadowingAudio) {
-        enqueueShadowingPrefetch(shadowingPrefetchScheduler.recordPractice(state.index, activeSet.sentences.length));
+      if (prefetchWindowKey !== shadowingPrefetchWindowKey) return;
+      if (!settings.prefetchShadowingAudio) {
+        shadowingPrefetchScheduler.reset(state.index + 1);
+        return;
       }
+      enqueueShadowingPrefetch(shadowingPrefetchScheduler.recordPractice(practicedIndex, activeSet.sentences.length));
     }).catch(() => {
       // Fail closed: do not spend provider quota when the preference cannot be read.
     });
