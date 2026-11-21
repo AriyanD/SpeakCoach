@@ -471,7 +471,6 @@ export async function renderSettingsView(
           </details>
         </div>
 
-        <div class="settings-api-divider" aria-hidden="true"></div>
         <section class="secondary-api-settings" aria-labelledby="secondary-api-heading-${slotId}">
           <div class="secondary-api-summary">
             <span class="settings-api-section-heading secondary-api-heading" id="secondary-api-heading-${slotId}"><span>API 2</span><small>Backup / rotation</small></span>
@@ -502,11 +501,11 @@ export async function renderSettingsView(
             <div class="form-field">
               <div class="settings-field-heading">
                 <label class="form-label" for="secondary-model-${slotId}">Model / voice</label>
-                ${slotId === 'voice_tts' ? '' : `<button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-models-btn-${slotId}">Fetch models</button>`}
+                <button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-models-btn-${slotId}">Fetch models</button>
               </div>
               <input type="text" class="form-input" id="secondary-model-${slotId}" value="${escapeHtml(slotCfg.secondary?.modelOrVoice ?? '')}" placeholder="${escapeHtml(secondaryPreset?.defaultModelOrVoice ?? 'Model name')}" />
               ${secondaryIsCustom ? `<p class="card-subtitle">Custom API 2 model ID is free text; suggestions do not limit what you can enter. Use the exact ID and audio endpoint supported by that gateway.</p>` : ''}
-              ${slotId === 'voice_tts' ? '' : `<div class="model-picker-dropdown"><button type="button" class="model-picker-trigger" aria-expanded="false">Browse available models</button><div class="model-picker-options" id="secondary-models-list-${slotId}" hidden></div></div><div id="fetch-secondary-models-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>`}
+              <div class="model-picker-dropdown"><button type="button" class="model-picker-trigger" aria-expanded="false">Browse available models</button><div class="model-picker-options" id="secondary-models-list-${slotId}" hidden></div></div><div id="fetch-secondary-models-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
             </div>
             ${slotId === 'voice_tts' ? `<div class="form-field" id="secondary-tts-voice-container-${slotId}" style="${secondaryPreset && secondaryPreset.id !== 'android_native_tts' ? '' : 'display:none;'}">
               <label class="form-label" for="secondary-custom-voice-${slotId}">API 2 voice (choose from the available list or enter a custom name)</label>
