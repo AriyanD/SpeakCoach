@@ -116,6 +116,10 @@ let sentenceSetHistory: ShadowingSetHistory | null = null;
 let sentenceSetHistoryPromise: Promise<ShadowingSetHistory> | null = null;
 let sentenceLanguageHistories: ShadowingLanguageHistories = {};
 const SPEECH_API_NOTICE_DISMISSED_KEY = 'speakcoach_speech_api_notice_dismissed_v1';
+function isSpeechApiNoticeDismissed(): boolean {
+  try { return localStorage.getItem(SPEECH_API_NOTICE_DISMISSED_KEY) === 'true'; }
+  catch { return false; }
+}
 function isSpeechApiRelatedError(error: unknown): boolean {
   const message = (error instanceof Error ? error.message : String(error ?? '')).replace(/[_-]+/g, ' ');
   return /\b(api|http|status|401|403|404|408|409|429|5\d\d|network|fetch|timeout|endpoint|provider|model|unsupported|not supported|quota|rate.?limit|connection|service unavailable|cors|recognition service)\b/i.test(message);
@@ -655,6 +659,12 @@ export function renderShadowingView(
     </section>
   `;
 
+  if (isSpeechApiNoticeDismissed()) {
+    const notice = container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
+    if (notice) { notice.hidden = true; notice.open = false; }
+    container.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.remove();
+  }
+
   container.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.addEventListener('click', () => {
     const notice = container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
     if (notice) { notice.hidden = false; notice.open = !notice.open; }
@@ -663,6 +673,7 @@ export function renderShadowingView(
     try { localStorage.setItem(SPEECH_API_NOTICE_DISMISSED_KEY, 'true'); } catch { /* Dismiss for this render even if storage is unavailable. */ }
     state.forceSpeechApiNotice = false;
     container.querySelector('.sh-api-capability-notice')?.setAttribute('hidden', '');
+    container.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.remove();
   });
 
   container.querySelector<HTMLSelectElement>('#sh-language-select')?.addEventListener('change', async event => {
