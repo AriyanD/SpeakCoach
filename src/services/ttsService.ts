@@ -713,8 +713,8 @@ export async function previewTtsVoice(
 }
 
 /**
- * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
- * audio is never persisted to Preferences, localStorage, or the filesystem.
+ * Pre-synthesize one sentence into the bounded RAM layer and, when it belongs
+ * to the active Shadowing set, the durable set-specific audio store.
  */
 export async function preloadSentenceAudio(text: string, options?: { locale?: string; transport?: TransportFn; shadowingSetAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' } }): Promise<boolean> {
   const normalizedText = text.trim();
