@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearAllProviderAccountHealth } from '../src/services/providerHealth';
+import { clearAllProviderAccountHealth, markProviderAccountFailure } from '../src/services/providerHealth';
 import { createDefaultSlotConfig } from '../src/config/providers';
 import { nativeHttpRequest, SpeakCoachHttpError } from '../src/services/httpClient';
 import { networkMonitor } from '../src/services/networkMonitor';
@@ -340,6 +340,40 @@ describe('IELTS STT online tier detection', () => {
     await saveApiKey('voice_tts', 'openai_tts', 'fingerprint-key-one');
     const changedModel = { ...config, modelOrVoice: 'tts-1:nova' };
     expect((await resolveSlotTier(changedModel, { isOnline: true })).tier).toBe(3);
+  });
+
+  it.each([400, 401, 404])('moves a verified TTS account to Needs re-test after HTTP %i', async status => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'runtime-health-key');
+    await markSlotVerified('voice_tts', 'openai_tts');
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error(`HTTP ${status}`), { status }));
+
+    const resolved = await resolveSlotTier(config, { isOnline: true });
+    expect(resolved.tier).toBe(3);
+    expect(resolved.reason).toContain('re-test');
+  });
+
+  it('moves a verified TTS account into cooldown after HTTP 429', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'runtime-cooldown-key');
+    await markSlotVerified('voice_tts', 'openai_tts');
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error('HTTP 429'), { status: 429 }));
+
+    const resolved = await resolveSlotTier(config, { isOnline: true });
+    expect(resolved.tier).toBe(3);
+    expect(resolved.reason).toContain('cooling down');
   });
 
 });
