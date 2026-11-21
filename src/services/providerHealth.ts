@@ -127,7 +127,7 @@ export async function createProviderVerificationFingerprint(
     if (!subtle) return null;
     const canonical = [
       config.providerId,
-      config.baseUrl.trim().replace(/\\/+$/, ''),
+      config.baseUrl.trim().replace(/\/+$/, ''),
       config.modelOrVoice.trim(),
       config.customTtsVoice?.trim() ?? '',
       apiKey
