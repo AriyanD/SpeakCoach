@@ -1,0 +1,118 @@
+import { Preferences } from '@capacitor/preferences';
+import type { SlotId } from '../config/types';
+
+export type ProviderAccount = 'primary' | 'secondary';
+export type ProviderHealthState = 'needs-retest' | 'cooldown';
+
+export interface ProviderAccountHealth {
+  state: ProviderHealthState;
+  reason: string;
+  status?: number;
+  updatedAt: number;
+  cooldownUntil?: number;
+}
+
+const STORAGE_KEY = 'speakcoach.provider_account_health.v1';
+const health = new Map<string, ProviderAccountHealth>();
+let hydration: Promise<void> | null = null;
+
+function key(slotId: SlotId, account: ProviderAccount): string {
+  return `${slotId}:${account}`;
+}
+
+async function hydrate(): Promise<void> {
+  if (!hydration) {
+    hydration = (async () => {
+      try {
+        const stored = await Preferences.get({ key: STORAGE_KEY });
+        const raw = stored.value ?? (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as Record<string, ProviderAccountHealth>;
+        for (const [entryKey, entry] of Object.entries(parsed)) {
+          if (entry && (entry.state === 'needs-retest' || entry.state === 'cooldown')) {
+            health.set(entryKey, entry);
+          }
+        }
+      } catch {
+        // Health is advisory. A damaged/unavailable store must not block app startup.
+      }
+    })();
+  }
+  await hydration;
+}
+
+async function persist(): Promise<void> {
+  const serialized = JSON.stringify(Object.fromEntries(health));
+  try {
+    await Preferences.set({ key: STORAGE_KEY, value: serialized });
+  } catch {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, serialized);
+  }
+  if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, serialized);
+}
+
+function getStatus(error: unknown): { status?: number; retryAfterMs?: number; reason: string } {
+  const candidate = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  const status = typeof candidate.status === 'number' ? candidate.status : undefined;
+  const retryAfterMs = typeof candidate.retryAfterMs === 'number' ? candidate.retryAfterMs : undefined;
+  const reason = error instanceof Error ? error.message : String(error);
+  return { status, retryAfterMs, reason };
+}
+
+export async function getProviderAccountHealth(
+  slotId: SlotId,
+  account: ProviderAccount,
+  now = Date.now()
+): Promise<ProviderAccountHealth | null> {
+  await hydrate();
+  const entryKey = key(slotId, account);
+  const entry = health.get(entryKey);
+  if (!entry) return null;
+  if (entry.state === 'cooldown' && (entry.cooldownUntil ?? 0) <= now) {
+    health.delete(entryKey);
+    await persist();
+    return null;
+  }
+  return entry;
+}
+
+export async function markProviderAccountFailure(
+  slotId: SlotId,
+  account: ProviderAccount,
+  error: unknown,
+  now = Date.now()
+): Promise<void> {
+  await hydrate();
+  const { status, retryAfterMs, reason } = getStatus(error);
+  if ([400, 401, 403, 404].includes(status ?? -1)) {
+    health.set(key(slotId, account), { state: 'needs-retest', reason, status, updatedAt: now });
+    await persist();
+    return;
+  }
+  if (status === 429 || (status !== undefined && status >= 500) || status === 0 || /timeout|timed out|network/i.test(reason)) {
+    const duration = Math.max(1000, Math.min(10 * 60 * 1000, retryAfterMs ?? 90_000));
+    health.set(key(slotId, account), {
+      state: 'cooldown', reason, status, updatedAt: now, cooldownUntil: now + duration
+    });
+    await persist();
+  }
+}
+
+export async function clearProviderAccountHealth(
+  slotId: SlotId,
+  account?: ProviderAccount
+): Promise<void> {
+  await hydrate();
+  if (account) health.delete(key(slotId, account));
+  else {
+    health.delete(key(slotId, 'primary'));
+    health.delete(key(slotId, 'secondary'));
+  }
+  await persist();
+}
+
+export async function clearAllProviderAccountHealth(): Promise<void> {
+  await hydrate();
+  health.clear();
+  await persist();
+}
