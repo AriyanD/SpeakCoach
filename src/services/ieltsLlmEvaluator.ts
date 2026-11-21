@@ -598,8 +598,7 @@ export async function retryIeltsEvaluation(
     const hasValidExistingEvaluation = Boolean(
       record.evaluation &&
       typeof record.overallBand === 'number' &&
-      Number.isFinite(record.overallBand) &&
-      (record.evaluation.activeTier?.tier ?? 3) < 3
+      Number.isFinite(record.overallBand)
     );
     if (!hasValidExistingEvaluation) {
       const updated: IeltsTestRecord = {
