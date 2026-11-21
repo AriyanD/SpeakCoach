@@ -31,6 +31,7 @@ export interface ProviderTestSnapshot {
   latencyMs: number;
   message: string;
   testedAt: number;
+  verificationFingerprint?: string;
 }
 
 export interface SlotProviderConfig {
