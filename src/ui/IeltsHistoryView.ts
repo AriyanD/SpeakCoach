@@ -280,7 +280,15 @@ export async function renderIeltsHistoryView(
         try {
           if (providerChoice === 'auto' && callbacks.onRetryEvaluation) {
             await callbacks.onRetryEvaluation(rec);
-            if (inlineStatus) { inlineStatus.className = 'status-box pass history-reevaluation-status'; inlineStatus.textContent = 'Re-evaluation completed.'; }
+            await refresh();
+            const refreshedCard = Array.from(container.querySelectorAll<HTMLElement>('.ielts-history-record'))
+              .find(card => card.dataset.recordId === id);
+            const refreshedStatus = refreshedCard?.querySelector<HTMLElement>('.history-reevaluation-status');
+            if (refreshedStatus) {
+              refreshedStatus.hidden = false;
+              refreshedStatus.className = 'status-box pass history-reevaluation-status';
+              refreshedStatus.textContent = 'Re-evaluation completed.';
+            }
           } else {
             const updated = await retryIeltsEvaluation(rec, undefined, { providerChoice });
             await refresh();
