@@ -691,9 +691,12 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
       const resolved = await resolveSlotTier(configs.voice_tts);
       // Prefetch is opportunistic: never probe an offline/unverified provider.
       if (resolved.tier === 3 || userInitiatedSynthesisInFlight > 0) return false;
-      await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) =>
-        synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, options?.transport, locale, true, generation)
-      );
+      await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) => {
+        if (userInitiatedSynthesisInFlight > 0) {
+          throw new Error('Shadowing prefetch deferred while user-initiated playback is in flight.');
+        }
+        return synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, options?.transport, locale, true, generation);
+      });
       return true;
     } catch {
       // The caller stops the current batch on failure; playback can retry online.
