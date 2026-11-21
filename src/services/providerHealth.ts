@@ -46,9 +46,13 @@ async function persist(): Promise<void> {
   try {
     await Preferences.set({ key: STORAGE_KEY, value: serialized });
   } catch {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, serialized);
+    // Fall back to Web Storage below when the native preferences bridge is unavailable.
   }
-  if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, serialized);
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, serialized);
+  } catch {
+    // Runtime health must never break synthesis or settings saves if storage is full.
+  }
 }
 
 function getStatus(error: unknown): { status?: number; retryAfterMs?: number; reason: string } {
