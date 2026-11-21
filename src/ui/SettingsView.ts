@@ -189,7 +189,7 @@ export async function renderSettingsView(
       account: 'primary' | 'secondary',
       providerName: string,
       ready: boolean,
-      result: ConnectionTestResult | undefined,
+      result: Pick<ConnectionTestResult, 'ok' | 'message'> | undefined,
       health: Awaited<ReturnType<typeof getProviderAccountHealth>>
     ): string => {
       const label = account === 'primary' ? 'API 1' : 'API 2';
@@ -197,7 +197,7 @@ export async function renderSettingsView(
       const healthText = health
         ? `${health.state === 'cooldown' ? 'Cooling down' : 'Needs re-test'} — ${health.reason}`
         : result
-          ? `Error — ${describeConnectionTestFailure(result)}`
+          ? `Error — ${result.message}`
           : account === 'primary'
             ? (resolved.reason ?? 'Not tested')
             : secondaryStatusText;
