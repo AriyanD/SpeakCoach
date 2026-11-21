@@ -1577,16 +1577,19 @@ export async function renderSettingsView(
           const onlineVerified = !failed.length && isOnlineProviderVerified(primaryResult, configs[slotId].secondary);
           const badgeLabel = failed.length ? (health?.state === 'cooldown' ? 'Cooling down' : 'Needs re-test') : onlineVerified ? 'Online AI' : 'Basic offline';
           badge.className = `tier-badge settings-slot-status ${onlineVerified ? 'online' : 'offline'}`;
+          badge.dataset.slotStatus = failed.length ? (health?.state === 'cooldown' ? 'cooldown' : 'needs-retest') : onlineVerified ? 'online' : 'offline';
           badge.innerHTML = `<span class="tier-dot"></span>${badgeLabel}`;
         }
         const primaryStatus = container.querySelector<HTMLElement>(`#status-${slotId}`);
         if (primaryStatus && tested.some(item => item.account === 'primary')) {
+          primaryStatus.style.display = '';
           const result = tested.find(item => item.account === 'primary')!.result;
           primaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
           primaryStatus.textContent = `API 1: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.message)} · Tested: ${new Date().toLocaleTimeString()}`;
         }
         const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
         if (secondaryStatus && tested.some(item => item.account === 'secondary')) {
+          secondaryStatus.style.display = '';
           const result = tested.find(item => item.account === 'secondary')!.result;
           secondaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
           secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.message)} · Tested: ${new Date().toLocaleTimeString()}`;
