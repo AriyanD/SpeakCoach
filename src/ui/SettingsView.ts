@@ -312,23 +312,6 @@ export async function renderSettingsView(
               <label class="form-label settings-field-label" for="key-${slotId}">
                 API Key ${preset.requiresKey ? `(${keyStorageLabel})` : '(Offline — no key needed)'}
               </label>
-              ${
-                preset.requiresKey && copyKeyOptionsHtml
-                  ? `<div class="settings-copy-key">
-                       <select class="form-select provider-native-select" id="copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">
-                         ${copyKeyOptionsHtml}
-                       </select>
-                       <span class="card-subtitle settings-copy-key-label">Copy from</span>
-                       <div class="provider-picker copy-key-provider-picker" id="copy-key-picker-${slotId}">
-                         <button type="button" class="provider-picker-trigger" id="copy-key-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(copyKeySources[0]?.label ?? 'Choose source')}</span><span class="provider-picker-chevron">⌄</span></button>
-                         <div class="provider-picker-options" id="copy-key-options-${slotId}" hidden>${copyKeyPickerOptionsHtml}</div>
-                       </div>
-                       <button type="button" class="btn btn-secondary settings-copy-key-btn" id="copy-key-btn-${slotId}">
-                         Copy API key
-                       </button>
-                     </div>`
-                  : ''
-              }
             </div>
             <input
               type="password"
@@ -339,6 +322,23 @@ export async function renderSettingsView(
               autocomplete="off"
               ${preset.requiresKey ? '' : 'disabled'}
             />
+              ${
+                preset.requiresKey && copyKeyOptionsHtml
+                  ? `<div class="settings-copy-key settings-copy-key-below">
+                       <select class="form-select provider-native-select" id="copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">
+                         ${copyKeyOptionsHtml}
+                       </select>
+                       <span class="card-subtitle settings-copy-key-label">Or copy from</span>
+                       <div class="provider-picker copy-key-provider-picker" id="copy-key-picker-${slotId}">
+                         <button type="button" class="provider-picker-trigger" id="copy-key-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(copyKeySources[0]?.label ?? 'Choose source')}</span><span class="provider-picker-chevron">⌄</span></button>
+                         <div class="provider-picker-options" id="copy-key-options-${slotId}" hidden>${copyKeyPickerOptionsHtml}</div>
+                       </div>
+                       <button type="button" class="btn btn-secondary settings-copy-key-btn" id="copy-key-btn-${slotId}">
+                         Copy API key
+                       </button>
+                     </div>`
+                  : ''
+              }
           </div>
 
           <div class="form-field">
