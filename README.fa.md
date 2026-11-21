@@ -20,7 +20,7 @@
 
 <div align="center">
 
-<a href="https://www.coffeebede.com/ariyand"><img src="https://img.shields.io/badge/%E2%98%95_Buy_me_a_coffee-B45309?style=for-the-badge" alt="من را یک قهوه مهمان کنید" height="52"></a>
+<a href="https://www.coffeebede.com/ariyand"><img src="docs/assets/coffee-fa.png" alt="من را یک قهوه مهمان کنید" height="104"></a>
 
 <sub>SpeakCoach رایگان است و سرور و اشتراک ندارد. اگر به تمرینتان کمک کرد، یک قهوه به ادامهٔ توسعه کمک می‌کند. 💜</sub>
 
@@ -183,7 +183,7 @@ SpeakCoach **رایگان** است و بدون سرور و اشتراک ارائ
 
 <div align="center">
 
-<a href="https://www.coffeebede.com/ariyand"><img src="https://img.shields.io/badge/%E2%98%95_Buy_me_a_coffee-B45309?style=for-the-badge" alt="من را یک قهوه مهمان کنید" height="52"></a>
+<a href="https://www.coffeebede.com/ariyand"><img src="docs/assets/coffee-fa.png" alt="من را یک قهوه مهمان کنید" height="104"></a>
 
 </div>
 

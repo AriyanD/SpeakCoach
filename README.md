@@ -18,7 +18,7 @@
 
 <br>
 
-<a href="https://www.coffeebede.com/ariyand"><img src="https://img.shields.io/badge/%E2%98%95_Buy_me_a_coffee-B45309?style=for-the-badge" alt="Buy me a coffee" height="52"></a>
+<a href="https://www.coffeebede.com/ariyand"><img src="docs/assets/coffee-en.png" alt="Buy me a coffee" height="104"></a>
 
 <sub>SpeakCoach is free, has no server and no subscription. If it helps your practice, a coffee keeps it going. 💜</sub>
 
@@ -166,7 +166,7 @@ TypeScript · vanilla DOM UI · Vite · Capacitor 6 (Android) · Vitest · GitHu
 SpeakCoach is free and built in spare time. If it helps your practice and you would like to support further development:
 
 <p align="center">
-  <a href="https://www.coffeebede.com/ariyand"><img src="https://img.shields.io/badge/%E2%98%95_Buy_me_a_coffee-B45309?style=for-the-badge" alt="Buy me a coffee" height="52"></a>
+  <a href="https://www.coffeebede.com/ariyand"><img src="docs/assets/coffee-en.png" alt="Buy me a coffee" height="104"></a>
 </p>
 
 Support is entirely optional. Starring the repository, reporting bugs and sharing the app with a friend help just as much. 💜
