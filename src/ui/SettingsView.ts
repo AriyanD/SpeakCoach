@@ -1459,6 +1459,13 @@ export async function renderSettingsView(
     [...singleTestButtons, ...importButtons].forEach(button => { button.disabled = true; });
     if (testAllApisButton) testAllButton.disabled = false;
     const reports: string[] = [];
+    const redactKeys = (message: string): string => {
+      let safe = message;
+      for (const secret of [...Object.values(keysBySlot), ...Object.values(secondaryKeysBySlot)].filter(Boolean)) {
+        safe = safe.split(secret).join('[redacted]').split(encodeURIComponent(secret)).join('[redacted]');
+      }
+      return safe;
+    };
     let savedSlots = 0;
     let notSavedSlots = 0;
     let completedAccounts = 0;
@@ -1554,7 +1561,7 @@ export async function renderSettingsView(
           }
         } else {
           notSavedSlots += 1;
-          const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} failed: ${escapeHtml(item.result.message)}`).join(' · ');
+          const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} failed: ${escapeHtml(redactKeys(item.result.message))}`).join(' · ');
           reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Not saved</strong>. ${reasons}. Previous verification preserved.</li>`);
         }
 
@@ -1572,20 +1579,20 @@ export async function renderSettingsView(
         if (primaryStatus && tested.some(item => item.account === 'primary')) {
           const result = tested.find(item => item.account === 'primary')!.result;
           primaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
-          primaryStatus.textContent = `API 1: ${result.ok ? 'PASS' : 'FAIL'} — ${result.message} · Tested: ${new Date().toLocaleTimeString()}`;
+          primaryStatus.textContent = `API 1: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.message)} · Tested: ${new Date().toLocaleTimeString()}`;
         }
         const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
         if (secondaryStatus && tested.some(item => item.account === 'secondary')) {
           const result = tested.find(item => item.account === 'secondary')!.result;
           secondaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
-          secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${result.message} · Tested: ${new Date().toLocaleTimeString()}`;
+          secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.message)} · Tested: ${new Date().toLocaleTimeString()}`;
         }
       }
       backupStatus.className = cancelTestAllApis ? 'status-box info' : notSavedSlots ? 'status-box info' : 'status-box pass';
       backupStatus.innerHTML = `<strong>${savedSlots} slots saved, ${notSavedSlots} not saved${cancelTestAllApis ? ' — run cancelled; untested slots unchanged' : ''}.</strong><ul class="test-all-api-report">${reports.join('')}</ul>`;
     } catch (error) {
       backupStatus.className = 'status-box fail';
-      backupStatus.textContent = `Test all APIs stopped: ${error instanceof Error ? error.message : String(error)}`;
+      backupStatus.textContent = `Test all APIs stopped: ${redactKeys(error instanceof Error ? error.message : String(error))}`;
     } finally {
       testAllApisRunning = false;
       settingsProviderTestRunning = false;
