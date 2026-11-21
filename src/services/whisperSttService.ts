@@ -4,7 +4,8 @@ import type { ResolvedSlotTier, SlotConfig, SlotId, TierLabel } from '../config/
 import { loadApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { nativeHttpRequest } from './httpClient';
-import { executeWithTierFallback } from './tierManager';
+import { CONNECTION_VERIFICATION_TTL_MS, executeWithTierFallback } from './tierManager';
+import { clearProviderAccountHealth, createProviderVerificationFingerprint, getProviderAccountHealth, markProviderAccountFailure } from './providerHealth';
 import { buildSpokenTokensFromTranscript, type SpokenWordToken } from './wordAlignment';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest, resolveWireFormat } from './customEndpointHelper';
 import { getShadowingLanguage } from '../data/shadowingLanguages';
@@ -157,6 +158,7 @@ export interface WhisperTranscriptionOutcome {
   words: SpokenWordToken[];
   activeTier: ResolvedSlotTier;
   rawProviderResponse?: WhisperVerboseResponse;
+  error?: string;
 }
 
 type TransportFn = (opts: HttpOptions) => Promise<HttpResponse>;
@@ -561,15 +563,30 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   // configured inside that one slot.
   const primary = configs[requestedSlotId];
   const primaryTest = await loadSlotConnectionTestResult(requestedSlotId);
+  const primaryKey = await loadApiKey(requestedSlotId, primary.providerId, 'primary');
+  const primaryFingerprint = await createProviderVerificationFingerprint(primary, primaryKey);
   const primaryVerified = !!primaryTest?.ok &&
     primaryTest.providerId === primary.providerId &&
-    primaryTest.tier === getPreset(requestedSlotId, primary.providerId).tier;
-  if (primaryVerified && compatibleProviderIds.has(primary.providerId) && getPreset(requestedSlotId, primary.providerId).tier !== 3) {
+    primaryTest.tier === getPreset(requestedSlotId, primary.providerId).tier &&
+    !!primaryFingerprint && primaryTest.verificationFingerprint === primaryFingerprint &&
+    Date.now() - primaryTest.timestamp < CONNECTION_VERIFICATION_TTL_MS &&
+    (!getPreset(requestedSlotId, primary.providerId).requiresKey || !!primaryKey.trim());
+  const primaryHealth = await getProviderAccountHealth(requestedSlotId, 'primary');
+  if (primaryVerified && !primaryHealth && compatibleProviderIds.has(primary.providerId) && getPreset(requestedSlotId, primary.providerId).tier !== 3) {
     candidates.push({ slotId: requestedSlotId, config: primary, account: 'primary' });
   }
   const secondary = primary.secondary;
-  if (secondary?.verified && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
-    candidates.push({ slotId: requestedSlotId, config: { slotId: requestedSlotId, ...secondary }, account: 'secondary' });
+  if (secondary?.verified && secondary.testResult && Date.now() - secondary.testResult.testedAt < CONNECTION_VERIFICATION_TTL_MS) {
+    const secondaryConfig: SlotConfig = { slotId: requestedSlotId, ...secondary };
+    const secondaryKey = await loadApiKey(requestedSlotId, secondary.providerId, 'secondary');
+    const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, secondaryKey);
+    const secondaryHealth = await getProviderAccountHealth(requestedSlotId, 'secondary');
+    const secondaryVerified = !!secondaryFingerprint &&
+      secondary.testResult.verificationFingerprint === secondaryFingerprint &&
+      (!getPreset(requestedSlotId, secondary.providerId).requiresKey || !!secondaryKey.trim());
+    if (secondaryVerified && !secondaryHealth && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
+      candidates.push({ slotId: requestedSlotId, config: secondaryConfig, account: 'secondary' });
+    }
   }
 
   // Rotate only between the primary and secondary APIs of the requested slot.
@@ -590,6 +607,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   let usedProviderId = preferred?.config.providerId ?? configs[requestedSlotId].providerId;
   let usedAccount: 'primary' | 'secondary' = preferred?.account ?? 'primary';
   let rawResponse: WhisperVerboseResponse | undefined;
+  let providerFailureMessage = '';
 
   const outcome = await executeWithTierFallback(
     requestedSlotId,
@@ -632,16 +650,19 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   language: toWhisperLanguageCode(params.languageLocale ?? `${params.languageCode ?? 'en'}-US`),
                   transport: params.transport
                 });
+          await clearProviderAccountHealth(candidateSlotId, candidate.account);
           usedSlotId = candidateSlotId;
           usedProviderId = candidateCfg.providerId;
           usedAccount = candidate.account;
           rawResponse = res.raw;
           return { transcript: res.transcript, words: res.words };
         } catch (error) {
+          await markProviderAccountFailure(candidateSlotId, candidate.account, error);
           errors.push(`${candidateSlotId}/${candidate.account} (${candidateCfg.providerId}): ${error instanceof Error ? error.message : String(error)}`);
         }
       }
-      throw new Error(`Both speech APIs failed. ${errors.join(' | ')}`);
+      providerFailureMessage = errors.length ? `Online speech transcription failed: ${errors.join(' | ')}` : 'No verified speech provider is available. Re-test the configured API or use the device recognizer.';
+      throw new Error(providerFailureMessage);
     },
     async () => {
       const cleanOffline = (params.offlineTranscript ?? '').trim();
@@ -654,7 +675,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
       const words = cleanOffline
         ? buildSpokenTokensFromTranscript(cleanOffline, params.durationMs, validOfflineConf, params.languageCode ?? 'en')
         : [];
-      return { transcript: cleanOffline, words };
+      return { transcript: cleanOffline, words, error: providerFailureMessage || (cleanOffline ? undefined : 'No speech was recognized by the online provider or device recognizer. Please retry or use the offline recognizer.') };
     }
   );
   const usedPreset = getPreset(usedSlotId, usedProviderId);
@@ -675,6 +696,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     transcript: outcome.result.transcript,
     words: outcome.result.words,
     activeTier,
-    rawProviderResponse: rawResponse
+    rawProviderResponse: rawResponse,
+    error: outcome.result.error
   };
 }
