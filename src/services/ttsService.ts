@@ -10,7 +10,7 @@ import { buildCustomEndpointRequest, buildGeminiEndpointRequest } from './custom
 import { runWithSlotApiFallback } from './apiFallback';
 import { convertPcmBase64ToWavDataUrl } from './pcmWavHelper';
 import { countShadowingLanguageUnits } from '../data/shadowingLanguages';
-import { getActiveShadowingAudioSet, readActiveShadowingAudio, persistActiveShadowingAudio } from './shadowingAudioStore';
+import { readActiveShadowingAudio, persistActiveShadowingAudio, markActiveSetAudioPlaying, releaseActiveSetAudioPlaying } from './shadowingAudioStore';
 import { getElevenLabsLanguageCode, normalizeSpeechLocale } from './shadowingSpeechLanguage';
 
 export interface SpeakResult {
@@ -27,7 +27,7 @@ let activePlaybackGeneration = 0;
 let temporaryCacheGeneration = 0;
 const temporaryCacheHashes = new Set<string>();
 const prefetchTasks = new Map<string, Promise<boolean>>();
-const inFlightAudioRequests = new Map<string, Promise<{ dataUrl: string; fromCache: boolean }>>();
+const inFlightAudioRequests = new Map<string, Promise<{ dataUrl: string; fromCache: boolean; cacheHash: string }>>();
 let userInitiatedSynthesisInFlight = 0;
 const GEMINI_LANGUAGE_FAILURE_TTL_MS = 5 * 60 * 1000;
 const geminiLanguageFailures = new Map<string, { message: string; expiresAt: number }>();
@@ -125,7 +125,7 @@ export async function synthesizeOnlineNeuralAudio(
   bypassCache = false,
   requestTimeoutMs = 15000,
   setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
-): Promise<{ dataUrl: string; fromCache: boolean }> {
+): Promise<{ dataUrl: string; fromCache: boolean; cacheHash: string }> {
   // Explicit probes/previews must always issue their own live request. Normal
   // playback and prefetch share one promise so overlapping callers cannot
   // spend quota twice for the same account/model/voice/language/text/rate.
@@ -210,13 +210,13 @@ async function synthesizeOnlineNeuralAudioUnshared(
   const safeSetAudio = cacheEnabled ? setAudio : undefined;
   if (safeSetAudio) {
     const activeSetAudio = await readActiveShadowingAudio(hash, safeSetAudio.setId);
-    if (activeSetAudio) return { dataUrl: activeSetAudio, fromCache: true };
+    if (activeSetAudio) return { dataUrl: activeSetAudio, fromCache: true, cacheHash: hash };
   }
   if (cacheEnabled) {
     const cached = await getCachedTtsAudio(hash);
     if (cached) {
       if (safeSetAudio) await persistActiveShadowingAudio({ ...safeSetAudio, hash, dataUrl: cached });
-      return { dataUrl: cached, fromCache: true };
+      return { dataUrl: cached, fromCache: true, cacheHash: hash };
     }
   }
 
@@ -264,7 +264,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error(`Empty audio payload from ${slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
     await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, safeSetAudio);
-    return { dataUrl, fromCache: false };
+    return { dataUrl, fromCache: false, cacheHash: hash };
   }
 
   if (slotCfg.providerId === 'gemini_tts') {
@@ -629,6 +629,7 @@ export async function speakSentenceWithTierFallback(
   const voiceSlot = configs.voice_tts;
 
   let usedCache = false;
+  let activeSetAudioHash: string | null = null;
   const usedProviderConfig: { current: { config: SlotConfig; account: 'primary' | 'secondary' } | null } = { current: null };
 
   const outcome = await executeWithTierFallback(
@@ -644,16 +645,24 @@ export async function speakSentenceWithTierFallback(
         }
       });
       usedProviderConfig.current = { config: attempt.config, account: attempt.account };
-      const { dataUrl, fromCache } = attempt.result;
+      const { dataUrl, fromCache, cacheHash } = attempt.result;
+      activeSetAudioHash = cacheHash;
       if (activePlaybackGeneration !== playbackGeneration) {
         // Playback was cancelled while network request was pending
         return true;
       }
       usedCache = fromCache;
+      if (options?.shadowingSetAudio) markActiveSetAudioPlaying(options.shadowingSetAudio.setId, cacheHash);
       // The requested rate has already been applied during online synthesis
       // (provider speed setting or Gemini slow-speaking prompt). Playing the
       // generated file at the same reduced rate would slow it twice.
-      await playAudioDataUrl(dataUrl, 1.0, 30000, options?.onPlaybackStart);
+      try {
+        await playAudioDataUrl(dataUrl, 1.0, 30000, options?.onPlaybackStart);
+      } finally {
+        if (options?.shadowingSetAudio && activeSetAudioHash) {
+          await releaseActiveSetAudioPlaying(options.shadowingSetAudio.setId, activeSetAudioHash);
+        }
+      }
       return true;
     },
     async (fallbackTier) => {
