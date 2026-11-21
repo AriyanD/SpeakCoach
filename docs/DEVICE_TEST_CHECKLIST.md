@@ -50,7 +50,7 @@ These checks require a real Android device. CI unit tests and APK compilation do
 - [ ] On sentence #2, #6 and #10, confirm position-based prefetch queues the next four sentences even if the learner only listens or skips; moving backward/repeating must not duplicate requests.
 - [ ] Change language or sentence set while prefetch is queued; verify stale queued batches are discarded and do not generate audio for the previous set.
 - [ ] Check that failed prefetch does not lock playback to offline TTS; pressing Play on that sentence should attempt online TTS again before falling back.
-- [ ] In Settings → Shadowing performance, disable prefetch; verify normal Play/Record makes no background TTS requests. Re-enable it and confirm the two-at-a-time schedule resumes.
+- [ ] In Settings → Shadowing performance, disable prefetch; verify normal Play/Record makes no background TTS requests. Re-enable it and confirm the four-sentence position-based schedule (#2, #6, #10, …) resumes.
 - [ ] Monitor provider usage/quota and memory on a long session; confirm prefetched audio is persisted in the active-set store and also available in the bounded RAM layer.
 - [ ] In Settings, preview multiple voices and confirm previews play correctly without creating persistent audio-cache entries.
 - [ ] Confirm Tier 2/3 feedback is labelled as word-match/timing guidance, not phoneme-level pronunciation assessment.
@@ -105,7 +105,7 @@ These checks require a real Android device. CI unit tests and APK compilation do
 - [ ] On a scored IELTS record, trigger a failed API 1/API 2 retry; verify the failure is visible inline and the previous band remains unchanged after reopening the record.
 - [ ] On an unscored record, verify retry progress and failure are visible in the same inline status area.
 - [ ] Verify API 1/API 2 selection is disabled when its verification is missing, expired, fingerprint-mismatched or its runtime health requires re-test/cooldown.
-- [ ] In Shadowing, verify sentence, Play, Record and the compact score strip appear before sentence-set controls; verify setup remains collapsed for an existing set and expands for an empty set.
+- [ ] In Shadowing, verify the order: Sentence set section (always expanded), Troubleshooting toggle, sentence, Play controls, Record, then the compact score strip directly under Record with *Score & recognition details* below it. With no saved set, verify the empty-state Generate button is shown.
 - [ ] Check 390x844 and 360x640 in light and dark themes, before and after scoring, including a long three-line sentence and increased system font size.
 - [ ] Check recording button idle, pressed, disabled, recording and stopping states in both themes; confirm white text contrast and visible focus.
 - [ ] In Settings > Backup & Restore, run Test all APIs with API 1 only, API 1 + API 2, one failing account, offline provider, missing key, no network and cancellation. Verify sequential requests, no keys in the report, and previous slot verification remains unchanged if any configured online account fails.
