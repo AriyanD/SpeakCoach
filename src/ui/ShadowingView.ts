@@ -1097,6 +1097,10 @@ export function renderShadowingView(
     }
   });
 
+  // Release any position window reached from a saved starting position or a re-render.
+  // The scheduler and in-flight map make this idempotent.
+  void startShadowingPrefetch();
+
   // The main router invokes this when leaving Shadowing. Invalidate pending
   // async recording/scoring work before stopping native capture and playback.
   return () => {
