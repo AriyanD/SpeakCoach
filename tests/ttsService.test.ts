@@ -517,6 +517,7 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     clearMemoryAudioCache();
     resetShadowingAudioStoreForTests();
     const restoredGeneration = await activateShadowingAudioSet(setId);
+    networkMonitor.setOnline(false);
     vi.stubGlobal('Audio', undefined);
     try {
       const result = await speakSentenceWithTierFallback(sentence, {
@@ -524,8 +525,10 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
         shadowingSetAudio: { setId, generation: restoredGeneration, kind: 'sentence' }
       });
       expect(result.fromCache).toBe(true);
+      expect(result.activeTier.reason).toContain('while offline');
       expect(calls).toBe(1);
     } finally {
+      networkMonitor.setOnline(true);
       vi.unstubAllGlobals();
     }
   });
