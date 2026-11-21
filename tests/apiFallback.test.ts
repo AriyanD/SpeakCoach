@@ -92,6 +92,11 @@ describe('Per-slot secondary API fallback', () => {
     expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/not verified/i);
     await saveSecondarySlotConfig('llm_evaluator', {
       providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice,
+      verified: true, testResult: { ok: false, latencyMs: 1, message: 'FAIL', testedAt: Date.now(), verificationFingerprint: 'current' } as any
+    });
+    expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/test did not pass/i);
+    await saveSecondarySlotConfig('llm_evaluator', {
+      providerId: preset.id, baseUrl: preset.defaultBaseUrl, modelOrVoice: preset.defaultModelOrVoice,
       verified: true, testResult: { ok: true, latencyMs: 1, message: 'PASS', testedAt: Date.now() } as any
     });
     expect((await getSlotAccountReadiness('llm_evaluator', 'secondary')).reason).toMatch(/fingerprint/i);
