@@ -223,6 +223,16 @@ export async function resolveSlotTier(
     };
   }
 
+  // An online provider is not considered active until the user saves its
+  // configuration and a test succeeds for that exact provider.
+  const verification = await loadSlotConnectionTestResult(slotId);
+  const primaryKey = selectedPreset.requiresKey ? await loadApiKey(slotId, selectedPreset.id, 'primary') : '';
+  const currentFingerprint = await createProviderVerificationFingerprint(slotConfig, primaryKey);
+  const primaryVerified = !!verification && verification.ok &&
+    verification.providerId === selectedPreset.id && verification.tier === selectedPreset.tier &&
+    !!currentFingerprint && verification.verificationFingerprint === currentFingerprint &&
+    Date.now() - verification.timestamp < CONNECTION_VERIFICATION_TTL_MS &&
+    (!selectedPreset.requiresKey || !!primaryKey.trim());
   const primaryHealth = await getProviderAccountHealth(slotId, 'primary', options?.nowMs);
   const secondaryHealth = secondaryReady ? await getProviderAccountHealth(slotId, 'secondary', options?.nowMs) : null;
   const primaryUsable = primaryVerified && !primaryHealth;
@@ -246,16 +256,6 @@ export async function resolveSlotTier(
     };
   }
 
-  // An online provider is not considered active until the user saves its
-  // configuration and a test succeeds for that exact provider.
-  const verification = await loadSlotConnectionTestResult(slotId);
-  const primaryKey = selectedPreset.requiresKey ? await loadApiKey(slotId, selectedPreset.id, 'primary') : '';
-  const currentFingerprint = await createProviderVerificationFingerprint(slotConfig, primaryKey);
-  const primaryVerified = !!verification && verification.ok &&
-    verification.providerId === selectedPreset.id && verification.tier === selectedPreset.tier &&
-    !!currentFingerprint && verification.verificationFingerprint === currentFingerprint &&
-    Date.now() - verification.timestamp < CONNECTION_VERIFICATION_TTL_MS &&
-    (!selectedPreset.requiresKey || !!primaryKey.trim());
   if (!primaryUsable && !secondaryUsable) {
     return {
       slotId,
