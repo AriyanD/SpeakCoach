@@ -3,7 +3,7 @@ import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { APP_VERSION } from '../config/appVersion';
 import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
-import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult, testSlotAccountsSequentially } from '../services/connectionTester';
+import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult, testSlotAccountsSequentially, shouldPersistSlotVerification } from '../services/connectionTester';
 import { networkMonitor } from '../services/networkMonitor';
 import { getProviderAccountHealth } from '../services/providerHealth';
 import { isOnlineProviderVerified } from '../services/slotConnectionStatus';
@@ -1534,7 +1534,7 @@ export async function renderSettingsView(
           break;
         }
         const failed = tested.filter(item => !item.result.ok || item.result.tier === 3);
-        if (failed.length === 0 && tested.length === accounts.length) {
+        if (shouldPersistSlotVerification(tested, accounts.length)) {
           const previousPrimary = await loadSlotConnectionTestResult(slotId);
           const previousSecondary = configs[slotId].secondary;
           const previousLastTest = lastTestResults.get(slotId);
