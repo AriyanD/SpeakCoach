@@ -5,7 +5,7 @@ import {
   type IeltsTestRecord
 } from '../storage/ieltsHistoryStore';
 import { retryIeltsEvaluation } from '../services/ieltsLlmEvaluator';
-import { clearIeltsTelemetry, getLastIeltsEvaluation } from '../services/ieltsTelemetry';
+import { clearIeltsTelemetry, clearLastIeltsEvaluation, getLastIeltsEvaluation } from '../services/ieltsTelemetry';
 import { confirmInApp } from './confirmDialog';
 
 export interface IeltsHistoryViewCallbacks {
@@ -287,7 +287,7 @@ export async function renderIeltsHistoryView(
         if (confirmed) {
           const lastEvaluation = await getLastIeltsEvaluation();
           await deleteIeltsTestResult(id);
-          if (lastEvaluation?.id === id) await clearIeltsTelemetry();
+          if (lastEvaluation?.id === id) await clearLastIeltsEvaluation();
           await refresh();
         }
       });
