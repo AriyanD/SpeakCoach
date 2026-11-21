@@ -9,6 +9,7 @@ import {
 } from '../config/providers';
 import type { AllSlotsConfig, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
 import { clearAllRuntimeFailures, clearSlotRuntimeFailure } from '../services/tierManager';
+import { createProviderVerificationFingerprint } from '../services/providerHealth';
 
 const SLOTS_CONFIG_KEY = 'speakcoach.slots.config.v1';
 const CONNECTION_TESTS_KEY = 'speakcoach.slots.connection_tests.v1';
@@ -149,7 +150,9 @@ export function sanitizeSlotConfig(slotId: SlotId, partial?: Partial<SlotConfig>
                       message: typeof partial.secondary!.testResult.message === 'string'
                         ? partial.secondary!.testResult.message.slice(0, 500) : '',
                       testedAt: Number.isFinite(partial.secondary!.testResult.testedAt)
-                        ? partial.secondary!.testResult.testedAt : 0
+                        ? partial.secondary!.testResult.testedAt : 0,
+                      verificationFingerprint: typeof partial.secondary!.testResult.verificationFingerprint === 'string'
+                        ? partial.secondary!.testResult.verificationFingerprint : undefined
                     }
                   }
                 : {})
@@ -257,8 +260,22 @@ export async function saveSlotConnectionTestResult(
   result: ConnectionTestResult
 ): Promise<PersistedConnectionTestResult> {
   const all = await loadAllConnectionTestResults();
+  let verificationFingerprint = result.verificationFingerprint;
+  if (result.ok && !verificationFingerprint) {
+    const configs = await loadAllSlotsConfig();
+    if (configs[slotId].providerId === result.providerId) {
+      try {
+        const { loadApiKey } = await import('./keyStore');
+        const apiKey = await loadApiKey(slotId, result.providerId, 'primary');
+        verificationFingerprint = await createProviderVerificationFingerprint(configs[slotId], apiKey) ?? undefined;
+      } catch {
+        // A successful test without a readable key cannot be bound to a reusable verification.
+      }
+    }
+  }
   const entry: PersistedConnectionTestResult = {
     ...result,
+    verificationFingerprint,
     timestamp: 'timestamp' in result && typeof (result as Record<string, unknown>).timestamp === 'number'
       ? (result as unknown as { timestamp: number }).timestamp
       : Date.now()
