@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Preferences } from '@capacitor/preferences';
-import { clearIeltsTelemetry, getLastIeltsEvaluation } from '../src/services/ieltsTelemetry';
+import { clearIeltsTelemetry, getIeltsSessionLogs, getLastIeltsEvaluation, logIeltsSessionEvent } from '../src/services/ieltsTelemetry';
 import { clearLastShadowingAttempt, getLastShadowingAttempt } from '../src/services/shadowingTelemetry';
 
 describe('telemetry clearing', () => {
@@ -20,6 +20,16 @@ describe('telemetry clearing', () => {
     expect((await Preferences.get({ key })).value).toBeNull();
     expect(localStorage.getItem(key)).toBeNull();
     await expect(getLastIeltsEvaluation()).resolves.toBeNull();
+  });
+
+  it('clears local IELTS session logs along with the last full evaluation', async () => {
+    logIeltsSessionEvent({ event: 'answer_saved', status: 'success', details: 'Sensitive test response' });
+    expect(getIeltsSessionLogs()).toHaveLength(1);
+
+    await clearIeltsTelemetry();
+
+    expect(getIeltsSessionLogs()).toHaveLength(0);
+    expect(localStorage.getItem('speakcoach.ielts.session_log.v1')).toBeNull();
   });
 
   it('removes the last Shadowing attempt from Preferences and browser fallback', async () => {
