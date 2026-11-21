@@ -7,9 +7,10 @@ import type {
   TierLabel,
   TierNumber
 } from '../config/types';
-import { hasConfiguredApiKey } from '../storage/keyStore';
+import { hasConfiguredApiKey, loadApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { networkMonitor } from './networkMonitor';
+import { createProviderVerificationFingerprint, getProviderAccountHealth } from './providerHealth';
 
 export interface GlobalTierSummary {
   label: TierLabel;
@@ -20,6 +21,7 @@ export interface GlobalTierSummary {
 }
 
 export const RUNTIME_FAILURE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+export const CONNECTION_VERIFICATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface SlotRuntimeFailureEntry {
   reason: string;
@@ -161,9 +163,20 @@ export async function resolveSlotTier(
   const secondaryPreset = slotConfig.secondary
     ? getPreset(slotId, slotConfig.secondary.providerId)
     : undefined;
-  const secondaryReady = !!slotConfig.secondary?.verified &&
-    !!secondaryPreset && secondaryPreset.tier !== 3 &&
-    (!secondaryPreset.requiresKey || await hasConfiguredApiKey(slotId, secondaryPreset.id, 'secondary'));
+  let secondaryReady = false;
+  if (slotConfig.secondary?.verified && secondaryPreset && secondaryPreset.tier !== 3) {
+    const secondaryKey = secondaryPreset.requiresKey
+      ? await loadApiKey(slotId, secondaryPreset.id, 'secondary')
+      : '';
+    const secondaryFingerprint = await createProviderVerificationFingerprint(
+      { slotId, ...slotConfig.secondary }, secondaryKey
+    );
+    const secondaryTest = slotConfig.secondary.testResult;
+    secondaryReady = !!secondaryFingerprint &&
+      (!secondaryTest?.verificationFingerprint || secondaryTest.verificationFingerprint === secondaryFingerprint) &&
+      Date.now() - (secondaryTest?.testedAt ?? 0) < CONNECTION_VERIFICATION_TTL_MS &&
+      (!secondaryPreset.requiresKey || !!secondaryKey.trim());
+  }
 
   if (selectedPreset.requiresKey && !hasKey && !secondaryReady) {
     return {
@@ -213,9 +226,37 @@ export async function resolveSlotTier(
   // An online provider is not considered active until the user saves its
   // configuration and a test succeeds for that exact provider.
   const verification = await loadSlotConnectionTestResult(slotId);
+  const primaryKey = selectedPreset.requiresKey ? await loadApiKey(slotId, selectedPreset.id, 'primary') : '';
+  const currentFingerprint = await createProviderVerificationFingerprint(slotConfig, primaryKey);
   const primaryVerified = !!verification && verification.ok &&
-    verification.providerId === selectedPreset.id && verification.tier === selectedPreset.tier;
-  if (!primaryVerified && !secondaryReady) {
+    verification.providerId === selectedPreset.id && verification.tier === selectedPreset.tier &&
+    !!currentFingerprint && verification.verificationFingerprint === currentFingerprint &&
+    Date.now() - verification.timestamp < CONNECTION_VERIFICATION_TTL_MS &&
+    (!selectedPreset.requiresKey || !!primaryKey.trim());
+  const primaryHealth = await getProviderAccountHealth(slotId, 'primary', options?.nowMs);
+  const secondaryHealth = secondaryReady ? await getProviderAccountHealth(slotId, 'secondary', options?.nowMs) : null;
+  const primaryUsable = primaryVerified && !primaryHealth;
+  const secondaryUsable = secondaryReady && !secondaryHealth;
+
+  if (!primaryUsable && !secondaryUsable && (primaryHealth || secondaryHealth)) {
+    const blocked = [primaryHealth, secondaryHealth].filter(Boolean);
+    const needsRetest = blocked.some(entry => entry?.state === 'needs-retest');
+    const reason = needsRetest
+      ? 'Provider account needs a successful connection re-test.'
+      : 'Provider account is cooling down after a temporary failure.';
+    return {
+      slotId,
+      providerId: offlinePreset.id,
+      providerName: offlinePreset.name,
+      tier: 3,
+      label: 'Basic offline',
+      detailLabel: `Basic offline (${reason})`,
+      isFallback: true,
+      reason
+    };
+  }
+
+  if (!primaryUsable && !secondaryUsable) {
     return {
       slotId,
       providerId: offlinePreset.id,
@@ -244,6 +285,16 @@ export async function resolveSlotTier(
   }
 
   const label = tierToLabel(selectedPreset.tier);
+  const degradedAccount = primaryHealth
+    ? { account: 'API 1', health: primaryHealth }
+    : secondaryHealth
+      ? { account: 'API 2', health: secondaryHealth }
+      : null;
+  const accountHealthReason = degradedAccount
+    ? degradedAccount.health.state === 'needs-retest'
+      ? `${degradedAccount.account} needs a successful connection re-test; the alternate account is available.`
+      : `${degradedAccount.account} is cooling down after a temporary provider failure; the alternate account is available.`
+    : undefined;
   return {
     slotId,
     providerId: selectedPreset.id,
@@ -251,7 +302,8 @@ export async function resolveSlotTier(
     tier: selectedPreset.tier,
     label,
     detailLabel: `${label} (Tier ${selectedPreset.tier} · ${selectedPreset.name})`,
-    isFallback: false
+    isFallback: false,
+    reason: accountHealthReason
   };
 }
 

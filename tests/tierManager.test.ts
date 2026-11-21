@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createDefaultSlotConfig } from '../src/config/providers';
+import { clearAllProviderAccountHealth, markProviderAccountFailure } from '../src/services/providerHealth';
+import { createDefaultSlotConfig, getPreset } from '../src/config/providers';
 import { nativeHttpRequest, SpeakCoachHttpError } from '../src/services/httpClient';
 import { networkMonitor } from '../src/services/networkMonitor';
 import {
@@ -13,9 +14,19 @@ import {
 } from '../src/services/tierManager';
 import { testSlotConnection } from '../src/services/connectionTester';
 import { saveApiKey } from '../src/storage/keyStore';
-import { saveSlotConfig, saveSlotConnectionTestResult } from '../src/storage/localStore';
+import { loadAllSlotsConfig, saveSlotConfig, saveSlotConnectionTestResult } from '../src/storage/localStore';
 
 async function markSlotVerified(slotId: 'voice_tts' | 'llm_evaluator' | 'llm_generator', providerId: string, tier: 1 | 2 = 1): Promise<void> {
+  const current = await loadAllSlotsConfig();
+  if (current[slotId].providerId !== providerId) {
+    const preset = getPreset(slotId, providerId);
+    await saveSlotConfig({
+      ...createDefaultSlotConfig(slotId),
+      providerId,
+      baseUrl: preset.defaultBaseUrl,
+      modelOrVoice: preset.defaultModelOrVoice
+    });
+  }
   await saveSlotConnectionTestResult(slotId, {
     ok: true,
     slotId,
@@ -28,8 +39,9 @@ async function markSlotVerified(slotId: 'voice_tts' | 'llm_evaluator' | 'llm_gen
 }
 
 describe('HTTP Client & 3-Tier Auto-Fallback Framework', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await clearAllProviderAccountHealth();
     clearAllRuntimeFailures();
     networkMonitor.setOnline(true);
   });
@@ -319,4 +331,59 @@ describe('IELTS STT online tier detection', () => {
     expect(isOnlineIeltsSttTier(3, 'Basic offline')).toBe(false);
     expect(isOnlineIeltsSttTier(1, 'Basic offline')).toBe(false);
   });
+  it('invalidates a saved PASS when the API key or model configuration changes', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'fingerprint-key-one');
+    await markSlotVerified('voice_tts', 'openai_tts');
+
+    expect((await resolveSlotTier(config, { isOnline: true })).tier).toBe(1);
+
+    await saveApiKey('voice_tts', 'openai_tts', 'fingerprint-key-two');
+    expect((await resolveSlotTier(config, { isOnline: true })).tier).toBe(3);
+
+    await saveApiKey('voice_tts', 'openai_tts', 'fingerprint-key-one');
+    const changedModel = { ...config, modelOrVoice: 'tts-1:nova' };
+    expect((await resolveSlotTier(changedModel, { isOnline: true })).tier).toBe(3);
+  });
+
+  it.each([400, 401, 404])('moves a verified TTS account to Needs re-test after HTTP %i', async status => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'runtime-health-key');
+    await markSlotVerified('voice_tts', 'openai_tts');
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error(`HTTP ${status}`), { status }));
+
+    const resolved = await resolveSlotTier(config, { isOnline: true });
+    expect(resolved.tier).toBe(3);
+    expect(resolved.reason).toContain('re-test');
+  });
+
+  it('moves a verified TTS account into cooldown after HTTP 429', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'runtime-cooldown-key');
+    await markSlotVerified('voice_tts', 'openai_tts');
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error('HTTP 429'), { status: 429 }));
+
+    const resolved = await resolveSlotTier(config, { isOnline: true });
+    expect(resolved.tier).toBe(3);
+    expect(resolved.reason).toContain('cooling down');
+  });
+
 });

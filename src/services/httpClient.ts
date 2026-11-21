@@ -19,6 +19,7 @@ export class SpeakCoachHttpError extends Error {
   public readonly humanMessage: string;
   public readonly requestUrl?: string;
   public readonly responseDetail?: string;
+  public readonly retryAfterMs?: number;
 
   constructor(options: {
     status: number;
@@ -28,6 +29,7 @@ export class SpeakCoachHttpError extends Error {
     isNetworkError?: boolean;
     requestUrl?: string;
     responseDetail?: string;
+    retryAfterMs?: number;
   }) {
     super(options.message);
     this.name = 'SpeakCoachHttpError';
@@ -37,6 +39,7 @@ export class SpeakCoachHttpError extends Error {
     this.isNetworkError = Boolean(options.isNetworkError);
     this.requestUrl = options.requestUrl;
     this.responseDetail = options.responseDetail;
+    this.retryAfterMs = options.retryAfterMs;
   }
 }
 
@@ -203,7 +206,8 @@ export async function nativeHttpRequest<T = unknown>(
         message: `HTTP ${response.status} ${detail}`.trim(),
         humanMessage: formatHumanHttpError(response.status, detail, false),
         requestUrl: redactUrlForLog(config.url),
-        responseDetail: detail
+        responseDetail: detail,
+        retryAfterMs: parseRetryAfterMs(response.headers ?? {}) ?? undefined
       });
     } catch (err) {
       if (err instanceof SpeakCoachHttpError) {

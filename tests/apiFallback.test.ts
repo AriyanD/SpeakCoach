@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { clearAllProviderAccountHealth } from '../src/services/providerHealth';
 import type { SlotConfig, SlotId } from '../src/config/types';
 import { getPreset } from '../src/config/providers';
 import { requestAzurePronunciationAssessment, transcribeWithTier2WhisperOrFallback } from '../src/services/whisperSttService';
@@ -20,8 +21,9 @@ const primaryConfig: SlotConfig = {
 };
 
 describe('Per-slot secondary API fallback', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await clearAllProviderAccountHealth();
   });
 
   const slotFallbackCases: Array<{
@@ -61,7 +63,7 @@ describe('Per-slot secondary API fallback', () => {
       baseUrl: secondaryPreset.defaultBaseUrl,
       modelOrVoice: secondaryPreset.defaultModelOrVoice,
       verified: true,
-      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: 1000 }
+      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now() }
     });
     await saveApiKey(slotId, secondaryProviderId, 'secondary-key', 'secondary');
 
@@ -102,7 +104,7 @@ describe('Per-slot secondary API fallback', () => {
       baseUrl: secondaryPreset.defaultBaseUrl,
       modelOrVoice: secondaryPreset.defaultModelOrVoice,
       verified: true,
-      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: 1000 }
+      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now() }
     });
     await saveApiKey(slotId, secondaryProviderId, 'secondary-speech-key', 'secondary');
 
@@ -146,7 +148,7 @@ describe('Per-slot secondary API fallback', () => {
     await saveSecondarySlotConfig('voice_tts', {
       providerId: secondary.id, baseUrl: secondary.defaultBaseUrl,
       modelOrVoice: secondary.defaultModelOrVoice, verified: true,
-      testResult: { ok: true, latencyMs: 1, message: 'PASS — API 2 verified', testedAt: 1000 }
+      testResult: { ok: true, latencyMs: 1, message: 'PASS — API 2 verified', testedAt: Date.now() }
     });
     await saveApiKey('voice_tts', secondary.id, 'secondary-key', 'secondary');
 
@@ -176,7 +178,7 @@ describe('Per-slot secondary API fallback', () => {
         ok: true,
         latencyMs: 18,
         message: 'PASS — secondary verified',
-        testedAt: 1000
+        testedAt: Date.now()
       }
     });
     await saveApiKey('llm_generator', 'openai_compat_gen', 'secondary-key', 'secondary');
@@ -215,7 +217,7 @@ describe('Per-slot secondary API fallback', () => {
       baseUrl: secondaryPreset.defaultBaseUrl,
       modelOrVoice: secondaryPreset.defaultModelOrVoice,
       verified: true,
-      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: 1000 }
+      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now() }
     });
     await saveApiKey('pronunciation_scoring', 'gemini_pronunciation', 'gemini-secondary-key', 'secondary');
 

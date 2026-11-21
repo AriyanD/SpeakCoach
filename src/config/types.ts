@@ -31,6 +31,7 @@ export interface ProviderTestSnapshot {
   latencyMs: number;
   message: string;
   testedAt: number;
+  verificationFingerprint?: string;
 }
 
 export interface SlotProviderConfig {
@@ -81,4 +82,5 @@ export interface ConnectionTestResult {
   label: TierLabel;
   latencyMs: number;
   message: string;
+  verificationFingerprint?: string;
 }

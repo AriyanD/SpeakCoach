@@ -47,15 +47,28 @@ These checks require a real Android device. CI unit tests and APK compilation do
 - [ ] Test normal Play, Slow Play, Record, Stop & Score, retry, and weak-word practice; verify visible loading/pressed states and no double actions.
 - [ ] Confirm Stop immediately ends both normal and slow model playback; pressing Play afterwards starts the sentence from the beginning.
 - [ ] Confirm Slow Play requests a separately generated slow version of the selected sentence and does not prefetch other sentences.
-- [ ] Confirm TTS prefetch starts only after the first normal-play/record action, initially queues up to four upcoming sentences, and queues the next batch only after two distinct sentences have been successfully practised and scored.
+- [ ] Confirm TTS prefetch starts only after the first normal-play/record action, initially queues up to two upcoming sentences, and queues the next batch only after two distinct sentences have been successfully practised and scored.
 - [ ] Change language or sentence set while prefetch is queued; verify stale queued batches are discarded and do not generate audio for the previous set.
 - [ ] Check that failed prefetch does not lock playback to offline TTS; pressing Play on that sentence should attempt online TTS again before falling back.
-- [ ] In Settings → Shadowing performance, disable prefetch; verify normal Play/Record makes no background TTS requests. Re-enable it and confirm the four-at-a-time schedule resumes.
+- [ ] In Settings → Shadowing performance, disable prefetch; verify normal Play/Record makes no background TTS requests. Re-enable it and confirm the two-at-a-time schedule resumes.
 - [ ] Monitor provider usage/quota and memory on a long session; confirm prefetched audio is RAM-only and remains within the bounded cache.
 - [ ] In Settings, preview multiple voices and confirm previews play correctly without creating persistent audio-cache entries.
 - [ ] Confirm Tier 2/3 feedback is labelled as word-match/timing guidance, not phoneme-level pronunciation assessment.
 - [ ] Check light, dark and system themes on a narrow phone and a larger phone.
 - [ ] Check keyboard-open layout, landscape, large system font, reduced motion, safe areas, and bottom navigation.
+
+- [ ] After upgrading from a build with legacy PASS records, confirm each primary provider requires a fresh test; verify a saved PASS becomes stale after changing provider, base URL, model/voice, or API key.
+- [ ] Run the same Gemini TTS connection test twice with a valid key; each test must make a live request. Revoke the key or simulate HTTP 401 on the second test and confirm it fails instead of reusing cached audio.
+- [ ] Start prefetch for a sentence, then immediately play that same sentence; confirm the provider receives exactly one synthesis request.
+- [ ] Start a long user-initiated TTS request and trigger a different prefetch batch; confirm the prefetch worker does not start another provider request until playback synthesis has finished.
+- [ ] With the voice slot unverified, offline, or in cooldown, trigger Shadowing prefetch and confirm zero provider requests are sent.
+- [ ] Make the first prefetch in a batch fail with HTTP 429/5xx; confirm the remaining sentences in that batch are not requested.
+- [ ] Simulate HTTP 400/401/403/404 for API 1 and confirm it is marked Needs re-test and skipped while a healthy API 2 can still be used. Confirm the status survives force-close/relaunch.
+- [ ] Simulate HTTP 429 with Retry-After; confirm that account is skipped until the cooldown expires, without blocking a healthy alternate account.
+- [ ] Background and resume Shadowing after prefetch completes; confirm still-valid prefetched audio is reused rather than generated again. Change language/sentence set and confirm old entries are discarded.
+- [ ] Change the TTS provider, model/voice, or API key in Settings; confirm previously prefetched audio and queued work are invalidated before the next playback.
+- [ ] On a slow connection, confirm interactive Gemini TTS times out sooner than the explicit connection test. Confirm an unsupported Gemini language/model failure is not repeated for every sentence during the same app session.
+- [ ] Play long Hard sentences while prefetch is enabled; confirm ordinary playback cache activity does not evict the reserved prefetched-audio budget.
 
 ## 6. Android minimum-version and update compatibility
 - [ ] On Android 6.0 (API 23), install the next API-23+ APK and verify the app launches, saves settings, records audio, checks for updates and installs a later signed update.

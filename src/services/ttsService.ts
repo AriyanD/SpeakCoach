@@ -5,7 +5,7 @@ import type { ResolvedSlotTier, SlotConfig } from '../config/types';
 import { loadAllSlotsConfig } from '../storage/localStore';
 import { createAudioCacheAccountFingerprint, computeAudioCacheHash, getCachedTtsAudio, setCachedTtsAudio, setMemoryOnlyTtsAudio, removeMemoryOnlyTtsAudio } from './audioCache';
 import { nativeHttpRequest, redactUrlForLog } from './httpClient';
-import { executeWithTierFallback } from './tierManager';
+import { executeWithTierFallback, resolveSlotTier } from './tierManager';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest } from './customEndpointHelper';
 import { runWithSlotApiFallback } from './apiFallback';
 import { convertPcmBase64ToWavDataUrl } from './pcmWavHelper';
@@ -25,7 +25,10 @@ let activeHtmlAudioFinish: (() => void) | null = null;
 let activePlaybackGeneration = 0;
 let temporaryCacheGeneration = 0;
 const temporaryCacheHashes = new Set<string>();
-const prefetchTasks = new Map<string, Promise<void>>();
+const prefetchTasks = new Map<string, Promise<boolean>>();
+const inFlightAudioRequests = new Map<string, Promise<{ dataUrl: string; fromCache: boolean }>>();
+let userInitiatedSynthesisInFlight = 0;
+const geminiLanguageFailures = new Map<string, string>();
 let prefetchQueueTail: Promise<void> = Promise.resolve();
 
 async function storeGeneratedAudio(
@@ -101,12 +104,79 @@ export async function synthesizeOnlineNeuralAudio(
   transport?: TransportFn,
   locale = 'en-US',
   memoryOnly = false,
-  cacheGeneration = temporaryCacheGeneration
+  cacheGeneration = temporaryCacheGeneration,
+  bypassCache = false,
+  requestTimeoutMs = 15000
+): Promise<{ dataUrl: string; fromCache: boolean }> {
+  // Explicit probes/previews must always issue their own live request. Normal
+  // playback and prefetch share one promise so overlapping callers cannot
+  // spend quota twice for the same account/model/voice/language/text/rate.
+  const fingerprint = await createAudioCacheAccountFingerprint(apiKey);
+  const languageFailureKey = `${slotCfg.providerId}|${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${locale}`;
+  if (slotCfg.providerId === 'gemini_tts' && geminiLanguageFailures.has(languageFailureKey)) {
+    throw new Error(geminiLanguageFailures.get(languageFailureKey));
+  }
+  if (!fingerprint || bypassCache) {
+    try {
+      const result = await synthesizeOnlineNeuralAudioUnshared(
+        text, slotCfg, apiKey, rate, transport, locale, memoryOnly, cacheGeneration, bypassCache, requestTimeoutMs
+      );
+      if (slotCfg.providerId === 'gemini_tts') geminiLanguageFailures.delete(languageFailureKey);
+      return result;
+    } catch (error) {
+      const status = error && typeof error === 'object' && 'status' in error ? Number((error as { status?: unknown }).status) : undefined;
+      if (slotCfg.providerId === 'gemini_tts' && (status === 400 || status === 404)) {
+        geminiLanguageFailures.set(languageFailureKey, error instanceof Error ? error.message : String(error));
+      }
+      throw error;
+    }
+  }
+  const hash = computeAudioCacheHash({
+    providerId: slotCfg.providerId,
+    voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${locale}`,
+    rate,
+    text,
+    endpoint: slotCfg.baseUrl?.trim() ?? '',
+    accountFingerprintHash: fingerprint
+  });
+  const inFlightKey = `${hash}|generation:${cacheGeneration}`;
+  const existing = inFlightAudioRequests.get(inFlightKey);
+  if (existing) return existing;
+  const request = synthesizeOnlineNeuralAudioUnshared(
+    text, slotCfg, apiKey, rate, transport, locale, memoryOnly, cacheGeneration, false, requestTimeoutMs
+  );
+  inFlightAudioRequests.set(inFlightKey, request);
+  try {
+    const result = await request;
+    if (slotCfg.providerId === 'gemini_tts') geminiLanguageFailures.delete(languageFailureKey);
+    return result;
+  } catch (error) {
+    const status = error && typeof error === 'object' && 'status' in error ? Number((error as { status?: unknown }).status) : undefined;
+    if (slotCfg.providerId === 'gemini_tts' && (status === 400 || status === 404)) {
+      geminiLanguageFailures.set(languageFailureKey, error instanceof Error ? error.message : String(error));
+    }
+    throw error;
+  } finally {
+    if (inFlightAudioRequests.get(inFlightKey) === request) inFlightAudioRequests.delete(inFlightKey);
+  }
+}
+
+async function synthesizeOnlineNeuralAudioUnshared(
+  text: string,
+  slotCfg: SlotConfig,
+  apiKey: string,
+  rate = 1.0,
+  transport?: TransportFn,
+  locale = 'en-US',
+  memoryOnly = false,
+  cacheGeneration = temporaryCacheGeneration,
+  bypassCache = false,
+  requestTimeoutMs = 15000
 ): Promise<{ dataUrl: string; fromCache: boolean }> {
   const accountFingerprint = await createAudioCacheAccountFingerprint(apiKey);
   // If Web Crypto is unavailable, synthesize normally but bypass cache so
   // audio from separate provider accounts can never share a cache namespace.
-  const cacheEnabled = accountFingerprint !== null;
+  const cacheEnabled = accountFingerprint !== null && !bypassCache;
   const hash = computeAudioCacheHash({
     providerId: slotCfg.providerId,
     voiceOrModel: `${slotCfg.modelOrVoice}|${slotCfg.customTtsVoice?.trim() ?? ''}|${locale}`,
@@ -223,7 +293,7 @@ export async function synthesizeOnlineNeuralAudio(
             speechConfig: { languageCode: locale.split('-')[0].toLowerCase(), voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
           }
         },
-        timeoutMs: 30000,
+        timeoutMs: requestTimeoutMs,
         maxRetries: 0 // No automatic retries for TTS — 429 retries waste quota
       },
       transport
@@ -533,9 +603,14 @@ export async function speakSentenceWithTierFallback(
   const outcome = await executeWithTierFallback(
     'voice_tts',
     async () => {
-      const attempt = await runWithSlotApiFallback('voice_tts', voiceSlot, (apiConfig, apiKey) =>
-        synthesizeOnlineNeuralAudio(text, apiConfig, apiKey, rate, options?.transport, locale)
-      );
+      const attempt = await runWithSlotApiFallback('voice_tts', voiceSlot, async (apiConfig, apiKey) => {
+        userInitiatedSynthesisInFlight++;
+        try {
+          return await synthesizeOnlineNeuralAudio(text, apiConfig, apiKey, rate, options?.transport, locale);
+        } finally {
+          userInitiatedSynthesisInFlight = Math.max(0, userInitiatedSynthesisInFlight - 1);
+        }
+      });
       usedProviderConfig.current = { config: attempt.config, account: attempt.account };
       const { dataUrl, fromCache } = attempt.result;
       if (activePlaybackGeneration !== playbackGeneration) {
@@ -592,8 +667,16 @@ export async function previewTtsVoice(
   if (preset.requiresKey && !apiKey.trim()) {
     throw new Error('Enter an API key before previewing this online voice.');
   }
-  // Voice previews are disposable; keep them in bounded RAM rather than the persistent cache.
-  const result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true);
+  // Voice previews are user-initiated synthesis too; keep prefetch paused until
+  // the provider request completes. The disposable preview bypasses the cache.
+  const result = await (async () => {
+    userInitiatedSynthesisInFlight++;
+    try {
+      return await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true, temporaryCacheGeneration, true);
+    } finally {
+      userInitiatedSynthesisInFlight = Math.max(0, userInitiatedSynthesisInFlight - 1);
+    }
+  })();
   await playAudioDataUrl(result.dataUrl);
 }
 
@@ -601,29 +684,37 @@ export async function previewTtsVoice(
  * Pre-synthesize one prompt into the bounded in-memory cache. Prefetched
  * audio is never persisted to Preferences, localStorage, or the filesystem.
  */
-export async function preloadSentenceAudio(text: string, options?: { locale?: string }): Promise<void> {
+export async function preloadSentenceAudio(text: string, options?: { locale?: string; transport?: TransportFn }): Promise<boolean> {
   const normalizedText = text.trim();
-  if (!normalizedText) return;
+  if (!normalizedText) return false;
   const locale = normalizeSpeechLocale(options?.locale);
   const taskKey = `${locale}|${normalizedText}`;
   const existing = prefetchTasks.get(taskKey);
   if (existing) return existing;
 
   const generation = temporaryCacheGeneration;
-  const task = prefetchQueueTail.then(async () => {
+  const task = prefetchQueueTail.then(async (): Promise<boolean> => {
     try {
-      if (generation !== temporaryCacheGeneration) return;
+      if (generation !== temporaryCacheGeneration || userInitiatedSynthesisInFlight > 0) return false;
       const configs = await loadAllSlotsConfig();
-      await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) =>
-        synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, undefined, locale, true, generation)
-      );
+      const resolved = await resolveSlotTier(configs.voice_tts);
+      // Prefetch is opportunistic: never probe an offline/unverified provider.
+      if (resolved.tier === 3 || userInitiatedSynthesisInFlight > 0) return false;
+      await runWithSlotApiFallback('voice_tts', configs.voice_tts, (apiConfig, apiKey) => {
+        if (userInitiatedSynthesisInFlight > 0) {
+          throw new Error('Shadowing prefetch deferred while user-initiated playback is in flight.');
+        }
+        return synthesizeOnlineNeuralAudio(normalizedText, apiConfig, apiKey, 1, options?.transport, locale, true, generation);
+      });
+      return true;
     } catch {
-      // Prefetch is opportunistic. Normal playback retains its full fallback path.
+      // The caller stops the current batch on failure; playback can retry online.
+      return false;
     } finally {
       prefetchTasks.delete(taskKey);
     }
   });
-  prefetchQueueTail = task.catch(() => {});
+  prefetchQueueTail = task.then(() => {}, () => {});
   prefetchTasks.set(taskKey, task);
   return task;
 }

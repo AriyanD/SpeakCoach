@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearAllProviderAccountHealth, markProviderAccountFailure } from '../src/services/providerHealth';
 import { clearMemoryAudioCache } from '../src/services/audioCache';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
@@ -6,7 +7,9 @@ import {
   playAudioDataUrl,
   speakOfflineNativeTts,
   speakSentenceWithTierFallback,
-  synthesizeOnlineNeuralAudio
+  synthesizeOnlineNeuralAudio,
+  preloadSentenceAudio,
+  clearPreloadedSentenceAudio
 } from '../src/services/ttsService';
 import { IeltsSessionController } from '../src/services/ieltsSessionEngine';
 import { generateIeltsSessionPlan } from './fixtures/legacyIeltsQuestionBank';
@@ -15,8 +18,9 @@ import { saveApiKey } from '../src/storage/keyStore';
 import { saveSlotConfig, saveSlotConnectionTestResult } from '../src/storage/localStore';
 
 describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await clearAllProviderAccountHealth();
     clearMemoryAudioCache();
     clearAllRuntimeFailures();
     networkMonitor.setOnline(true);
@@ -329,4 +333,154 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
       });
     }
   }, 15000);
+  it('makes no prefetch request when the TTS slot resolves to Tier 3', async () => {
+    let calls = 0;
+    const ok = await preloadSentenceAudio('No online provider is configured.', {
+      transport: async opts => {
+        calls++;
+        return { url: opts.url, status: 200, headers: {}, data: 'audio' };
+      }
+    });
+    expect(ok).toBe(false);
+    expect(calls).toBe(0);
+  });
+
+  it('shares one in-flight network request when playback overlaps prefetch for the same sentence', async () => {
+    await saveSlotConfig({
+      slotId: 'voice_tts',
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    });
+    await saveApiKey('voice_tts', 'openai_tts', 'shared-inflight-key');
+    await saveSlotConnectionTestResult('voice_tts', {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    });
+
+    let calls = 0;
+    let release: ((response: { url: string; status: number; headers: Record<string, string>; data: string }) => void) | undefined;
+    const transport = async (_opts: { url: string }) => {
+      calls++;
+      return new Promise<{ url: string; status: number; headers: Record<string, string>; data: string }>(resolve => {
+        release = resolve;
+      });
+    };
+    vi.stubGlobal('Audio', undefined);
+    try {
+      const prefetch = preloadSentenceAudio('One shared in-flight sentence.', { transport });
+      while (calls === 0) await new Promise(resolve => setTimeout(resolve, 0));
+      const playback = speakSentenceWithTierFallback('One shared in-flight sentence.', { transport });
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(calls).toBe(1);
+      release?.({
+        url: 'https://api.openai.com/v1/audio/speech',
+        status: 200,
+        headers: {},
+        data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA'
+      });
+      expect(await prefetch).toBe(true);
+      const result = await playback;
+      expect(result.activeTier.tier).toBe(1);
+      expect(calls).toBe(1);
+    } finally {
+      clearPreloadedSentenceAudio();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('makes zero prefetch requests while the provider account is cooling down', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'cooldown-prefetch-key');
+    await saveSlotConnectionTestResult('voice_tts', {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    });
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error('HTTP 429'), { status: 429 }));
+
+    let calls = 0;
+    const ok = await preloadSentenceAudio('Do not prefetch during cooldown.', {
+      transport: async opts => {
+        calls++;
+        return { url: opts.url, status: 200, headers: {}, data: 'audio' };
+      }
+    });
+    expect(ok).toBe(false);
+    expect(calls).toBe(0);
+  });
+
+  it('does not start a different prefetch while user-initiated synthesis is in flight', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'tts-1:alloy'
+    };
+    await saveSlotConfig(config);
+    await saveApiKey('voice_tts', 'openai_tts', 'playback-priority-key');
+    await saveSlotConnectionTestResult('voice_tts', {
+      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
+    });
+
+    let calls = 0;
+    let release: ((response: { url: string; status: number; headers: Record<string, string>; data: string }) => void) | undefined;
+    const transport = async (_opts: { url: string }) => {
+      calls++;
+      return new Promise<{ url: string; status: number; headers: Record<string, string>; data: string }>(resolve => {
+        release = resolve;
+      });
+    };
+    vi.stubGlobal('Audio', undefined);
+    try {
+      const playback = speakSentenceWithTierFallback('User requested this sentence now.', { transport });
+      while (calls === 0) await new Promise(resolve => setTimeout(resolve, 0));
+      const prefetch = await preloadSentenceAudio('A different sentence for later.', { transport });
+      expect(prefetch).toBe(false);
+      expect(calls).toBe(1);
+      release?.({
+        url: 'https://api.openai.com/v1/audio/speech',
+        status: 200,
+        headers: {},
+        data: 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA'
+      });
+      expect((await playback).activeTier.tier).toBe(1);
+    } finally {
+      clearPreloadedSentenceAudio();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('remembers a Gemini model-language 400 for the session and does not repeat the request', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'gemini_tts',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-2.5-flash-preview-tts',
+      customTtsVoice: 'Kore'
+    };
+    let calls = 0;
+    let interactiveTimeoutMs = 0;
+    const failingTransport = async (opts: { url: string; connectTimeout?: number }) => {
+      calls++;
+      interactiveTimeoutMs = opts.connectTimeout ?? 0;
+      return {
+        url: opts.url, status: 400, headers: {},
+        data: { error: { message: 'Language sv-SE is not supported by this model.' } }
+      };
+    };
+    await expect(synthesizeOnlineNeuralAudio('First Swedish sentence.', config, 'language-session-key', 1, failingTransport, 'sv-SE'))
+      .rejects.toThrow();
+    await expect(synthesizeOnlineNeuralAudio('Second Swedish sentence.', config, 'language-session-key', 1, failingTransport, 'sv-SE'))
+      .rejects.toThrow();
+    expect(calls).toBe(1);
+    expect(interactiveTimeoutMs).toBe(15000);
+  });
+
 });

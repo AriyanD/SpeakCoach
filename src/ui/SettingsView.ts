@@ -11,7 +11,7 @@ import {
 } from '../services/customEndpointHelper';
 import { fetchAvailableModels } from '../services/modelFetchService';
 import { fetchAvailableTtsVoices } from '../services/ttsVoiceService';
-import { previewTtsVoice } from '../services/ttsService';
+import { clearPreloadedSentenceAudio, previewTtsVoice } from '../services/ttsService';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { loadApiKeyStrict, saveApiKey } from '../storage/keyStore';
 import { getAppSettingsRecoveryNotices, loadAppSettings, saveAppSettings } from '../storage/appSettings';
@@ -125,19 +125,27 @@ export async function renderSettingsView(
     const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
     const slotStatus = apiRequiredOfflineSelected
       ? 'api-required'
-      : slotOnlineVerified
-        ? 'ready'
-        : lastTest
-          ? 'error'
-          : resolved.label === 'Online AI'
-            ? 'ready'
-            : preset.requiresKey && !currentKey.trim()
-              ? 'needs-key'
-              : preset.requiresKey
-                ? 'not-tested'
-                : 'offline-ready';
-    const badgeClass = slotStatus === 'ready' ? 'online' : slotStatus === 'error' ? 'error' : 'offline';
-    const badgeLabel = slotStatus === 'ready' ? 'Ready' : slotStatus === 'error' ? 'Error' : slotStatus === 'needs-key' ? 'API key needed' : slotStatus === 'offline-ready' ? 'Offline ready' : slotStatus === 'api-required' ? 'API required' : 'Not tested';
+      : resolved.label !== 'Online AI' && (lastTest?.ok || resolved.reason?.toLowerCase().includes('re-test'))
+        ? 'needs-retest'
+        : resolved.label !== 'Online AI' && resolved.reason?.toLowerCase().includes('cooling down')
+          ? 'cooldown'
+          : resolved.label === 'Online AI' && resolved.reason?.includes('needs a successful connection re-test')
+            ? 'ready-degraded'
+            : resolved.label === 'Online AI' && resolved.reason?.includes('cooling down')
+              ? 'ready-cooldown'
+              : slotOnlineVerified && resolved.label === 'Online AI'
+                ? 'ready'
+            : lastTest
+              ? 'error'
+              : resolved.label === 'Online AI'
+                ? 'ready'
+                : preset.requiresKey && !currentKey.trim()
+                  ? 'needs-key'
+                  : preset.requiresKey
+                    ? 'not-tested'
+                    : 'offline-ready';
+    const badgeClass = slotStatus === 'ready' || slotStatus === 'ready-degraded' || slotStatus === 'ready-cooldown' ? 'online' : slotStatus === 'error' || slotStatus === 'needs-retest' ? 'error' : 'offline';
+    const badgeLabel = slotStatus === 'ready' ? 'Ready' : slotStatus === 'ready-degraded' ? `Ready · ${resolved.reason?.startsWith('API 1') ? 'API 1 needs re-test' : 'API 2 needs re-test'}` : slotStatus === 'ready-cooldown' ? `Ready · ${resolved.reason?.startsWith('API 1') ? 'API 1 cooling down' : 'API 2 cooling down'}` : slotStatus === 'needs-retest' ? 'Needs re-test' : slotStatus === 'cooldown' ? 'Cooling down' : slotStatus === 'error' ? 'Error' : slotStatus === 'needs-key' ? 'API key needed' : slotStatus === 'offline-ready' ? 'Offline ready' : slotStatus === 'api-required' ? 'API required' : 'Not tested';
     const isCustom = preset.id.startsWith('custom_openai_');
     const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
     const secondaryIsCustom = secondaryPreset?.id.startsWith('custom_openai_') ?? false;
@@ -833,6 +841,7 @@ export async function renderSettingsView(
           primaryConfig.secondary = previous.secondary;
           if (primaryKey) await saveApiKey(item.slotId, primaryPreset.id, primaryKey, 'primary');
           await saveSlotConfig(primaryConfig);
+clearPreloadedSentenceAudio();
           configs[item.slotId] = primaryConfig;
           lastTestResults.delete(item.slotId);
           await clearSlotConnectionTestResult(item.slotId);
@@ -840,7 +849,7 @@ export async function renderSettingsView(
           let primaryStatus = 'Primary configured';
           if (primaryKey) {
             try {
-              const result = await testSlotConnection(primaryConfig, { apiKeyOverride: primaryKey });
+              const result = await testSlotConnection(primaryConfig, { apiKeyOverride: primaryKey, account: 'primary' });
               const persisted = await saveSlotConnectionTestResult(item.slotId, result);
               lastTestResults.set(item.slotId, persisted);
               attempted += 1;
@@ -874,15 +883,17 @@ export async function renderSettingsView(
             };
             if (secondaryKey) await saveApiKey(item.slotId, secondaryPreset.id, secondaryKey, 'secondary');
             await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+clearPreloadedSentenceAudio();
             configs[item.slotId].secondary = secondaryConfig;
 
             let secondaryStatus = 'API 2 configured — key missing';
             if (secondaryKey) {
               try {
-                const result = await testSlotConnection({ ...secondaryConfigBase, secondary: undefined }, { apiKeyOverride: secondaryKey });
-                const testResult = { ok: result.ok && result.tier !== 3, latencyMs: result.latencyMs, message: result.message, testedAt: Date.now() };
+                const result = await testSlotConnection({ ...secondaryConfigBase, secondary: undefined }, { apiKeyOverride: secondaryKey, account: 'secondary' });
+                const testResult = { ok: result.ok && result.tier !== 3, latencyMs: result.latencyMs, message: result.message, testedAt: Date.now(), verificationFingerprint: result.verificationFingerprint };
                 secondaryConfig = { ...secondaryConfig, verified: testResult.ok, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+clearPreloadedSentenceAudio();
                 configs[item.slotId].secondary = secondaryConfig;
                 attempted += 1;
                 if (testResult.ok) { passed += 1; secondaryStatus = 'API 2 verified'; }
@@ -893,6 +904,7 @@ export async function renderSettingsView(
                 const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
                 secondaryConfig = { ...secondaryConfig, verified: false, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
+clearPreloadedSentenceAudio();
                 configs[item.slotId].secondary = secondaryConfig;
                 secondaryStatus = `API 2 test failed: ${message}`;
               }
@@ -1086,6 +1098,7 @@ export async function renderSettingsView(
         const config: SlotConfig = { ...item.config, secondary: configs[slotId].secondary };
         await saveApiKey(slotId, config.providerId, apiKey, 'primary');
         await saveSlotConfig(config);
+clearPreloadedSentenceAudio();
         configs[slotId] = config;
         const persisted = await saveSlotConnectionTestResult(slotId, item.result);
         lastTestResults.set(slotId, persisted);
@@ -2165,6 +2178,7 @@ export async function renderSettingsView(
         // A secondary-only edit must not clear the verified primary connection.
         if (primaryChanged) await saveSlotConfig(cfg);
         else await saveSecondarySlotConfig(slotId, cfg.secondary);
+        clearPreloadedSentenceAudio();
 
         // Only remove an old secondary credential after the new config is saved.
         if (previousSecondary?.providerId &&
@@ -2239,12 +2253,13 @@ export async function renderSettingsView(
       secondaryStatus.className = 'status-box info';
       secondaryStatus.textContent = 'API 2: Testing…';
       try {
-        const result = await testSlotConnection(secondaryCfg, { apiKeyOverride: apiKey });
+        const result = await testSlotConnection(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
         const testResult = {
           ok: result.ok && result.tier !== 3,
           latencyMs: result.latencyMs,
           message: result.message,
-          testedAt: Date.now()
+          testedAt: Date.now(),
+          verificationFingerprint: result.verificationFingerprint
         };
         if (testResult.ok) {
           await saveApiKey(slotId, secondaryPreset.id, apiKey, 'secondary');
@@ -2256,6 +2271,7 @@ export async function renderSettingsView(
         }
         const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
         await saveSecondarySlotConfig(slotId, verifiedConfig);
+clearPreloadedSentenceAudio();
         configs[slotId].secondary = verifiedConfig;
         secondaryStatus.className = `status-box ${testResult.ok ? 'pass' : 'fail'}`;
         secondaryStatus.textContent = `API 2: ${result.ok && result.tier !== 3 ? 'PASS' : 'FAIL'} — ${result.message}`;
@@ -2272,6 +2288,7 @@ export async function renderSettingsView(
         try {
           const failedConfig = { ...secondaryCfg, verified: false, testResult };
           await saveSecondarySlotConfig(slotId, failedConfig);
+clearPreloadedSentenceAudio();
           configs[slotId].secondary = failedConfig;
         } catch { /* Keep the visible test error even if storage is unavailable. */ }
         secondaryStatus.className = 'status-box fail';
@@ -2344,7 +2361,7 @@ export async function renderSettingsView(
       statusBox.textContent = 'API 1: Testing…';
       try {
         const { cfg, key } = await persistCurrentSlot();
-        const result = await testSlotConnection(cfg, { apiKeyOverride: key });
+        const result = await testSlotConnection(cfg, { apiKeyOverride: key, account: 'primary' });
         const persisted = await saveSlotConnectionTestResult(slotId, result);
         lastTestResults.set(slotId, persisted);
         dismissedVerificationErrors.delete(slotId);
