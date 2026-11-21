@@ -806,7 +806,7 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
   if (existing) return existing;
 
   const generation = temporaryCacheGeneration;
-  const task = (async (): Promise<boolean> => {
+  const task = Promise.resolve().then(async (): Promise<boolean> => {
     try {
       if (generation !== temporaryCacheGeneration || userInitiatedSynthesisInFlight > 0) return false;
       const configs = await loadAllSlotsConfig();
@@ -827,7 +827,7 @@ export async function preloadSentenceAudio(text: string, options?: { locale?: st
     } finally {
       prefetchTasks.delete(taskKey);
     }
-  })();
+  });
   prefetchTasks.set(taskKey, task);
   return task;
 }
