@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearAllProviderAccountHealth,
   getProviderAccountHealth,
+  clearProviderAccountHealth,
   markProviderAccountFailure
 } from '../src/services/providerHealth';
 
@@ -37,4 +38,11 @@ describe('per-account provider runtime health', () => {
     expect(active?.cooldownUntil).toBe(now + 120_000);
     expect(await getProviderAccountHealth('voice_tts', 'primary', now + 120_001)).toBeNull();
   });
+  it('persists needs-retest state and clears it after a successful account test', async () => {
+    await markProviderAccountFailure('voice_tts', 'primary', Object.assign(new Error('HTTP 404'), { status: 404 }));
+    expect(localStorage.getItem('speakcoach.provider_account_health.v1')).toContain('needs-retest');
+    await clearProviderAccountHealth('voice_tts', 'primary');
+    expect(await getProviderAccountHealth('voice_tts', 'primary')).toBeNull();
+  });
+
 });
