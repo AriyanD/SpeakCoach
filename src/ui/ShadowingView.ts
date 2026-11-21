@@ -443,6 +443,13 @@ export function renderShadowingView(
         });
       });
       shadowingPrefetchScheduler.completeBatch(completed);
+      // If the learner crossed the next position threshold while this serial
+      // batch was running, release the next window now instead of waiting for
+      // another practice score or user action.
+      if (completed === queue.length && queuedEpoch === shadowingPrefetchEpoch) {
+        const followUp = shadowingPrefetchScheduler.reachPosition(state.index, activeSet.sentences.length);
+        if (followUp.length) enqueueShadowingPrefetch(followUp);
+      }
     });
   };
   const startShadowingPrefetch = (): void => {
