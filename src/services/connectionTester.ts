@@ -5,6 +5,7 @@ import { loadApiKey } from '../storage/keyStore';
 import { nativeHttpRequest, SpeakCoachHttpError } from './httpClient';
 import { networkMonitor } from './networkMonitor';
 import { clearSlotRuntimeFailure, markSlotRuntimeFailure } from './tierManager';
+import { clearProviderAccountHealth, createProviderVerificationFingerprint, type ProviderAccount } from './providerHealth';
 import { cleanJsonPayload } from './ieltsLlmEvaluator';
 import { normalizeAudioDataUrl, synthesizeOnlineNeuralAudio } from './ttsService';
 import { buildCapacitorMultipartEntries, parseWhisperWordTimestamps, requestAzurePronunciationAssessment } from './whisperSttService';
@@ -128,6 +129,7 @@ export async function testSlotConnection(
     isOnlineOverride?: boolean;
     transport?: TransportFn;
     recordRuntimeFailure?: boolean;
+    account?: ProviderAccount;
   }
 ): Promise<ConnectionTestResult> {
   const startTime = Date.now();
@@ -786,6 +788,8 @@ export async function testSlotConnection(
 
     const latencyMs = Math.max(1, Date.now() - startTime);
     clearSlotRuntimeFailure(slotConfig.slotId);
+    if (options?.account) await clearProviderAccountHealth(slotConfig.slotId, options.account);
+    const verificationFingerprint = await createProviderVerificationFingerprint(slotConfig, apiKey);
     return {
       ok: true,
       slotId: slotConfig.slotId,
@@ -793,6 +797,7 @@ export async function testSlotConnection(
       tier: preset.tier,
       label,
       latencyMs,
+      verificationFingerprint: verificationFingerprint ?? undefined,
       message: preset.id === 'azure_pronunciation'
         ? `PASS — ${preset.name} pronunciation-assessment endpoint accepted the WAV probe (${latencyMs} ms). The probe is a synthetic tone; use a real spoken recording to verify recognition quality and pronunciation scores.`
         : slotConfig.slotId === 'ielts_stt' || slotConfig.slotId === 'pronunciation_scoring'
