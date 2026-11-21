@@ -91,6 +91,22 @@ describe('IeltsResultView Component (Stage 4.3)', () => {
     clearIeltsTelemetry();
   });
 
+
+  it('shows re-evaluation failures inline without hiding an existing band score', async () => {
+    renderIeltsResultView(container, mockTestRecord, {
+      onRetake: () => {},
+      onBackToHistory: () => {},
+      onRetryEvaluation: async () => { throw new Error('API 2 is not ready: verification expired.'); }
+    });
+    const status = container.querySelector<HTMLElement>('#result-reevaluation-status');
+    expect(status).not.toBeNull();
+    expect(status?.getAttribute('aria-live')).toBe('polite');
+    container.querySelector<HTMLButtonElement>('#result-retry-eval-btn')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(status?.textContent).toContain('API 2 is not ready');
+    expect(container.querySelector('#result-overall-band')?.textContent).toContain('7.5');
+  });
+
   it('renders a three-criterion practice estimate and marks pronunciation as not assessed', () => {
     const onRetake = vi.fn();
     const onBackToHistory = vi.fn();
