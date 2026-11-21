@@ -212,6 +212,7 @@ export async function renderSettingsView(
         : `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
     const showVoiceInput = slotId === 'voice_tts' && preset.id !== 'android_native_tts';
     const mismatchInfo = detectProviderUrlMismatch(slotCfg);
+    const secondaryMismatchInfo = secondaryPreset ? detectProviderUrlMismatch({ slotId, providerId: secondaryPreset.id, baseUrl: slotCfg.secondary?.baseUrl || secondaryPreset.defaultBaseUrl, endpointPathOverride: slotCfg.secondary?.endpointPathOverride }) : { mismatch: false };
 
     const optionsHtml = def.providers
       .map(
@@ -497,8 +498,12 @@ export async function renderSettingsView(
                 </div>
               </div>
             </div>
-            <div class="form-field"><label class="form-label" for="secondary-baseurl-${slotId}">Base URL</label>
-              <input type="url" class="form-input" id="secondary-baseurl-${slotId}" value="${escapeHtml(slotCfg.secondary?.baseUrl || secondaryPreset?.defaultBaseUrl || '')}" placeholder="https://api.example.com/v1" /></div>
+            <div class="form-field settings-baseurl-field"><label class="form-label" for="secondary-baseurl-${slotId}">Base URL</label>
+              <input type="url" class="form-input settings-baseurl-input" id="secondary-baseurl-${slotId}" value="${escapeHtml(slotCfg.secondary?.baseUrl || secondaryPreset?.defaultBaseUrl || '')}" placeholder="${escapeHtml(secondaryPreset?.baseUrlPlaceholder ?? 'https://api.example.com/v1')}" ${secondaryPreset?.tier === 3 ? 'disabled' : ''} />
+              <div class="status-box fail settings-mismatch-warning" id="secondary-mismatch-warning-${slotId}" style="${secondaryMismatchInfo.mismatch ? '' : 'display:none;'}">
+                <div id="secondary-mismatch-warning-text-${slotId}" class="settings-mismatch-copy">${escapeHtml(secondaryMismatchInfo.reason ?? '')}</div>
+                <button type="button" class="btn btn-secondary settings-switch-custom-btn" id="secondary-switch-custom-btn-${slotId}">Switch to Custom (OpenAI-compatible)</button>
+              </div></div>
             <div class="form-field">
               <div class="settings-field-heading">
                 <label class="form-label" for="secondary-model-${slotId}">${escapeHtml(secondaryPreset?.modelFieldLabel ?? "Model / voice")}</label>
@@ -512,14 +517,14 @@ export async function renderSettingsView(
               <label class="form-label" for="secondary-custom-voice-${slotId}">API 2 voice (choose from the available list or enter a custom name)</label>
               <input type="text" class="form-input" id="secondary-custom-voice-${slotId}" value="${escapeHtml(slotCfg.secondary?.customTtsVoice ?? '')}" placeholder="Choose or enter a voice name" autocomplete="off" />
               <div class="voice-picker-dropdown">
-                <div class="btn-row"><button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-voices-btn-${slotId}">Load voices</button><button type="button" class="btn btn-secondary" id="preview-secondary-voice-btn-${slotId}">Preview voice</button></div>
+                <div class="btn-row"><button type="button" class="btn btn-secondary settings-fetch-models-btn" id="fetch-secondary-voices-btn-${slotId}">Load available voices</button><button type="button" class="btn btn-secondary" id="preview-secondary-voice-btn-${slotId}">Preview voice</button></div>
                 <div class="model-picker-options" id="secondary-voices-list-${slotId}" hidden></div>
                 <div id="preview-secondary-voice-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
                 <div id="fetch-secondary-voices-msg-${slotId}" class="settings-fetch-models-message" role="status" aria-live="polite" hidden></div>
               </div>
             </div>` : ''}
-            <div class="form-field"><label class="form-label" for="secondary-key-${slotId}">API Key (${keyStorageLabel})</label>
-              <input type="password" class="form-input" id="secondary-key-${slotId}" value="" autocomplete="off" placeholder="${secondaryKeysBySlot[slotId] ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.' : 'Enter second API key'}" /></div>
+            <div class="form-field"><label class="form-label" for="secondary-key-${slotId}">API Key (${secondaryPreset?.requiresKey === false ? 'Offline — no key needed' : keyStorageLabel})</label>
+              <input type="password" class="form-input" id="secondary-key-${slotId}" value="" autocomplete="off" placeholder="${secondaryPreset?.requiresKey === false ? 'No API key needed' : secondaryKeysBySlot[slotId] ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.' : 'Enter second API key'}" ${secondaryPreset?.requiresKey === false ? 'disabled' : ''} /></div>
             ${secondaryCopyKeyOptionsHtml ? `
             <div class="form-field">
               <label class="form-label" for="secondary-copy-key-source-${slotId}">Or copy from</label>
