@@ -5,6 +5,52 @@ import { loadApiKey } from '../storage/keyStore';
 import { createProviderVerificationFingerprint } from './providerHealth';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { clearProviderAccountHealth, getProviderAccountHealth, markProviderAccountFailure } from './providerHealth';
+import { networkMonitor } from './networkMonitor';
+
+
+export interface SlotAccountReadiness {
+  usable: boolean;
+  reason: string;
+  config?: SlotConfig;
+}
+
+export async function getSlotAccountReadiness(
+  slotId: SlotId,
+  account: 'primary' | 'secondary'
+): Promise<SlotAccountReadiness> {
+  if (!networkMonitor.isOnline()) return { usable: false, reason: 'the device is offline. Connect to the internet and try again.' };
+  const all = await loadAllSlotsConfig();
+  const saved = account === 'primary' ? all[slotId] : all[slotId].secondary;
+  if (!saved) return { usable: false, reason: account === 'primary' ? 'no provider is configured. Choose a provider in Settings.' : 'no API 2 provider is configured.' };
+  const config: SlotConfig = account === 'primary'
+    ? saved
+    : { slotId, ...saved };
+  const preset = getPreset(slotId, config.providerId);
+  const label = account === 'primary' ? 'API 1' : 'API 2';
+  if (preset.tier === 3) return { usable: false, reason: 'this account uses the offline provider and cannot perform online IELTS evaluation.', config };
+  const key = preset.requiresKey ? await loadApiKey(slotId, preset.id, account) : '';
+  if (preset.requiresKey && !key.trim()) return { usable: false, reason: 'the API key is missing. Enter and save the key in Settings.', config };
+  const health = await getProviderAccountHealth(slotId, account);
+  if (health?.state === 'needs-retest') return { usable: false, reason: `the provider needs a new connection test (${health.status ? `HTTP ${health.status}` : health.reason}). Open Settings > ${label} and run Test again.`, config };
+  if (health?.state === 'cooldown') {
+    const remaining = health.cooldownUntil ? Math.max(1, Math.ceil((health.cooldownUntil - Date.now()) / 1000)) : undefined;
+    return { usable: false, reason: `the provider is cooling down after a temporary failure${remaining ? `; try again in about ${remaining} seconds` : ''}. Check the network or quota, then retry.`, config };
+  }
+  if (account === 'primary') {
+    const test = await loadSlotConnectionTestResult(slotId);
+    if (!test?.ok) return { usable: false, reason: test?.message ? `the connection test did not pass: ${test.message} Open Settings > ${label} and run Test again.` : 'the provider has not passed a connection test. Open Settings > API 1 and run Test again.', config };
+    const fingerprint = await createProviderVerificationFingerprint(config, key);
+    if (!fingerprint || test.verificationFingerprint !== fingerprint) return { usable: false, reason: 'the saved verification no longer matches the API key, model or URL. Run Test API 1 again in Settings.', config };
+    if (Date.now() - test.timestamp >= CONNECTION_VERIFICATION_TTL_MS) return { usable: false, reason: 'the connection test expired (older than 30 days). Open Settings > API 1 and run Test again.', config };
+  } else {
+    const test = saved.testResult;
+    if (!saved.verified || !test?.ok) return { usable: false, reason: test?.message ? `the connection test did not pass: ${test.message} Open Settings > API 2 and run Test again.` : 'API 2 is configured but not verified. Open Settings > API 2 and run Test again.', config };
+    const fingerprint = await createProviderVerificationFingerprint(config, key);
+    if (!fingerprint || !test.verificationFingerprint || test.verificationFingerprint !== fingerprint) return { usable: false, reason: 'the saved verification no longer matches the API key, model or URL. Run Test API 2 again in Settings.', config };
+    if (Date.now() - test.testedAt >= CONNECTION_VERIFICATION_TTL_MS) return { usable: false, reason: 'the connection test expired (older than 30 days). Open Settings > API 2 and run Test again.', config };
+  }
+  return { usable: true, reason: '', config };
+}
 
 export interface ApiAttemptResult<T> {
   result: T;
