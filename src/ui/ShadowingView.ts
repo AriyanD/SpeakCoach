@@ -145,6 +145,7 @@ let shadowingRecordingTimeout: ReturnType<typeof setTimeout> | null = null;
 let shadowingModelPlaybackToken = 0;
 let shadowingIsStopping = false;
 let shadowingPrefetchWindowKey = '';
+let shadowingPrefetchEpoch = 0;
 const shadowingPrefetchScheduler = new ShadowingPrefetchScheduler();
 let shadowingPrefetchQueue: Promise<void> = Promise.resolve();
 let shadowingViewGeneration = 0;
@@ -416,6 +417,7 @@ export function renderShadowingView(
   const prefetchWindowKey = `${state.difficulty}:${state.languageCode}:${activeSet?.sentences[0]?.text ?? ''}:${state.customDrillText ?? ''}`;
   if (prefetchWindowKey !== shadowingPrefetchWindowKey) {
     shadowingPrefetchWindowKey = prefetchWindowKey;
+    shadowingPrefetchEpoch++;
     shadowingPrefetchScheduler.reset(state.index + 1);
     clearPreloadedSentenceAudio();
   }
@@ -424,8 +426,14 @@ export function renderShadowingView(
     const queue = indices.map(index => activeSet.sentences[index]).filter((item): item is ShadowingSentence => Boolean(item));
     if (!queue.length) return;
     // Serialize batches so quick progress cannot create overlapping API bursts.
+    // Discard queued work from a previous language/sentence-set context.
+    const queuedEpoch = shadowingPrefetchEpoch;
     shadowingPrefetchQueue = shadowingPrefetchQueue.then(async () => {
-      for (const item of queue) await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
+      if (queuedEpoch !== shadowingPrefetchEpoch) return;
+      for (const item of queue) {
+        if (queuedEpoch !== shadowingPrefetchEpoch) return;
+        await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
+      }
     });
   };
   const startShadowingPrefetch = (): void => {
