@@ -1478,6 +1478,7 @@ export async function renderSettingsView(
     };
     let savedSlots = 0;
     let notSavedSlots = 0;
+    let skippedSlots = 0;
     let completedAccounts = 0;
     const plannedAccounts = SLOT_ORDER.reduce((total, slotId) => {
       const primary = getPreset(slotId, configs[slotId].providerId);
@@ -1507,7 +1508,8 @@ export async function renderSettingsView(
           else accounts.push({ account: 'secondary', config: { slotId, ...secondarySaved }, key: secondaryKeysBySlot[slotId], providerName: secondaryPreset.name });
         } else skippedAccounts.push('API 2 skipped — not configured');
         if (!accounts.length) {
-          reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: ${skippedAccounts.join(' · ')}. Not saved.</li>`);
+          skippedSlots += 1;
+          reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: ${skippedAccounts.join(' · ')} — <strong>Skipped</strong>; no verification state changed.</li>`);
           continue;
         }
 
@@ -1587,7 +1589,7 @@ export async function renderSettingsView(
         }
       }
       backupStatus.className = cancelTestAllApis ? 'status-box info' : notSavedSlots ? 'status-box info' : 'status-box pass';
-      backupStatus.innerHTML = `<strong>${savedSlots} slots saved, ${notSavedSlots} not saved${cancelTestAllApis ? ' — run cancelled; untested slots unchanged' : ''}.</strong><ul class="test-all-api-report">${reports.join('')}</ul>`;
+      backupStatus.innerHTML = `<strong>${savedSlots} slots saved, ${notSavedSlots} not saved, ${skippedSlots} skipped${cancelTestAllApis ? ' — run cancelled; untested slots unchanged' : ''}.</strong><ul class="test-all-api-report">${reports.join('')}</ul>`;
     } catch (error) {
       backupStatus.className = 'status-box fail';
       backupStatus.textContent = `Test all APIs stopped: ${redactKeys(error instanceof Error ? error.message : String(error))}`;
