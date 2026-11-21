@@ -6,7 +6,7 @@ import { nativeHttpRequest, SpeakCoachHttpError } from './httpClient';
 import { networkMonitor } from './networkMonitor';
 import { clearSlotRuntimeFailure, markSlotRuntimeFailure } from './tierManager';
 import { clearProviderAccountHealth, createProviderVerificationFingerprint, markProviderAccountFailure, type ProviderAccount } from './providerHealth';
-import { loadAllSlotsConfig, saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../storage/localStore';
+import { saveSlotConnectionTestResult, saveSecondarySlotConfig } from '../storage/localStore';
 import { cleanJsonPayload } from './ieltsLlmEvaluator';
 import { clearGeminiLanguageFailures, normalizeAudioDataUrl, synthesizeOnlineNeuralAudio } from './ttsService';
 import { buildCapacitorMultipartEntries, parseWhisperWordTimestamps, requestAzurePronunciationAssessment } from './whisperSttService';
@@ -846,7 +846,6 @@ export async function persistSlotAccountTestResult(
     await saveSlotConnectionTestResult(slotConfig.slotId, { ...result, ok: passed });
     return;
   }
-  const all = await loadAllSlotsConfig();
   const testResult = {
     ok: passed,
     latencyMs: result.latencyMs,
