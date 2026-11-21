@@ -42,6 +42,7 @@ import {
 
 const lastTestResults = new Map<SlotId, ConnectionTestResult>();
 const dismissedVerificationErrors = new Set<SlotId>();
+let settingsProviderTestRunning = false;
 
 function escapeHtml(text: string): string {
   return text
@@ -784,6 +785,9 @@ export async function renderSettingsView(
     ];
 
     quickSetupButton.disabled = true;
+    settingsProviderTestRunning = true;
+    const batchButton = container.querySelector<HTMLButtonElement>('#test-all-apis-btn');
+    if (batchButton) batchButton.disabled = true;
     quickSetupButton.textContent = 'Setting up…';
     if (quickSetupStatus) {
       quickSetupStatus.className = 'status-box info';
@@ -959,6 +963,8 @@ export async function renderSettingsView(
       await _onSettingsUpdated();
     } finally {
       quickSetupButton.disabled = false;
+      settingsProviderTestRunning = false;
+      if (batchButton) batchButton.disabled = false;
       quickSetupButton.textContent = 'Set up recommended providers';
     }
   });
@@ -1051,6 +1057,9 @@ export async function renderSettingsView(
     if (customProviderApplyButton) customProviderApplyButton.disabled = true;
     if (customProviderResults) customProviderResults.innerHTML = '';
     customProviderTestButton.disabled = true;
+    settingsProviderTestRunning = true;
+    const batchButton = container.querySelector<HTMLButtonElement>('#test-all-apis-btn');
+    if (batchButton) batchButton.disabled = true;
     if (customProviderFetchButton) customProviderFetchButton.disabled = true;
     if (customProviderStatus) {
       customProviderStatus.className = 'status-box info';
@@ -1102,6 +1111,8 @@ export async function renderSettingsView(
     }
     if (customProviderApplyButton) customProviderApplyButton.disabled = compatible === 0;
     customProviderTestButton.disabled = false;
+    settingsProviderTestRunning = false;
+    if (batchButton) batchButton.disabled = false;
     if (customProviderFetchButton) customProviderFetchButton.disabled = false;
   });
 
@@ -1302,7 +1313,6 @@ export async function renderSettingsView(
 
   const backupStatus = container.querySelector<HTMLElement>('#backup-status');
   let testAllApisButton: HTMLButtonElement | null = null;
-  let settingsProviderTestRunning = false;
   const persistSlotDrafts: Partial<Record<SlotId, () => Promise<void>>> = {};
 
   const restoreSelectedBackup = async (
