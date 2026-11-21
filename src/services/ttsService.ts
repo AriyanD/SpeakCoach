@@ -667,8 +667,15 @@ export async function previewTtsVoice(
   if (preset.requiresKey && !apiKey.trim()) {
     throw new Error('Enter an API key before previewing this online voice.');
   }
-  // Voice previews are disposable; keep them in bounded RAM rather than the persistent cache.
-  const result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true, temporaryCacheGeneration, true);
+  // Voice previews are user-initiated synthesis too; keep prefetch paused until
+  // the provider request completes. The disposable preview bypasses the cache.
+  userInitiatedSynthesisInFlight++;
+  let result: { dataUrl: string; fromCache: boolean };
+  try {
+    result = await synthesizeOnlineNeuralAudio(text, slotConfig, apiKey, 1, undefined, locale, true, temporaryCacheGeneration, true);
+  } finally {
+    userInitiatedSynthesisInFlight = Math.max(0, userInitiatedSynthesisInFlight - 1);
+  }
   await playAudioDataUrl(result.dataUrl);
 }
 
