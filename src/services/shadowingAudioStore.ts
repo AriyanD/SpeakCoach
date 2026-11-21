@@ -251,6 +251,7 @@ export async function persistActiveShadowingAudio(params: {
       const extra = index.entries.find(entry => entry.hash === hash);
       if (extra) await removeFile(extra.file);
       ram.delete(ramKey(params.setId, hash));
+      removeTtsAudioFromMemory(hash);
       index.entries = index.entries.filter(entry => entry.hash !== hash);
     }
     const total = index.entries.reduce((sum, entry) => sum + entry.size, 0);
