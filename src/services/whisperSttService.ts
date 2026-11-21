@@ -631,6 +631,8 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     if (secondaryVerified && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
       candidates.push({ slotId: requestedSlotId, config: secondaryConfig, account: 'secondary' });
     }
+  } else if (secondary) {
+    secondaryVerificationNotice = `API 2 (${getPreset(requestedSlotId, secondary.providerId).name}) needs a successful connection test before it can be used.`;
   }
 
   // Rotate only between the primary and secondary APIs of the requested slot.
