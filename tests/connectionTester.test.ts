@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createDefaultSlotConfig } from '../src/config/providers';
 import type { ConnectionTestResult } from '../src/config/types';
 import { bootstrapApp } from '../src/main';
-import { persistSlotAccountTestResult, shouldPersistSlotVerification, testSlotAccountsSequentially, testSlotConnection } from '../src/services/connectionTester';
+import { describeConnectionTestFailure, persistSlotAccountTestResult, shouldPersistSlotVerification, testSlotAccountsSequentially, testSlotConnection } from '../src/services/connectionTester';
 import { synthesizeOnlineNeuralAudio } from '../src/services/ttsService';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { getProviderAccountHealth } from '../src/services/providerHealth';
@@ -47,6 +47,25 @@ describe('Functional Deep Connection Tester', () => {
 
 
 
+
+
+  it.each([
+    ['HTTP 401 unauthorized', /Key rejected.*Re-enter/i],
+    ['HTTP 403 forbidden', /Key rejected.*Re-enter/i],
+    ['HTTP 404 model not found', /Model or endpoint not found.*Check the model/i],
+    ['HTTP 400 unsupported capability', /unsupported capability.*Check the model/i],
+    ['HTTP 429 rate limit', /Quota or rate limit.*Wait for the provider/i],
+    ['HTTP 503 server unavailable', /Provider server error.*Wait and retry/i],
+    ['network CORS fetch failed', /Network or CORS failure.*Check the internet/i],
+    ['request timed out', /Connection timed out.*wait briefly/i],
+    ['unexpected internal failure', /Unclassified connection failure.*report this error/i]
+  ])('classifies provider failure and suggests a next step: %s', (message, expected) => {
+    const result: ConnectionTestResult = {
+      ok: false, slotId: 'voice_tts', providerId: 'gemini_tts', tier: 1,
+      label: 'Online AI', latencyMs: 5, message: `FAIL — ${message}`
+    };
+    expect(describeConnectionTestFailure(result)).toMatch(expected);
+  });
 
   it('saves a slot only when every configured online account passes', () => {
     const passPrimary = { result: { ok: true, tier: 1 } as ConnectionTestResult };
