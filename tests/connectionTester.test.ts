@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createDefaultSlotConfig } from '../src/config/providers';
 import type { ConnectionTestResult } from '../src/config/types';
 import { bootstrapApp } from '../src/main';
-import { persistSlotAccountTestResult, testSlotAccountsSequentially, testSlotConnection } from '../src/services/connectionTester';
+import { persistSlotAccountTestResult, shouldPersistSlotVerification, testSlotAccountsSequentially, testSlotConnection } from '../src/services/connectionTester';
 import { synthesizeOnlineNeuralAudio } from '../src/services/ttsService';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
@@ -45,6 +45,19 @@ describe('Functional Deep Connection Tester', () => {
   });
 
 
+
+
+  it('saves a slot only when every configured online account passes', () => {
+    const passPrimary = { result: { ok: true, tier: 1 } as ConnectionTestResult };
+    const passSecondary = { result: { ok: true, tier: 2 } as ConnectionTestResult };
+    const failPrimary = { result: { ok: false, tier: 1 } as ConnectionTestResult };
+    const failSecondary = { result: { ok: false, tier: 2 } as ConnectionTestResult };
+    expect(shouldPersistSlotVerification([passPrimary], 1)).toBe(true);
+    expect(shouldPersistSlotVerification([passPrimary, passSecondary], 2)).toBe(true);
+    expect(shouldPersistSlotVerification([passPrimary, failSecondary], 2)).toBe(false);
+    expect(shouldPersistSlotVerification([failPrimary, failSecondary], 2)).toBe(false);
+    expect(shouldPersistSlotVerification([], 0)).toBe(false);
+  });
 
   it('runs Test all API account probes sequentially and continues after an individual failure', async () => {
     const primary = createDefaultSlotConfig('voice_tts');
