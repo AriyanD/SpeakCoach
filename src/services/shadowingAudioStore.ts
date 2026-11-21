@@ -50,6 +50,21 @@ async function writeIndex(): Promise<void> {
   if (!index) return;
   await Preferences.set({ key: INDEX_KEY, value: JSON.stringify(index) });
 }
+export function selectActiveSetAudioEvictions(
+  entries: Array<Pick<Entry, 'hash' | 'size' | 'createdAt' | 'kind'>>,
+  incomingSize: number,
+  maxChars = MAX_SET_CHARS
+): string[] {
+  let total = entries.reduce((sum, entry) => sum + entry.size, 0);
+  const evictions: string[] = [];
+  for (const extra of entries.filter(entry => entry.kind === 'extra').sort((a, b) => a.createdAt - b.createdAt)) {
+    if (total + incomingSize <= maxChars) break;
+    evictions.push(extra.hash);
+    total -= extra.size;
+  }
+  return evictions;
+}
+
 async function removeFile(path: string): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     try { await Filesystem.deleteFile({ path, directory: Directory.Data }); } catch { /* already absent */ }
@@ -177,18 +192,17 @@ export async function persistActiveShadowingAudio(params: {
   const path = filePath(params.setId, params.hash);
   const existing = index.entries.find(entry => entry.hash === params.hash);
   if (!existing) {
-    const entries = [...index.entries];
-    let total = entries.reduce((sum, entry) => sum + entry.size, 0);
     // Preserve all canonical sentence audio. Evict slow/word replay extras first.
-    for (const extra of entries.filter(entry => entry.kind === 'extra').sort((a,b) => a.createdAt-b.createdAt)) {
-      if (total + params.dataUrl.length <= MAX_SET_CHARS) break;
-      await removeFile(extra.file);
-      ram.delete(ramKey(params.setId, extra.hash));
-      index.entries = index.entries.filter(entry => entry.hash !== extra.hash);
-      total -= extra.size;
+    const evictions = selectActiveSetAudioEvictions(index.entries, params.dataUrl.length);
+    for (const hash of evictions) {
+      const extra = index.entries.find(entry => entry.hash === hash);
+      if (extra) await removeFile(extra.file);
+      ram.delete(ramKey(params.setId, hash));
+      index.entries = index.entries.filter(entry => entry.hash !== hash);
     }
+    const total = index.entries.reduce((sum, entry) => sum + entry.size, 0);
     // If sentence audio alone exceeds the budget, retain it rather than evicting
-    // one of the active set's canonical sentences.
+    // one of the active set's canonical sentences. Extras may be declined.
     if (params.kind === 'extra' && total + params.dataUrl.length > MAX_SET_CHARS) return false;
   }
   await writeFile(path, params.dataUrl);
