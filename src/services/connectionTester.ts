@@ -574,7 +574,8 @@ export async function testSlotConnection(
           'en-US',
           false,
           undefined,
-          true
+          true,
+          45000
         );
         if (synthRes.fromCache) {
           throw new Error('Connection test must make a live network request; cached TTS audio cannot verify provider connectivity.');
