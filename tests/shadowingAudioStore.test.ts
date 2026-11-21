@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearMemoryAudioCache, setCachedTtsAudio } from '../src/services/audioCache';
+import { clearMemoryAudioCache, getCachedTtsAudio, setCachedTtsAudio } from '../src/services/audioCache';
 import {
   activateShadowingAudioSet,
   initializeShadowingAudioStore,
@@ -34,6 +34,7 @@ describe('durable active-set AI audio store', () => {
 
   it('deletes the previous set on a real set switch, but preserves a same-set re-entry', async () => {
     const firstGeneration = await activateShadowingAudioSet('en:easy:set-a');
+    await setCachedTtsAudio('a', 'audio-a');
     await persistActiveShadowingAudio({
       setId: 'en:easy:set-a', generation: firstGeneration, hash: 'a',
       dataUrl: 'audio-a', kind: 'sentence'
@@ -45,6 +46,7 @@ describe('durable active-set AI audio store', () => {
     const nextGeneration = await activateShadowingAudioSet('en:easy:set-b');
     expect(nextGeneration).toBeGreaterThan(firstGeneration);
     await expect(readActiveShadowingAudio('a')).resolves.toBeNull();
+    await expect(getCachedTtsAudio('a')).resolves.toBeNull();
     await expect(getActiveShadowingAudioSet()).resolves.toEqual({
       setId: 'en:easy:set-b', generation: nextGeneration
     });
