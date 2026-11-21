@@ -19,6 +19,13 @@ import java.security.MessageDigest;
 
 @CapacitorPlugin(name = "UpdateInstaller")
 public class UpdateInstallerPlugin extends Plugin {
+    @PluginMethod
+    public void getAndroidSdkInt(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("sdkInt", Build.VERSION.SDK_INT);
+        call.resolve(result);
+    }
+
     private boolean matchesSha256(File file, String expected) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] buffer = new byte[8192];
