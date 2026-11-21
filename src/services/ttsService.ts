@@ -238,7 +238,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
   bypassCache = false,
   requestTimeoutMs = 15000,
   setAudio?: { setId: string; generation: number; kind: 'sentence' | 'extra' }
-): Promise<{ dataUrl: string; fromCache: boolean; cacheHash: string }> {
+): Promise<SynthesizedAudioResult> {
   const accountFingerprint = await createAudioCacheAccountFingerprint(apiKey);
   // If Web Crypto is unavailable, synthesize normally but bypass cache so
   // audio from separate provider accounts can never share a cache namespace.
@@ -434,8 +434,8 @@ async function synthesizeOnlineNeuralAudioUnshared(
     );
     const dataUrl = normalizeAudioDataUrl(res.data);
     if (!dataUrl) throw new Error('Empty audio payload from Azure Neural TTS');
-    await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled);
-    return { dataUrl, fromCache: false, cacheHash: hash };
+    const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
+    return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
   }
 
   if (slotCfg.providerId === 'elevenlabs_tts') {
@@ -711,6 +711,7 @@ export async function speakSentenceWithTierFallback(
   }
 
   let usedCache = false;
+  let storageWarning: string | undefined;
   let activeSetAudioHash: string | null = null;
   const usedProviderConfig: { current: { config: SlotConfig; account: 'primary' | 'secondary' } | null } = { current: null };
 
@@ -732,6 +733,7 @@ export async function speakSentenceWithTierFallback(
       if (options?.shadowingSetAudio) {
         const activeSet = await getActiveShadowingAudioSet();
         if (activeSet.setId !== options.shadowingSetAudio.setId || activeSet.generation !== options.shadowingSetAudio.generation) return true;
+        if (persistedToActiveSet === false) storageWarning = 'This generated audio could not be saved for offline replay. Check available device storage and try again.';
       }
       if (activePlaybackGeneration !== playbackGeneration) {
         // Playback was cancelled while network request was pending
@@ -775,9 +777,6 @@ export async function speakSentenceWithTierFallback(
         isFallback: usedProviderConfig.current.account === 'secondary'
       }
     : outcome.activeTier;
-  const storageWarning = options?.shadowingSetAudio && usedProviderConfig.current && outcome.activeTier.tier !== 3 && outcome.result?.persistedToActiveSet === false
-    ? 'This generated audio could not be saved for offline replay. Check available device storage and try again.'
-    : undefined;
   return { activeTier, fromCache: usedCache, durationEstimateMs, storageWarning };
 }
 
