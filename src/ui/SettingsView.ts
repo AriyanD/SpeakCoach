@@ -514,6 +514,7 @@ export async function renderSettingsView(
           </div>
 
           </div>
+          <p class="card-subtitle secondary-api-removal-note" id="secondary-removal-note-${slotId}" hidden>API 2 will be removed when you press Save settings.</p>
         </section>
 
         <section class="settings-connection-tests" aria-label="Provider connection tests">
@@ -1868,6 +1869,7 @@ export async function renderSettingsView(
     const secondaryEnabledToggle = container.querySelector<HTMLInputElement>(`#secondary-enabled-${slotId}`);
     const secondaryContent = container.querySelector<HTMLElement>(`#secondary-api-content-${slotId}`);
     const primaryResultCaption = container.querySelector<HTMLElement>(`#primary-result-caption-${slotId}`);
+    const secondaryRemovalNote = container.querySelector<HTMLElement>(`#secondary-removal-note-${slotId}`);
     const saveStatus = container.querySelector<HTMLElement>(`#save-status-${slotId}`);
     const saveBtn = container.querySelector<HTMLButtonElement>(`[data-save-slot="${slotId}"]`);
     const testBtn = container.querySelector<HTMLButtonElement>(`[data-test-slot="${slotId}"]`);
@@ -2092,6 +2094,7 @@ export async function renderSettingsView(
       if (secondaryTestBtn) secondaryTestBtn.hidden = !enabled;
       if (primaryResultCaption) primaryResultCaption.hidden = !enabled;
       if (secondaryStatus) secondaryStatus.hidden = !enabled;
+      if (secondaryRemovalNote) secondaryRemovalNote.hidden = enabled || !configs[slotId].secondary?.providerId;
       secondaryEnabledToggle?.setAttribute('aria-checked', String(enabled));
     };
     secondaryEnabledToggle?.addEventListener('change', () => {
