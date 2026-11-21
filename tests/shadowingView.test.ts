@@ -34,6 +34,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(scoreDetails?.tagName).toBe('SECTION');
     expect(sentenceSet?.querySelector('#sh-history-position')).not.toBeNull();
     expect(language && sentenceSet && language.compareDocumentPosition(sentenceSet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(language?.parentElement?.nextElementSibling).toBe(sentenceSet);
     expect(sentenceSet && target && sentenceSet.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(trainer?.contains(sentenceSet)).toBe(true);
     expect(trainer?.contains(target)).toBe(true);
