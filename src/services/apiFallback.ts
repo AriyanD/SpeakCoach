@@ -3,6 +3,7 @@ import { getProviderVerificationInstructions } from './tierManager';
 import type { SlotConfig, SlotId, SlotProviderConfig } from '../config/types';
 import { loadApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
+import { clearProviderAccountHealth, getProviderAccountHealth, markProviderAccountFailure } from './providerHealth';
 
 export interface ApiAttemptResult<T> {
   result: T;
@@ -26,13 +27,19 @@ export async function runWithSlotApiFallback<T>(
   const primaryPreset = getPreset(slotId, primaryConfig.providerId);
   const primaryTest = await loadSlotConnectionTestResult(slotId);
   const primaryVerified = !!primaryTest?.ok && primaryTest.providerId === primaryPreset.id && primaryTest.tier === primaryPreset.tier;
-  if (primaryVerified) attempts.push({ config: primaryConfig, account: 'primary' });
+  const primaryHealth = await getProviderAccountHealth(slotId, 'primary');
+  if (primaryVerified && !primaryHealth) attempts.push({ config: primaryConfig, account: 'primary' });
   const secondary = allConfigs[slotId].secondary as SlotProviderConfig | undefined;
   let secondarySkipReason = '';
   if (secondary?.verified) {
     const secondaryConfig: SlotConfig = { slotId, ...secondary };
-    if (getPreset(slotId, secondaryConfig.providerId).tier !== 3) {
+    const secondaryHealth = await getProviderAccountHealth(slotId, 'secondary');
+    if (getPreset(slotId, secondaryConfig.providerId).tier !== 3 && !secondaryHealth) {
       attempts.push({ config: secondaryConfig, account: 'secondary' });
+    } else if (secondaryHealth) {
+      secondarySkipReason = secondaryHealth.state === 'needs-retest'
+        ? 'API 2 needs a successful connection re-test.'
+        : 'API 2 is cooling down after a temporary provider failure.';
     } else {
       secondarySkipReason = 'API 2 is configured as an offline provider and cannot be used as an online fallback.';
     }
@@ -48,6 +55,7 @@ export async function runWithSlotApiFallback<T>(
     : attempts.filter((attempt) => attempt.account === preferredAccount);
 
   const errors: string[] = [];
+  if (primaryHealth) errors.push(primaryHealth.state === 'needs-retest' ? 'API 1 needs a successful connection re-test.' : 'API 1 is cooling down after a temporary provider failure.');
   if (selectedAttempts.length === 0) {
     throw new Error(`No verified AI provider is ready for this feature. ${getProviderVerificationInstructions(slotId)}`);
   }
@@ -61,8 +69,10 @@ export async function runWithSlotApiFallback<T>(
         throw new Error('API key is missing.');
       }
       const result = await action(attempt.config, apiKey);
+      await clearProviderAccountHealth(slotId, attempt.account);
       return { result, config: attempt.config, account: attempt.account };
     } catch (error) {
+      await markProviderAccountFailure(slotId, attempt.account, error);
       const accountLabel = attempt.account === 'primary' ? 'API 1 (primary)' : 'API 2 (secondary)';
       errors.push(`${accountLabel} (${preset.name}): ${error instanceof Error ? error.message : String(error)}`);
       if (attempt.account === 'primary' && attempts.length > 1) continue;
