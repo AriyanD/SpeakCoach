@@ -863,7 +863,7 @@ export async function persistSlotAccountTestResult(
     testResult
   });
   if (!passed) {
-    const status = Number(result.message.match(/HTTP\\s+(\\d{3})/i)?.[1]);
+    const status = Number(result.message.match(/HTTP\s+(\d{3})/i)?.[1]);
     const healthError = new Error(result.message) as Error & { status?: number };
     if (Number.isFinite(status) && status > 0) healthError.status = status;
     await markProviderAccountFailure(slotConfig.slotId, 'secondary', healthError);
