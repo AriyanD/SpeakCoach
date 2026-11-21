@@ -591,7 +591,11 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   }) : false;
   const primaryHealth = await getProviderAccountHealth(requestedSlotId, 'primary');
   const primaryProviderName = getPreset(requestedSlotId, primary.providerId).name;
-  if (primaryHealth) verificationNotices.push(`API 1 (${primaryProviderName}) is ${primaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${primaryHealth.reason}`);
+  if (primaryHealth) {
+    const wait = primaryHealth.state === 'cooldown' && primaryHealth.cooldownUntil
+      ? ` Wait about ${Math.max(1, Math.ceil((primaryHealth.cooldownUntil - Date.now()) / 1000))} seconds.` : '';
+    verificationNotices.push(`API 1 (${primaryProviderName}) is ${primaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${primaryHealth.reason}.${wait}`);
+  }
   else if (!primaryVerified) verificationNotices.push(`API 1 (${primaryProviderName}) needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.`);
   if (primaryVerified && compatibleProviderIds.has(primary.providerId) && getPreset(requestedSlotId, primary.providerId).tier !== 3) {
     candidates.push({ slotId: requestedSlotId, config: primary, account: 'primary' });
@@ -612,7 +616,11 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     });
     const secondaryHealth = await getProviderAccountHealth(requestedSlotId, 'secondary');
     const secondaryProviderName = getPreset(requestedSlotId, secondary.providerId).name;
-    if (secondaryHealth) secondaryVerificationNotice = `API 2 (${secondaryProviderName}) is ${secondaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${secondaryHealth.reason}`;
+    if (secondaryHealth) {
+      const wait = secondaryHealth.state === 'cooldown' && secondaryHealth.cooldownUntil
+        ? ` Wait about ${Math.max(1, Math.ceil((secondaryHealth.cooldownUntil - Date.now()) / 1000))} seconds.` : '';
+      secondaryVerificationNotice = `API 2 (${secondaryProviderName}) is ${secondaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${secondaryHealth.reason}.${wait}`;
+    }
     else if (!secondaryVerified) secondaryVerificationNotice = `API 2 (${secondaryProviderName}) needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.`;
     if (secondaryVerified && compatibleProviderIds.has(secondary.providerId) && getPreset(requestedSlotId, secondary.providerId).tier !== 3) {
       candidates.push({ slotId: requestedSlotId, config: secondaryConfig, account: 'secondary' });
