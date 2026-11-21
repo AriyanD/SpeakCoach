@@ -25,7 +25,7 @@ import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavV
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
 import { getCachedModelWordTimings } from '../services/modelTimingService';
 import { generateAiShadowingSentenceBatch } from '../services/shadowingAiGenerator';
-import { ShadowingPrefetchScheduler } from '../services/shadowingPrefetch';
+import { ShadowingPrefetchScheduler, runShadowingPrefetchBatch } from '../services/shadowingPrefetch';
 import { clearDiagnosticsCache } from './DiagnosticsView';
 import { SHADOWING_LANGUAGES, getShadowingLanguage, countShadowingLanguageUnits, type ShadowingLanguageCode } from '../data/shadowingLanguages';
 import { loadShadowingLanguageHistories, saveShadowingLanguageHistories, getShadowingHistoryForLanguage, createShadowingHistoryForLanguage, setShadowingHistoryForLanguage, loadSelectedShadowingLanguage, saveSelectedShadowingLanguage, type ShadowingLanguageHistories } from '../services/shadowingLanguageHistory';
@@ -431,13 +431,12 @@ export function renderShadowingView(
     const queuedEpoch = shadowingPrefetchEpoch;
     shadowingPrefetchQueue = shadowingPrefetchQueue.then(async () => {
       if (queuedEpoch !== shadowingPrefetchEpoch) return;
-      for (const item of queue) {
-        if (queuedEpoch !== shadowingPrefetchEpoch) return;
+      await runShadowingPrefetchBatch(queue, async (item) => {
+        if (queuedEpoch !== shadowingPrefetchEpoch) return false;
         const settings = await loadAppSettings();
-        if (!settings.prefetchShadowingAudio) return;
-        const prefetched = await preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
-        if (!prefetched) break;
-      }
+        if (!settings.prefetchShadowingAudio) return false;
+        return preloadSentenceAudio(item.text, { locale: selectedLanguage.locale });
+      });
     });
   };
   const startShadowingPrefetch = (): void => {
