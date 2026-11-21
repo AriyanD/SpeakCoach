@@ -244,6 +244,7 @@ describe('Per-slot secondary API fallback', () => {
   it('retries a verified secondary provider after a primary HTTP 503', async () => {
     await saveSlotConfig(primaryConfig);
     await saveApiKey('llm_generator', 'gemini_gen', 'primary-key');
+    const primaryFingerprint = await createProviderVerificationFingerprint(primaryConfig, 'primary-key');
     await saveSlotConnectionTestResult('llm_generator', {
       ok: true,
       slotId: 'llm_generator',
@@ -251,8 +252,11 @@ describe('Per-slot secondary API fallback', () => {
       tier: 1,
       label: 'Online AI',
       latencyMs: 12,
-      message: 'PASS — primary verified'
+      message: 'PASS — primary verified',
+      verificationFingerprint: primaryFingerprint ?? undefined
     });
+    const secondaryConfig = { slotId: 'llm_generator' as const, providerId: 'openai_compat_gen', baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'gpt-4o-mini' };
+    const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, 'secondary-key');
     await saveSecondarySlotConfig('llm_generator', {
       providerId: 'openai_compat_gen',
       baseUrl: 'https://api.openai.com/v1',
@@ -262,7 +266,8 @@ describe('Per-slot secondary API fallback', () => {
         ok: true,
         latencyMs: 18,
         message: 'PASS — secondary verified',
-        testedAt: Date.now()
+        testedAt: Date.now(),
+        verificationFingerprint: secondaryFingerprint ?? undefined
       }
     });
     await saveApiKey('llm_generator', 'openai_compat_gen', 'secondary-key', 'secondary');
