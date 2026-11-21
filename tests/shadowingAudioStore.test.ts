@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { clearMemoryAudioCache, setCachedTtsAudio } from '../src/services/audioCache';
 import {
   activateShadowingAudioSet,
   clearActiveShadowingAudioStore,
@@ -6,12 +7,15 @@ import {
   persistActiveShadowingAudio,
   readActiveShadowingAudio,
   resetShadowingAudioStoreForTests,
-  selectActiveSetAudioEvictions
+  selectActiveSetAudioEvictions,
+  markActiveSetAudioPlaying,
+  releaseActiveSetAudioPlaying
 } from '../src/services/shadowingAudioStore';
 
 describe('durable active-set AI audio store', () => {
   beforeEach(() => {
     localStorage.clear();
+    clearMemoryAudioCache();
     resetShadowingAudioStoreForTests();
   });
 
@@ -75,6 +79,33 @@ describe('durable active-set AI audio store', () => {
     ];
     expect(selectActiveSetAudioEvictions(entries, 40, 180)).toEqual(['slow-1']);
     expect(selectActiveSetAudioEvictions(entries, 100, 170)).toEqual(['slow-1', 'word-1']);
+  });
+
+
+  it('defers deletion of an old set until its generated audio finishes playing', async () => {
+    const setId = 'en:easy:playing-set';
+    const generation = await activateShadowingAudioSet(setId);
+    await persistActiveShadowingAudio({
+      setId, generation, hash: 'currently-playing',
+      dataUrl: 'playing-audio', kind: 'sentence'
+    });
+    const pathKey = 'speakcoach.shadowing.audio.SpeakCoach/shadowing-audio/en_easy_playing-set/currently-playing.txt';
+    markActiveSetAudioPlaying(setId, 'currently-playing');
+    await activateShadowingAudioSet('en:easy:next-set');
+    expect(localStorage.getItem(pathKey)).toBe('playing-audio');
+    await releaseActiveSetAudioPlaying(setId, 'currently-playing');
+    expect(localStorage.getItem(pathKey)).toBeNull();
+  });
+
+  it('keeps active-set sentence audio outside the generic 30-entry LRU', async () => {
+    const setId = 'en:easy:lru-isolation';
+    const generation = await activateShadowingAudioSet(setId);
+    await persistActiveShadowingAudio({
+      setId, generation, hash: 'protected-sentence',
+      dataUrl: 'durable-sentence-audio', kind: 'sentence'
+    });
+    for (let i = 0; i < 35; i++) await setCachedTtsAudio(`generic-${i}`, `generic-audio-${i}`);
+    await expect(readActiveShadowingAudio('protected-sentence', setId)).resolves.toBe('durable-sentence-audio');
   });
 
 });
