@@ -92,6 +92,17 @@ describe('IeltsResultView Component (Stage 4.3)', () => {
   });
 
 
+
+  it('shows a valid stored score even if an older failed retry left stale error metadata', () => {
+    const staleRecord = { ...mockTestRecord, evaluationError: 'Old API 2 retry failed' };
+    renderIeltsResultView(container, staleRecord, {
+      onRetake: () => {}, onBackToHistory: () => {}
+    });
+    expect(container.querySelector('#result-overall-band')?.textContent).toContain('7.5');
+    expect(container.querySelector('#result-failure-reason')).toBeNull();
+    expect(container.querySelector('#result-reevaluation-status')).not.toBeNull();
+  });
+
   it('shows re-evaluation failures inline without hiding an existing band score', async () => {
     renderIeltsResultView(container, mockTestRecord, {
       onRetake: () => {},
