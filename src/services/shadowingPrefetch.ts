@@ -1,7 +1,7 @@
 /**
  * Plans low-pressure Shadowing audio prefetch.
  * The current sentence is requested on demand; this scheduler only handles
- * upcoming sentences and advances in four-item batches after two distinct
+ * upcoming sentences and advances in two-item batches after two distinct
  * sentences have been successfully practised.
  */
 export class ShadowingPrefetchScheduler {
@@ -33,7 +33,7 @@ export class ShadowingPrefetchScheduler {
   }
 
   private takeBatch(totalSentences: number): number[] {
-    const end = Math.min(totalSentences, this.nextSentenceIndex + 4);
+    const end = Math.min(totalSentences, this.nextSentenceIndex + 2);
     const indices = Array.from(
       { length: Math.max(0, end - this.nextSentenceIndex) },
       (_, offset) => this.nextSentenceIndex + offset
