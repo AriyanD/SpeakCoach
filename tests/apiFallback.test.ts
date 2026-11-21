@@ -125,6 +125,7 @@ describe('Per-slot secondary API fallback', () => {
     };
     await saveSlotConfig(primaryConfig);
     await saveApiKey(slotId, primaryProviderId, 'primary-key');
+    const primaryFingerprint = await createProviderVerificationFingerprint(primaryConfig, 'primary-key');
     await saveSlotConnectionTestResult(slotId, {
       ok: true,
       slotId,
@@ -132,14 +133,17 @@ describe('Per-slot secondary API fallback', () => {
       tier: primaryPreset.tier,
       label: 'Online AI',
       latencyMs: 10,
-      message: 'PASS — primary verified'
+      message: 'PASS — primary verified',
+      verificationFingerprint: primaryFingerprint ?? undefined
     });
+    const secondaryConfig = { slotId, providerId: secondaryPreset.id, baseUrl: secondaryPreset.defaultBaseUrl, modelOrVoice: secondaryPreset.defaultModelOrVoice };
+    const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, 'secondary-key');
     await saveSecondarySlotConfig(slotId, {
       providerId: secondaryPreset.id,
       baseUrl: secondaryPreset.defaultBaseUrl,
       modelOrVoice: secondaryPreset.defaultModelOrVoice,
       verified: true,
-      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now() }
+      testResult: { ok: true, latencyMs: 12, message: 'PASS — secondary verified', testedAt: Date.now(), verificationFingerprint: secondaryFingerprint ?? undefined }
     });
     await saveApiKey(slotId, secondaryProviderId, 'secondary-key', 'secondary');
 
