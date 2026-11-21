@@ -1421,6 +1421,137 @@ export async function renderSettingsView(
   wireBackup('ai-settings');
   wireBackup('test-data');
 
+  const testAllApisButton = container.querySelector<HTMLButtonElement>('#test-all-apis-btn');
+  let testAllApisRunning = false;
+  let cancelTestAllApis = false;
+  testAllApisButton?.addEventListener('click', async () => {
+    if (testAllApisRunning) { cancelTestAllApis = true; testAllApisButton.textContent = 'Cancelling…'; return; }
+    if (!backupStatus) return;
+    if (!networkMonitor.isOnline()) {
+      backupStatus.className = 'status-box fail';
+      backupStatus.textContent = 'No connection — nothing tested. No verification state was changed.';
+      return;
+    }
+    const confirmed = await confirmInApp({
+      title: 'Test all configured APIs?',
+      message: 'Connection probes send real requests and may use a small amount of API quota. Tests run sequentially. A slot is saved only if every configured online account in that slot passes; otherwise its previous verification remains unchanged.',
+      confirmLabel: 'Test all APIs',
+      cancelLabel: 'Cancel',
+      tone: 'info'
+    });
+    if (!confirmed) return;
+
+    testAllApisRunning = true;
+    cancelTestAllApis = false;
+    testAllApisButton.textContent = 'Cancel tests';
+    const singleTestButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('.settings-test-button'));
+    const importButtons = ['#import-ai-backup', '#import-test-backup'].map(selector => container.querySelector<HTMLButtonElement>(selector)).filter((button): button is HTMLButtonElement => !!button);
+    const previousDisabled = [...singleTestButtons, ...importButtons].map(button => button.disabled);
+    [...singleTestButtons, ...importButtons].forEach(button => { button.disabled = true; });
+    const reports: string[] = [];
+    let savedSlots = 0;
+    let notSavedSlots = 0;
+    let completedAccounts = 0;
+    const plannedAccounts = SLOT_ORDER.reduce((total, slotId) => {
+      const primary = getPreset(slotId, configs[slotId].providerId);
+      const secondary = configs[slotId].secondary ? getPreset(slotId, configs[slotId].secondary!.providerId) : null;
+      return total + Number(primary.tier !== 3 && (!primary.requiresKey || !!keysBySlot[slotId].trim())) +
+        Number(Boolean(secondary && secondary.tier !== 3 && (!secondary.requiresKey || !!secondaryKeysBySlot[slotId].trim())));
+    }, 0);
+    const pause = () => new Promise(resolve => window.setTimeout(resolve, 350));
+
+    try {
+      backupStatus.className = 'status-box info';
+      backupStatus.textContent = 'Preparing sequential connection tests…';
+      for (const slotId of SLOT_ORDER) {
+        if (cancelTestAllApis) break;
+        const slotTitle = SLOT_DEFINITIONS[slotId].title.replace(/^\\d+\\.\\s*/, '');
+        const accounts: Array<{ account: 'primary' | 'secondary'; config: SlotConfig; key: string; providerName: string }> = [];
+        const primaryConfig = configs[slotId];
+        const primaryPreset = getPreset(slotId, primaryConfig.providerId);
+        if (primaryPreset.tier !== 3 && (!primaryPreset.requiresKey || !!keysBySlot[slotId].trim())) {
+          accounts.push({ account: 'primary', config: primaryConfig, key: keysBySlot[slotId], providerName: primaryPreset.name });
+        }
+        const secondarySaved = configs[slotId].secondary;
+        if (secondarySaved) {
+          const secondaryPreset = getPreset(slotId, secondarySaved.providerId);
+          if (secondaryPreset.tier !== 3 && (!secondaryPreset.requiresKey || !!secondaryKeysBySlot[slotId].trim())) {
+            accounts.push({ account: 'secondary', config: { slotId, ...secondarySaved }, key: secondaryKeysBySlot[slotId], providerName: secondaryPreset.name });
+          }
+        }
+        if (!accounts.length) {
+          reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: API 1/2 skipped — offline provider, not configured, or key missing. Not saved.</li>`);
+          continue;
+        }
+
+        const tested: Array<{ account: 'primary' | 'secondary'; config: SlotConfig; result: ConnectionTestResult }> = [];
+        for (const item of accounts) {
+          if (cancelTestAllApis) break;
+          completedAccounts += 1;
+          backupStatus.textContent = `Testing ${completedAccounts} of ${Math.max(plannedAccounts, completedAccounts)}: ${slotTitle} — ${item.account === 'primary' ? 'API 1' : 'API 2'}…`;
+          const result = await testAndPersistSlotAccount(item.config, {
+            account: item.account,
+            apiKeyOverride: item.key,
+            persist: false
+          });
+          tested.push({ account: item.account, config: item.config, result });
+          if (completedAccounts < plannedAccounts) await pause();
+        }
+        if (cancelTestAllApis) {
+          reports.push(`<li><strong>${escapeHtml(slotTitle)}</strong>: Cancelled before all configured accounts finished; previous verification preserved.</li>`);
+          break;
+        }
+        const failed = tested.filter(item => !item.result.ok || item.result.tier === 3);
+        if (failed.length === 0 && tested.length === accounts.length) {
+          for (const item of tested) {
+            await persistSlotAccountTestResult(item.config, item.result, item.account);
+            if (item.account === 'primary') lastTestResults.set(slotId, item.result);
+            else configs[slotId].secondary = { ...item.config, verified: true, testResult: {
+              ok: true, latencyMs: item.result.latencyMs, message: item.result.message,
+              testedAt: Date.now(), verificationFingerprint: item.result.verificationFingerprint
+            } };
+          }
+          savedSlots += 1;
+          reports.push(`<li class="pass"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} PASS`).join(' · ')} — <strong>Saved</strong></li>`);
+        } else {
+          notSavedSlots += 1;
+          const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} failed: ${escapeHtml(item.result.message)}`).join(' · ');
+          reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')} — <strong>Not saved</strong>. ${reasons}. Previous verification preserved.</li>`);
+        }
+
+        const primaryResult = lastTestResults.get(slotId);
+        const badge = container.querySelector<HTMLElement>(`#badge-${slotId}`);
+        if (badge) {
+          const onlineVerified = isOnlineProviderVerified(primaryResult, configs[slotId].secondary);
+          badge.className = `tier-badge settings-slot-status ${onlineVerified ? 'online' : 'offline'}`;
+          badge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
+        }
+        const primaryStatus = container.querySelector<HTMLElement>(`#status-${slotId}`);
+        if (primaryStatus && tested.some(item => item.account === 'primary')) {
+          const result = tested.find(item => item.account === 'primary')!.result;
+          primaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
+          primaryStatus.textContent = `API 1: ${result.ok ? 'PASS' : 'FAIL'} — ${result.message}`;
+        }
+        const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
+        if (secondaryStatus && tested.some(item => item.account === 'secondary')) {
+          const result = tested.find(item => item.account === 'secondary')!.result;
+          secondaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
+          secondaryStatus.textContent = `API 2: ${result.ok ? 'PASS' : 'FAIL'} — ${result.message}`;
+        }
+      }
+      backupStatus.className = cancelTestAllApis ? 'status-box info' : notSavedSlots ? 'status-box info' : 'status-box pass';
+      backupStatus.innerHTML = `<strong>${savedSlots} slots saved, ${notSavedSlots} not saved${cancelTestAllApis ? ' — run cancelled; untested slots unchanged' : ''}.</strong><ul class="test-all-api-report">${reports.join('')}</ul>`;
+    } catch (error) {
+      backupStatus.className = 'status-box fail';
+      backupStatus.textContent = `Test all APIs stopped: ${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      testAllApisRunning = false;
+      testAllApisButton.textContent = 'Test all APIs';
+      [...singleTestButtons, ...importButtons].forEach((button, index) => { button.disabled = previousDisabled[index]; });
+    }
+  });
+
+
   // A safer settings-only export deliberately omits credentials and does not
   // persist or alter the API-key fields currently shown in the form.
   const exportNoKeysButton = container.querySelector<HTMLButtonElement>('#export-ai-backup-no-keys');
@@ -2306,7 +2437,7 @@ export async function renderSettingsView(
       secondaryStatus.className = 'status-box info';
       secondaryStatus.textContent = 'API 2: Testing…';
       try {
-        const result = await testSlotConnection(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
+        const result = await testAndPersistSlotAccount(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
         const testResult = {
           ok: result.ok && result.tier !== 3,
           latencyMs: result.latencyMs,
@@ -2327,7 +2458,6 @@ export async function renderSettingsView(
           }
         }
         const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
-        await saveSecondarySlotConfig(slotId, verifiedConfig);
         clearPreloadedSentenceAudio();
         if (slotId === 'voice_tts') {
             await clearActiveShadowingAudioStore();
@@ -2422,9 +2552,8 @@ clearPreloadedSentenceAudio();
       statusBox.textContent = 'API 1: Testing…';
       try {
         const { cfg, key } = await persistCurrentSlot();
-        const result = await testSlotConnection(cfg, { apiKeyOverride: key, account: 'primary' });
-        const persisted = await saveSlotConnectionTestResult(slotId, result);
-        lastTestResults.set(slotId, persisted);
+        const result = await testAndPersistSlotAccount(cfg, { apiKeyOverride: key, account: 'primary' });
+        lastTestResults.set(slotId, result);
         dismissedVerificationErrors.delete(slotId);
         if (verificationActions) verificationActions.style.display = result.ok ? 'none' : 'flex';
         if (slotBadge) {
