@@ -2,6 +2,7 @@ import { APP_VERSION } from './config/appVersion';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 import { networkMonitor } from './services/networkMonitor';
+import { initializeShadowingAudioStore } from './services/shadowingAudioStore';
 import { resolveGlobalTierSummary } from './services/tierManager';
 import { loadAllSlotsConfig } from './storage/localStore';
 import { clearDiagnosticsCache, renderDiagnosticsView } from './ui/DiagnosticsView';
@@ -187,6 +188,9 @@ export async function bootstrapApp(
   clearDiagnosticsCache();
   resetShadowingViewState();
   await initializeTheme();
+  await initializeShadowingAudioStore().catch(error => {
+    console.warn('[SpeakCoach] Active-set Shadowing audio reconciliation was skipped.', error);
+  });
   await runFirstLaunchOnboarding();
   await initializeAppLanguage();
 
