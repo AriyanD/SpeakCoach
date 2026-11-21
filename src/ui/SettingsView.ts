@@ -891,7 +891,10 @@ export async function renderSettingsView(
             if (secondaryKey) await saveApiKey(item.slotId, secondaryPreset.id, secondaryKey, 'secondary');
             await saveSecondarySlotConfig(item.slotId, secondaryConfig);
             clearPreloadedSentenceAudio();
-            if (item.slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+            if (item.slotId === 'voice_tts') {
+                  await clearActiveShadowingAudioStore();
+                  clearGeminiLanguageFailures('gemini_tts');
+                }
             configs[item.slotId].secondary = secondaryConfig;
 
             let secondaryStatus = 'API 2 configured — key missing';
@@ -902,7 +905,10 @@ export async function renderSettingsView(
                 secondaryConfig = { ...secondaryConfig, verified: testResult.ok, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
                 clearPreloadedSentenceAudio();
-                if (item.slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+                if (item.slotId === 'voice_tts') {
+                  await clearActiveShadowingAudioStore();
+                  clearGeminiLanguageFailures('gemini_tts');
+                }
                 configs[item.slotId].secondary = secondaryConfig;
                 attempted += 1;
                 if (testResult.ok) { passed += 1; secondaryStatus = 'API 2 verified'; }
@@ -914,7 +920,10 @@ export async function renderSettingsView(
                 secondaryConfig = { ...secondaryConfig, verified: false, testResult };
                 await saveSecondarySlotConfig(item.slotId, secondaryConfig);
                 clearPreloadedSentenceAudio();
-                if (item.slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+                if (item.slotId === 'voice_tts') {
+                  await clearActiveShadowingAudioStore();
+                  clearGeminiLanguageFailures('gemini_tts');
+                }
                 configs[item.slotId].secondary = secondaryConfig;
                 secondaryStatus = `API 2 test failed: ${message}`;
               }
@@ -1943,7 +1952,10 @@ export async function renderSettingsView(
         // provider configuration unsaved and unverified until Save + test.
         try {
           await saveApiKey(slotId, customPreset.id, currentKey);
-          if (slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+          if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           if (saveStatus) {
@@ -2175,7 +2187,10 @@ export async function renderSettingsView(
           if (!rawKey.trim()) throw new Error('Enter an API key or select a provider that already has a saved key.');
           if (rawKeyInput) {
             await saveApiKey(slotId, preset.id, rawKey);
-            if (slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+            if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
           }
           if (await loadApiKeyStrict(slotId, preset.id) !== rawKey.trim()) {
             throw new Error('The primary API key could not be verified after saving. Provider settings were not switched.');
@@ -2188,7 +2203,10 @@ export async function renderSettingsView(
           if (!secondaryKey.trim()) throw new Error('Enter the API 2 key or choose a provider that already has a saved key.');
           if (secondaryKeyInputValue) {
             await saveApiKey(slotId, secondaryPreset.id, secondaryKey, 'secondary');
-            if (slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+            if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
           }
           if (await loadApiKeyStrict(slotId, secondaryPreset.id, 'secondary') !== secondaryKey.trim()) {
             throw new Error('The secondary API key could not be verified after saving. Provider settings were not switched.');
@@ -2200,7 +2218,10 @@ export async function renderSettingsView(
         if (primaryChanged) await saveSlotConfig(cfg);
         else await saveSecondarySlotConfig(slotId, cfg.secondary);
         clearPreloadedSentenceAudio();
-        if (slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+        if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
 
         // Only remove an old secondary credential after the new config is saved.
         if (previousSecondary?.providerId &&
@@ -2285,7 +2306,10 @@ export async function renderSettingsView(
         };
         if (testResult.ok) {
           await saveApiKey(slotId, secondaryPreset.id, apiKey, 'secondary');
-          if (slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+          if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
           secondaryKeysBySlot[slotId] = apiKey;
           if (secondaryKeyInput) {
             secondaryKeyInput.value = '';
@@ -2295,7 +2319,10 @@ export async function renderSettingsView(
         const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
         await saveSecondarySlotConfig(slotId, verifiedConfig);
         clearPreloadedSentenceAudio();
-        if (slotId === 'voice_tts') await clearActiveShadowingAudioStore();
+        if (slotId === 'voice_tts') {
+            await clearActiveShadowingAudioStore();
+            clearGeminiLanguageFailures('gemini_tts');
+          }
         configs[slotId].secondary = verifiedConfig;
         secondaryStatus.className = `status-box ${testResult.ok ? 'pass' : 'fail'}`;
         secondaryStatus.textContent = `API 2: ${result.ok && result.tier !== 3 ? 'PASS' : 'FAIL'} — ${result.message}`;
