@@ -216,6 +216,7 @@ export async function saveSlotConfig(config: SlotConfig): Promise<AllSlotsConfig
   all[config.slotId] = sanitized;
   await setRawItem(SLOTS_CONFIG_KEY, JSON.stringify(all));
   clearSlotRuntimeFailure(config.slotId);
+  await clearProviderAccountHealth(config.slotId, 'primary');
   // Saving the primary slot always requires a fresh Deep test, even if its
   // values are unchanged. Secondary-only edits use saveSecondarySlotConfig()
   // and therefore preserve the primary verification.
@@ -231,6 +232,7 @@ export async function saveSecondarySlotConfig(
   all[slotId] = sanitizeSlotConfig(slotId, { ...all[slotId], secondary });
   await setRawItem(SLOTS_CONFIG_KEY, JSON.stringify(all));
   clearSlotRuntimeFailure(slotId);
+  await clearProviderAccountHealth(slotId, 'secondary');
 }
 
 export async function saveAllSlotsConfig(configs: AllSlotsConfig): Promise<void> {
@@ -240,6 +242,7 @@ export async function saveAllSlotsConfig(configs: AllSlotsConfig): Promise<void>
   }
   await setRawItem(SLOTS_CONFIG_KEY, JSON.stringify(sanitized));
   clearAllRuntimeFailures();
+  await Promise.all(SLOT_ORDER.map(slotId => clearProviderAccountHealth(slotId)));
 }
 
 export async function loadAllConnectionTestResults(): Promise<
