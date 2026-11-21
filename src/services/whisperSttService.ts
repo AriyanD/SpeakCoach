@@ -629,7 +629,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   let rawResponse: WhisperVerboseResponse | undefined;
   let providerFailureMessage = '';
 
-  const outcome = await executeWithTierFallback(
+  const outcome = await executeWithTierFallback<{ transcript: string; words: SpokenWordToken[]; error?: string }>(
     requestedSlotId,
     async () => {
       if (orderedCandidates.length === 0) {
