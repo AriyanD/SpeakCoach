@@ -145,6 +145,10 @@ export async function renderSettingsView(
     const lastTest = storedLastTest?.providerId === slotCfg.providerId ? storedLastTest : undefined;
     const apiRequiredOfflineSelected = (slotId === 'llm_evaluator' || slotId === 'llm_translation') && preset.tier === 3;
     const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
+    const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
+    const secondaryIsCustom = secondaryPreset?.id.startsWith('custom_openai_') ?? false;
+    const secondarySameModelAsPrimary = !!slotCfg.secondary && slotCfg.secondary.providerId === slotCfg.providerId && slotCfg.secondary.modelOrVoice.trim() === slotCfg.modelOrVoice.trim();
+    const secondaryTestResult = slotCfg.secondary?.testResult;
     const accountHealth = accountHealthBySlot.get(slotId);
     const primaryAccountReady = lastTest?.ok === true && lastTest.tier !== 3;
     const secondaryAccountReady = !!slotCfg.secondary && slotCfg.secondary.verified === true && secondaryTestResult?.ok === true;
@@ -171,13 +175,10 @@ export async function renderSettingsView(
                   : preset.requiresKey
                     ? 'not-tested'
                     : 'offline-ready';
+    if (bothConfiguredApisReady || mixedApiReadiness) slotStatus = 'ready';
     const badgeClass = slotStatus === 'ready' || slotStatus === 'ready-degraded' || slotStatus === 'ready-cooldown' ? 'online' : slotStatus === 'error' || slotStatus === 'needs-retest' ? 'error' : 'offline';
     const badgeLabel = slotStatus === 'ready' ? 'Ready' : slotStatus === 'ready-degraded' ? `Ready · ${resolved.reason?.startsWith('API 1') ? 'API 1 needs re-test' : 'API 2 needs re-test'}` : slotStatus === 'ready-cooldown' ? `Ready · ${resolved.reason?.startsWith('API 1') ? 'API 1 cooling down' : 'API 2 cooling down'}` : slotStatus === 'needs-retest' ? 'Needs re-test' : slotStatus === 'cooldown' ? 'Cooling down' : slotStatus === 'error' ? 'Error' : slotStatus === 'needs-key' ? 'API key needed' : slotStatus === 'offline-ready' ? 'Offline ready' : slotStatus === 'api-required' ? 'API required' : 'Not tested';
     const isCustom = preset.id.startsWith('custom_openai_');
-    const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
-    const secondaryIsCustom = secondaryPreset?.id.startsWith('custom_openai_') ?? false;
-    const secondarySameModelAsPrimary = !!slotCfg.secondary && slotCfg.secondary.providerId === slotCfg.providerId && slotCfg.secondary.modelOrVoice.trim() === slotCfg.modelOrVoice.trim();
-    const secondaryTestResult = slotCfg.secondary?.testResult;
     const secondaryStatusClass = secondaryTestResult
       ? (secondaryTestResult.ok ? 'pass' : 'fail')
       : (slotCfg.secondary?.verified ? 'pass' : 'info');
@@ -203,7 +204,6 @@ export async function renderSettingsView(
       const statusClass = health?.state === 'cooldown' ? 'info' : 'fail';
       return `<div class="status-box ${statusClass}" id="${account === 'primary' ? `status-${slotId}` : `secondary-status-${slotId}`}">${label} (${escapeHtml(providerName)}): ${escapeHtml(healthText)}</div>`;
     };
-    if (bothConfiguredApisReady || mixedApiReadiness) slotStatus = 'ready';
     const secondaryStatusHtml = bothConfiguredApisReady
       ? ''
       : mixedApiReadiness && secondaryPreset
@@ -1419,6 +1419,7 @@ export async function renderSettingsView(
     exportButton?.addEventListener('click', async () => {
       if (exportButton) exportButton.disabled = true;
       try {
+        if (operationStatus) operationStatus.hidden = false;
         if (kind === 'ai-settings') {
           if (operationStatus) {
             operationStatus.className = 'status-box info';
