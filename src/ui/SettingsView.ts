@@ -1299,7 +1299,9 @@ export async function renderSettingsView(
     }
   });
 
-  const backupStatus = container.querySelector<HTMLElement>('#backup-status');\n  let testAllApisButton: HTMLButtonElement | null = null;\n  let settingsProviderTestRunning = false;
+  const backupStatus = container.querySelector<HTMLElement>('#backup-status');
+  let testAllApisButton: HTMLButtonElement | null = null;
+  let settingsProviderTestRunning = false;
   const persistSlotDrafts: Partial<Record<SlotId, () => Promise<void>>> = {};
 
   const restoreSelectedBackup = async (
@@ -1321,7 +1323,8 @@ export async function renderSettingsView(
     const importButton = container.querySelector<HTMLButtonElement>(
       kind === 'ai-settings' ? '#import-ai-backup' : '#import-test-backup'
     );
-    if (importButton) importButton.disabled = true;\n    if (testAllApisButton) testAllApisButton.disabled = true;
+    if (importButton) importButton.disabled = true;
+    if (testAllApisButton) testAllApisButton.disabled = true;
     if (backupStatus) {
       backupStatus.className = 'status-box info';
       backupStatus.textContent = 'Reading and validating the selected backup…';
@@ -1342,7 +1345,8 @@ export async function renderSettingsView(
         backupStatus.textContent = error instanceof Error ? error.message : String(error);
       }
     } finally {
-      if (importButton) importButton.disabled = false;\n      if (testAllApisButton) testAllApisButton.disabled = settingsProviderTestRunning || !hasConfiguredOnlineAccount;
+      if (importButton) importButton.disabled = false;
+      if (testAllApisButton) testAllApisButton.disabled = settingsProviderTestRunning || !hasConfiguredOnlineAccount;
     }
   };
 
@@ -1425,7 +1429,8 @@ export async function renderSettingsView(
   let testAllApisRunning = false;
   let cancelTestAllApis = false;
   testAllApisButton?.addEventListener('click', async () => {
-    if (testAllApisRunning) { cancelTestAllApis = true; testAllApisButton.textContent = 'Cancelling…'; return; }\n    if (settingsProviderTestRunning) return;
+    if (testAllApisRunning) { cancelTestAllApis = true; testAllApisButton.textContent = 'Cancelling…'; return; }
+    if (settingsProviderTestRunning) return;
     if (!backupStatus) return;
     if (!networkMonitor.isOnline()) {
       backupStatus.className = 'status-box fail';
