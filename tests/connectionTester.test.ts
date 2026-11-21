@@ -3,6 +3,7 @@ import { createDefaultSlotConfig } from '../src/config/providers';
 import type { ConnectionTestResult } from '../src/config/types';
 import { bootstrapApp } from '../src/main';
 import { testSlotConnection } from '../src/services/connectionTester';
+import { synthesizeOnlineNeuralAudio } from '../src/services/ttsService';
 import { networkMonitor } from '../src/services/networkMonitor';
 import { clearAllRuntimeFailures } from '../src/services/tierManager';
 
@@ -491,4 +492,38 @@ describe('Functional Deep Connection Tester', () => {
     expect(statusEl?.textContent).toContain('PASS — OpenAI (Tier 1) test passed');
     expect(statusEl?.textContent).toContain('Tested:');
   });
+  it('Gemini TTS connection test bypasses a previously cached probe and makes a live request', async () => {
+    const config = {
+      slotId: 'voice_tts' as const,
+      providerId: 'gemini_tts',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-3.8-flash-lite-tts',
+      customTtsVoice: 'Puck'
+    };
+    const apiKey = 'cache-bypass-regression-key';
+    const wav = Buffer.from('RIFF' + 'p'.repeat(48)).toString('base64');
+
+    await synthesizeOnlineNeuralAudio('Hello from SpeakCoach.', config, apiKey, 1, async opts => ({
+      url: opts.url, status: 200, headers: {},
+      data: { candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/wav', data: wav } }] } }] }
+    }));
+
+    let liveRequests = 0;
+    const result = await testSlotConnection(config, {
+      apiKeyOverride: apiKey,
+      isOnlineOverride: true,
+      transport: async opts => {
+        liveRequests++;
+        return {
+          url: opts.url, status: 401, headers: {},
+          data: { error: { message: 'API key revoked' } }
+        };
+      }
+    });
+
+    expect(liveRequests).toBe(1);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('HTTP 401');
+  });
+
 });
