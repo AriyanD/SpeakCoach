@@ -32,6 +32,15 @@ Configure each capability independently in Settings:
 
 A successful provider connection test confirms the tested endpoint responded. It does not certify the provider's assessment accuracy or guarantee that every feature is supported by a custom gateway.
 
+## TTS connection health and Shadowing prefetch
+
+- Gemini TTS connection tests and voice previews bypass the audio cache, so a PASS requires a live provider response. Interactive Gemini synthesis uses a shorter 15-second request timeout; explicit connection tests retain a longer 45-second timeout.
+- Playback and prefetch share the same in-flight synthesis promise for an identical account, endpoint, model/voice, language, rate and sentence. This prevents overlapping actions from issuing duplicate TTS requests.
+- Provider runtime health is tracked independently for API 1 and API 2. HTTP 400/401/403/404 failures require a successful connection re-test; HTTP 429, 5xx and network timeouts apply a temporary cooldown (90 seconds by default, respecting Retry-After when supplied). Health is stored locally and a successful request clears that account's state.
+- Shadowing prefetch is limited to two upcoming sentences at a time. A failed request stops the remainder of that batch; prefetch does not issue requests when the active tier is offline/unverified or the account is cooling down. The existing Enable audio prefetch setting remains available.
+- Prefetched audio uses a separate bounded in-memory budget from normal playback cache entries. It is not persisted to disk. Valid prefetched entries are retained during ordinary background/foreground transitions and are cleared when the sentence set or language changes, or when the Shadowing view is closed.
+- Gemini model/language failures (HTTP 400/404) are remembered for the current app session to avoid repeating the same unsupported request for every sentence.
+
 ## Application identity
 
 The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The **initial public release** was `1.0.0` (`versionCode` 1); the current published app version is `1.0.14` (`versionCode` 14). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
