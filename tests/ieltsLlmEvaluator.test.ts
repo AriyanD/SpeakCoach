@@ -2,6 +2,7 @@ import type { HttpOptions, HttpResponse } from '@capacitor/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   buildIeltsEvaluationPrompt,
+  compareIeltsAttempts,
   cleanJsonPayload,
   clearLlmEvaluationTelemetry,
   evaluateIeltsWithTierFallback,
@@ -68,6 +69,28 @@ describe('IELTS LLM Evaluator Engine (Stage 3.4 · Tier 1 & Fallback)', () => {
     }
   ];
 
+
+
+  it('reports actionable readiness reasons for a failed comparison without modifying either scored record', async () => {
+    const previous = await saveIeltsTestResult({
+      id: 'comparison-previous-score',
+      mode: 'part1', timestamp: Date.now() - 1000, overallBand: 6.5,
+      evaluation: { overallBand: 6.5, activeTier: { tier: 1, detailLabel: 'API 1', tier: 1 } } as any,
+      answers: []
+    } as any);
+    const current = await saveIeltsTestResult({
+      id: 'comparison-current-score',
+      mode: 'part1', timestamp: Date.now(), overallBand: 7.0,
+      evaluation: { overallBand: 7.0, activeTier: { tier: 1, detailLabel: 'API 1', tier: 1 } } as any,
+      answers: []
+    } as any);
+    await expect(compareIeltsAttempts(previous, current)).rejects.toThrow(/API 1:.*API 2:/i);
+    const history = await getIeltsTestHistory();
+    expect(history.find(item => item.id === previous.id)?.overallBand).toBe(6.5);
+    expect(history.find(item => item.id === current.id)?.overallBand).toBe(7.0);
+    expect(history.find(item => item.id === previous.id)?.evaluationError).toBeFalsy();
+    expect(history.find(item => item.id === current.id)?.evaluationError).toBeFalsy();
+  });
 
   it('preserves a valid saved band when a manual provider-specific re-evaluation fails', async () => {
     const previousEvaluation = {
