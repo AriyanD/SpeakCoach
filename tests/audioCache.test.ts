@@ -4,7 +4,8 @@ import {
   computeAudioCacheHash,
   createAudioCacheAccountFingerprint,
   getCachedTtsAudio,
-  setCachedTtsAudio
+  setCachedTtsAudio,
+  setMemoryOnlyTtsAudio
 } from '../src/services/audioCache';
 
 describe('bounded TTS audio cache', () => {
@@ -58,4 +59,17 @@ describe('bounded TTS audio cache', () => {
     await setCachedTtsAudio('oversized', oversized);
     await expect(getCachedTtsAudio('oversized')).resolves.toBeNull();
   });
+  it('keeps prefetched entries in a reserved RAM budget when normal playback fills its own cache', async () => {
+    const prefetchedOne = 'p'.repeat(1_500_000);
+    const prefetchedTwo = 'q'.repeat(1_500_000);
+    setMemoryOnlyTtsAudio('prefetch-one', prefetchedOne);
+    setMemoryOnlyTtsAudio('prefetch-two', prefetchedTwo);
+
+    await setCachedTtsAudio('normal-one', 'n'.repeat(1_500_000));
+    await setCachedTtsAudio('normal-two', 'm'.repeat(1_500_000));
+
+    await expect(getCachedTtsAudio('prefetch-one')).resolves.toBe(prefetchedOne);
+    await expect(getCachedTtsAudio('prefetch-two')).resolves.toBe(prefetchedTwo);
+  });
+
 });
