@@ -139,12 +139,13 @@ export async function synthesizeOnlineNeuralAudio(
     endpoint: slotCfg.baseUrl?.trim() ?? '',
     accountFingerprintHash: fingerprint
   });
-  const existing = inFlightAudioRequests.get(hash);
+  const inFlightKey = `${hash}|generation:${cacheGeneration}`;
+  const existing = inFlightAudioRequests.get(inFlightKey);
   if (existing) return existing;
   const request = synthesizeOnlineNeuralAudioUnshared(
     text, slotCfg, apiKey, rate, transport, locale, memoryOnly, cacheGeneration, false, requestTimeoutMs
   );
-  inFlightAudioRequests.set(hash, request);
+  inFlightAudioRequests.set(inFlightKey, request);
   try {
     const result = await request;
     if (slotCfg.providerId === 'gemini_tts') geminiLanguageFailures.delete(languageFailureKey);
@@ -156,7 +157,7 @@ export async function synthesizeOnlineNeuralAudio(
     }
     throw error;
   } finally {
-    if (inFlightAudioRequests.get(hash) === request) inFlightAudioRequests.delete(hash);
+    if (inFlightAudioRequests.get(inFlightKey) === request) inFlightAudioRequests.delete(inFlightKey);
   }
 }
 
