@@ -176,8 +176,8 @@ function isAudioPlaybackActive(): boolean {
   return state.audioActivity.startsWith('playing');
 }
 function setShadowingCaptureControlsDisabled(container: HTMLElement, disabled: boolean): void {
-  const selector = '#sh-play-normal-btn,#sh-play-slow-btn,#sh-prev-btn,#sh-next-btn,#sh-generate-ai-btn,#sh-history-prev-btn,#sh-history-next-btn,#sh-language-select,#sh-retry-weak-btn,#sh-replay-my-audio-btn,#sh-replay-my-slow-btn,[data-diff],.word-chip,.sh-result-chip,[data-word-replay]';
-  container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>(selector).forEach(control => {
+  container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button, select').forEach(control => {
+    if (control.id === 'sh-stop-score-btn') return;
     control.disabled = disabled;
     control.setAttribute('aria-disabled', String(disabled));
   });
@@ -692,6 +692,14 @@ export function renderShadowingView(
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
   `;
+
+  if (isCaptureBusy) {
+    container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button, select').forEach(control => {
+      if (control.id === 'sh-stop-score-btn' || (control.id === 'sh-record-btn' && isRec && !isStopping)) return;
+      control.disabled = true;
+      control.setAttribute('aria-disabled', 'true');
+    });
+  }
 
   if (isSpeechApiNoticeDismissed()) {
     const notice = container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
