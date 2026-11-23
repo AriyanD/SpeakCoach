@@ -17,7 +17,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
   });
 
 
-  it('keeps Sentence set directly below Practice language and nests the full Shadowing workflow in one persistent trainer card', async () => {
+  it('keeps Sentence set directly below Practice language on the unframed Shadowing page', async () => {
     const root = document.createElement('div');
     document.body.appendChild(root);
     await bootstrapApp(root, 'shadowing');
@@ -30,6 +30,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     const transcript = root.querySelector('.sh-transcript-details');
     const translation = root.querySelector('#sh-translation-card');
     expect(trainer).not.toBeNull();
+    expect(trainer?.classList.contains('card')).toBe(false);
     expect(sentenceSet?.tagName).toBe('SECTION');
     expect(scoreDetails?.tagName).toBe('SECTION');
     expect(sentenceSet?.querySelector('#sh-history-position')).not.toBeNull();
@@ -138,7 +139,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelectorAll('.sh-result-strip-words [data-word-replay]')).toHaveLength(
       root.querySelectorAll('#sh-word-chips [data-word-replay]').length
     );
-    expect(root.querySelector('.sh-result-replay-help')?.textContent).toContain('Score & recognition details');
+    expect(root.querySelector('.sh-result-replay-help')?.textContent).toContain('Shadowing Score Report');
     expect(root.querySelector<HTMLButtonElement>('#sh-word-chips [data-word-replay]')?.getAttribute('aria-label')).toContain('Play pronunciation of');
     // In offline SpeechRecognizer mode, no raw WAV is kept and word timing / replay are disabled with a clear notice
     expect(root.querySelector('#sh-vad-summary')).toBeNull();
@@ -168,11 +169,23 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
 
     const retryWeakBtn = root.querySelector<HTMLButtonElement>('#sh-retry-weak-btn');
     expect(retryWeakBtn).not.toBeNull();
+    expect(retryWeakBtn?.closest('.sh-result-strip')).not.toBeNull();
+    expect(root.querySelector('#sh-score-card #sh-retry-weak-btn')).toBeNull();
     retryWeakBtn?.click();
 
     expect(root.querySelector('#sh-target-text')?.textContent).toBe('usually hot');
-    // Transcript box must be cleared to EMPTY again for the new drill attempt!
     expect(root.querySelector<HTMLInputElement>('#sh-transcript-input')?.value).toBe('');
+    expect(root.querySelector('#sh-fluency-score')).toBeNull();
+    expect(root.querySelector('#sh-pace-score')).toBeNull();
+
+    audioRecorder.setMockRecognizerOutputForTest({ transcript: 'usually', confidence: 0.93 });
+    root.querySelector<HTMLButtonElement>('#sh-record-btn')?.click();
+    await new Promise((r) => setTimeout(r, 25));
+    root.querySelector<HTMLButtonElement>('#sh-record-btn')?.click();
+    await new Promise((r) => setTimeout(r, 60));
+    expect(root.querySelector('#sh-drill-correct-count')?.textContent).toContain('1 / 2');
+    expect(root.querySelector('#sh-retry-weak-btn')?.textContent).toContain('Retry remaining weak words');
+    expect(root.querySelector('#sh-target-text')?.textContent).toBe('usually hot');
   });
 
   it('Part 2B: disables replay and word timing in System SpeechRecognizer mode with clear label, and enables Tier 2 speed tags and timing bars when online', async () => {
@@ -216,6 +229,24 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector<HTMLButtonElement>('#sh-replay-my-audio-btn')?.disabled).toBe(true);
     expect(root.querySelectorAll('.speed-tag').length).toBe(0);
   });
+  it('keeps recording/scoring mutually exclusive with playback and navigation', async () => {
+    const root = document.createElement('div');
+    await bootstrapApp(root, 'shadowing');
+    const record = root.querySelector<HTMLButtonElement>('#sh-record-btn');
+    record?.click();
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(audioRecorder.isRecording()).toBe(true);
+    for (const selector of ['#sh-play-normal-btn','#sh-play-slow-btn','#sh-prev-btn','#sh-next-btn','#sh-generate-ai-btn','#sh-history-prev-btn','#sh-history-next-btn','#sh-language-select','[data-diff]']) {
+      expect(root.querySelector<HTMLElement>(selector)?.hasAttribute('disabled')).toBe(true);
+    }
+    expect(root.querySelector<HTMLButtonElement>('#sh-record-btn')?.disabled).toBe(false);
+    root.querySelector<HTMLButtonElement>('#sh-record-btn')?.click();
+    expect(root.querySelector<HTMLButtonElement>('#sh-record-btn')?.disabled).toBe(true);
+    expect(root.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.disabled).toBe(true);
+    await new Promise(resolve => setTimeout(resolve, 60));
+    expect(audioRecorder.isRecording()).toBe(false);
+  });
+
   it('stops an active Shadowing recording when navigating to another tab', async () => {
     const root = document.createElement('div');
     await bootstrapApp(root, 'shadowing');
@@ -229,6 +260,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
 
     expect(audioRecorder.isRecording()).toBe(false);
     expect(root.querySelector('.ielts-library-card')).not.toBeNull();
+    expect(root.querySelector('.ielts-library-card')?.classList.contains('card')).toBe(false);
   });
 
   it('loads offline starter sentences after switching languages, keeps IELTS available, and lets users dismiss the speech API notice', async () => {

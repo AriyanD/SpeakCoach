@@ -611,7 +611,7 @@ export async function renderSettingsView(
           <span>Quick Setup</span><span class="quick-setup-toggle-icon" aria-hidden="true">＋</span>
         </button>
         <div class="quick-setup-panel" id="quick-setup-panel" hidden>
-          <p class="card-subtitle">For the best experience, we recommend configuring the providers manually in API Settings below. If you use free API plans, separate accounts may help distribute legitimate usage where the provider's terms allow it; do not use multiple accounts to bypass provider limits or restrictions.</p>
+          <p class="card-subtitle">For the best experience, we recommend configuring the providers manually in API Settings below. If you use free API plans, separate accounts may help distribute legitimate usage where the provider's terms allow it.</p>
           <p class="card-subtitle">Quick Setup assigns Google Gemini as the default provider for most features and Groq as the backup. IELTS Evaluator uses Groq first with Gemini as backup. Voice/TTS uses Gemini because Groq has no compatible TTS preset here. Both keys are optional if already stored; missing keys leave that provider unverified.</p>
           <ul class="quick-setup-links">
             <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get a Google Gemini API key</a></li>
@@ -669,10 +669,9 @@ export async function renderSettingsView(
     </section>
     <section class="card backup-card">
       <div class="card-header"><h2 class="card-title">Backup &amp; Restore</h2></div>
-      <p class="card-subtitle">Choose which information to export or restore.</p>
       <div class="backup-section">
-        <strong>AI provider settings</strong>
-        <p class="card-subtitle">Provider choices, model names, connection settings and preferences are saved here. You can export them with or without API keys.</p>
+        <h3 class="section-heading">AI provider settings</h3>
+        
         <aside class="backup-security-warning" role="note" aria-label="Security warning"><strong class="backup-security-title">Security warning</strong><p><strong>Export AI settings</strong> includes your API keys. Anyone who gets that file could use those keys. Keep it private and store it securely. For sharing or cloud storage, use the no-key export instead.</p></aside>
         <div class="btn-row">
           <button type="button" class="btn btn-secondary" id="export-ai-backup">Export AI settings (with keys)</button>
@@ -685,8 +684,8 @@ export async function renderSettingsView(
         <div id="backup-status" class="status-box info" role="status" aria-live="polite">AI settings can be exported with API keys for device migration, or without keys for safer sharing. Importing a no-key backup leaves the API keys already stored on this device unchanged.</div>
       </div>
       <div class="backup-section">
-        <strong>Test data &amp; practice history</strong>
-        <p class="card-subtitle">IELTS history, AI-generated question sets and their undo history, question repetition tracking, and your latest Shadowing attempt.</p>
+        <h3 class="section-heading">Test data &amp; practice history</h3>
+        
         <div class="btn-row">
           <button type="button" class="btn btn-secondary" id="export-test-backup">Export test data</button>
           <button type="button" class="btn btn-secondary" id="import-test-backup">Import test data</button>

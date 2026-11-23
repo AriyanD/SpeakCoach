@@ -109,6 +109,8 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     const cleanup = renderIeltsView(container, mockGlobalTierSummary, { onComplete, onViewHistory, onOpenSettings });
 
     expect(container.innerHTML).toContain('Question sets');
+    expect(container.querySelector('.ielts-library-card')?.classList.contains('card')).toBe(false);
+    expect(container.querySelector('.page-heading h1')?.textContent).toBe('IELTS Speaking');
     expect(container.querySelector('[aria-label="Built-in question quality notice"]')).toBeNull();
     const evaluationNotice = container.querySelector('[aria-label="Offline evaluation quality notice"]');
     const transcriptionNotice = container.querySelector<HTMLDetailsElement>('[aria-label="Offline transcription accuracy notice"]');

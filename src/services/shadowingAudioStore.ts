@@ -3,7 +3,9 @@ import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
 import { removeTtsAudioCacheEntries, removeTtsAudioFromMemory } from './audioCache';
 
-const INDEX_KEY = 'speakcoach.shadowing.audio-set-index.v1';
+const INDEX_KEY = 'speakcoach.shadowing.audio-set-index.v2';
+const LEGACY_INDEX_KEY = 'speakcoach.shadowing.audio-set-index.v1';
+export const MAX_RETAINED_AUDIO_SETS = 3;
 const ACTIVE_SET_KEY = 'speakcoach.shadowing.audio-active-set.v1';
 const ROOT = 'SpeakCoach/shadowing-audio';
 const MAX_SET_CHARS = 40_000_000;
@@ -16,10 +18,8 @@ interface Entry {
   createdAt: number;
   kind: 'sentence' | 'extra';
 }
-interface Index {
-  setId: string;
-  entries: Entry[];
-}
+interface SetEntries { createdAt: number; lastUsedAt: number; entries: Entry[]; }
+interface Index { version: 2; activeSetId: string | null; sets: Record<string, SetEntries>; }
 
 let activeSetId: string | null = null;
 let generation = 0;
@@ -55,19 +55,27 @@ function rememberSetRam(setId: string, hash: string, value: string): void {
 async function readIndex(): Promise<Index | null> {
   try {
     const raw = (await Preferences.get({ key: INDEX_KEY })).value;
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Index;
-    if (typeof parsed.setId !== 'string' || !Array.isArray(parsed.entries)) return null;
-    return { setId: parsed.setId, entries: parsed.entries.filter(e =>
-      e && typeof e.hash === 'string' && typeof e.file === 'string' &&
-      typeof e.size === 'number' && (e.kind === 'sentence' || e.kind === 'extra')
-    ) };
+    if (raw) {
+      const parsed = JSON.parse(raw) as Index;
+      if (parsed.version === 2 && parsed.sets && typeof parsed.sets === 'object') return parsed;
+    }
+    const legacyRaw = (await Preferences.get({ key: LEGACY_INDEX_KEY })).value;
+    if (!legacyRaw) return null;
+    const legacy = JSON.parse(legacyRaw) as { setId?: string; entries?: Entry[] };
+    if (typeof legacy.setId !== 'string' || !Array.isArray(legacy.entries)) return null;
+    const now = Date.now();
+    return { version: 2, activeSetId: legacy.setId, sets: {
+      [legacy.setId]: { createdAt: now, lastUsedAt: now, entries: legacy.entries.filter(e =>
+        e && typeof e.hash === 'string' && typeof e.file === 'string' &&
+        typeof e.size === 'number' && (e.kind === 'sentence' || e.kind === 'extra')
+      ) }
+    } };
   } catch { return null; }
 }
 async function writeIndex(): Promise<void> {
-  if (!index) return;
-  await Preferences.set({ key: INDEX_KEY, value: JSON.stringify(index) });
+  if (index) await Preferences.set({ key: INDEX_KEY, value: JSON.stringify(index) });
 }
+
 export function selectActiveSetAudioEvictions(
   entries: Array<Pick<Entry, 'hash' | 'size' | 'createdAt' | 'kind'>>,
   incomingSize: number,
@@ -135,9 +143,8 @@ export async function releaseActiveSetAudioPlaying(setId: string, hash: string):
 }
 
 async function removeSetFiles(setId: string, entries: Entry[], preserveCurrentEntries = false): Promise<void> {
-  const currentHashes = preserveCurrentEntries && index?.setId === setId
-    ? new Set(index.entries.map(entry => entry.hash))
-    : new Set<string>();
+  const current = preserveCurrentEntries ? index?.sets[setId] : undefined;
+  const currentHashes = new Set((current?.entries ?? []).map(entry => entry.hash));
   const obsoleteEntries = entries.filter(entry => !currentHashes.has(entry.hash));
   for (const entry of obsoleteEntries) {
     await removeFile(entry.file);
@@ -145,59 +152,46 @@ async function removeSetFiles(setId: string, entries: Entry[], preserveCurrentEn
     removeTtsAudioFromMemory(entry.hash);
   }
   await removeTtsAudioCacheEntries(obsoleteEntries.map(entry => entry.hash));
-  if (Capacitor.isNativePlatform() && !(preserveCurrentEntries && index?.setId === setId && index.entries.length > 0)) {
-    try { await Filesystem.rmdir({ path: `${ROOT}/${safeId(setId)}`, directory: Directory.Data, recursive: true }); } catch { /* empty or absent */ }
+  if (Capacitor.isNativePlatform() && !current?.entries.length) {
+    try { await Filesystem.rmdir({ path: `${ROOT}/${safeId(setId)}`, directory: Directory.Data, recursive: true }); } catch { /* best effort */ }
+  } else if (!Capacitor.isNativePlatform() && !current?.entries.length) {
+    const prefix = `speakcoach.shadowing.audio.${ROOT}/${safeId(setId)}/`;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (key?.startsWith(prefix)) keys.push(key); }
+    keys.forEach(key => localStorage.removeItem(key));
   }
 }
+
 async function reconcile(): Promise<void> {
   if (!index) return;
-  const valid: Entry[] = [];
-  for (const entry of index.entries) {
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const stat = await Filesystem.stat({ path: entry.file, directory: Directory.Data });
-        valid.push({ ...entry, size: stat.size ?? entry.size });
-      } catch {
-        ram.delete(ramKey(index.setId, entry.hash));
+  for (const [setId, set] of Object.entries(index.sets)) {
+    const valid: Entry[] = [];
+    for (const entry of set.entries) {
+      if (Capacitor.isNativePlatform()) {
+        try { const stat = await Filesystem.stat({ path: entry.file, directory: Directory.Data }); valid.push({ ...entry, size: stat.size ?? entry.size }); }
+        catch { ram.delete(ramKey(setId, entry.hash)); }
+      } else {
+        const value = await readFile(entry.file);
+        if (value) valid.push({ ...entry, size: value.length }); else ram.delete(ramKey(setId, entry.hash));
       }
-    } else {
-      const value = await readFile(entry.file);
-      if (value) valid.push({ ...entry, size: value.length });
-      else ram.delete(ramKey(index.setId, entry.hash));
     }
+    set.entries = valid;
   }
-  index.entries = valid;
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const rootListing = await Filesystem.readdir({ path: ROOT, directory: Directory.Data });
-      for (const item of rootListing.files ?? []) {
-        if (item.type === 'directory' && item.name !== safeId(index.setId)) {
-          try { await Filesystem.rmdir({ path: `${ROOT}/${item.name}`, directory: Directory.Data, recursive: true }); } catch { /* best-effort orphan cleanup */ }
-        }
-      }
-    } catch { /* root directory may not exist yet */ }
-    try {
-      const listing = await Filesystem.readdir({ path: `${ROOT}/${safeId(index.setId)}`, directory: Directory.Data });
-      const expected = new Set(valid.map(entry => entry.file.split('/').pop()));
-      for (const item of listing.files ?? []) {
-        if (item.type === 'file' && !expected.has(item.name)) {
-          await removeFile(`${ROOT}/${safeId(index.setId)}/${item.name}`);
-        }
-      }
-    } catch { /* directory may not exist yet */ }
-  }
+  await removeOrphanSetFiles();
   await writeIndex();
 }
+
 async function removeOrphanSetFiles(): Promise<void> {
+  const retained = new Set(Object.keys(index?.sets ?? {}).map(safeId));
   if (Capacitor.isNativePlatform()) {
     try {
-      const rootListing = await Filesystem.readdir({ path: ROOT, directory: Directory.Data });
-      for (const item of rootListing.files ?? []) {
-        if (item.type === 'directory') {
-          try { await Filesystem.rmdir({ path: `${ROOT}/${item.name}`, directory: Directory.Data, recursive: true }); } catch { /* best-effort cleanup */ }
+      const listing = await Filesystem.readdir({ path: ROOT, directory: Directory.Data });
+      for (const item of listing.files ?? []) {
+        if (item.type === 'directory' && !retained.has(item.name)) {
+          try { await Filesystem.rmdir({ path: `${ROOT}/${item.name}`, directory: Directory.Data, recursive: true }); } catch { /* best effort */ }
         }
       }
-    } catch { /* root directory may not exist */ }
+    } catch { /* root may not exist */ }
   } else if (typeof localStorage !== 'undefined') {
     const prefix = `speakcoach.shadowing.audio.${ROOT}/`;
     const keys: string[] = [];
@@ -205,7 +199,11 @@ async function removeOrphanSetFiles(): Promise<void> {
       const key = localStorage.key(i);
       if (key?.startsWith(prefix)) keys.push(key);
     }
-    for (const key of keys) localStorage.removeItem(key);
+    for (const key of keys) {
+      const remainder = key.slice(prefix.length);
+      const directory = remainder.split('/')[0];
+      if (!retained.has(directory)) localStorage.removeItem(key);
+    }
   }
 }
 
@@ -213,16 +211,17 @@ async function ensureInitialized(): Promise<void> {
   if (!initialization) {
     initialization = (async () => {
       const storedActive = (await Preferences.get({ key: ACTIVE_SET_KEY })).value;
-      const storedIndex = await readIndex();
-      activeSetId = storedActive || null;
-      index = storedIndex && storedIndex.setId === activeSetId ? storedIndex : null;
-      if (storedIndex && storedIndex.setId !== activeSetId) await removeSetFiles(storedIndex.setId, storedIndex.entries);
-      if (activeSetId && !index) index = { setId: activeSetId, entries: [] };
-      if (activeSetId) await reconcile();
-      else {
-        await removeOrphanSetFiles();
-        await Preferences.remove({ key: INDEX_KEY });
+      index = await readIndex();
+      activeSetId = storedActive || index?.activeSetId || null;
+      if (!index) index = { version: 2, activeSetId, sets: {} };
+      index.activeSetId = activeSetId;
+      if (activeSetId && !index.sets[activeSetId]) {
+        const now = Date.now();
+        index.sets[activeSetId] = { createdAt: now, lastUsedAt: now, entries: [] };
       }
+      await reconcile();
+      // Remove legacy keys only after the v2 index has been written successfully.
+      await Preferences.remove({ key: LEGACY_INDEX_KEY });
     })().catch(error => { initialization = null; throw error; });
   }
   await initialization;
@@ -232,18 +231,19 @@ export async function initializeShadowingAudioStore(): Promise<void> {
   await ensureInitialized();
 }
 
-export function activateShadowingAudioSet(setId: string): Promise<number> {
+export function activateShadowingAudioSet(setId: string, meta?: { createdAt?: number }): Promise<number> {
   const task = activationQueue.then(async () => {
     await ensureInitialized();
-    if (activeSetId === setId && index?.setId === setId) return generation;
-    if (index) {
-      if (hasPlayingAudio(index.setId)) deferSetFiles(index.setId, index.entries);
-      else await removeSetFiles(index.setId, index.entries);
-    }
-    ram.clear();
+    if (activeSetId === setId && index?.activeSetId === setId) return generation;
+    if (activeSetId && index?.sets[activeSetId]?.entries.length === 0) delete index.sets[activeSetId];
     generation++;
     activeSetId = setId;
-    index = { setId, entries: [] };
+    index!.activeSetId = setId;
+    const now = Date.now();
+    const existing = index!.sets[setId];
+    index!.sets[setId] = existing ?? { createdAt: meta?.createdAt ?? now, lastUsedAt: now, entries: [] };
+    index!.sets[setId].lastUsedAt = now;
+    ram.clear();
     await Preferences.set({ key: ACTIVE_SET_KEY, value: setId });
     await writeIndex();
     return generation;
@@ -251,6 +251,7 @@ export function activateShadowingAudioSet(setId: string): Promise<number> {
   activationQueue = task.then(() => {}, () => {});
   return task;
 }
+
 export async function getActiveShadowingAudioSet(): Promise<{ setId: string | null; generation: number }> {
   await ensureInitialized();
   return { setId: activeSetId, generation };
@@ -260,11 +261,11 @@ export async function readActiveShadowingAudio(hash: string, expectedSetId?: str
   if (!activeSetId || (expectedSetId && expectedSetId !== activeSetId)) return null;
   const cached = ram.get(ramKey(activeSetId, hash));
   if (cached) return cached;
-  const entry = index?.entries.find(item => item.hash === hash);
+  const entry = activeSetId ? index?.sets[activeSetId]?.entries.find(item => item.hash === hash) : undefined;
   if (!entry) return null;
   const value = await readFile(entry.file);
   if (!value) {
-    index!.entries = index!.entries.filter(item => item.hash !== hash);
+    index!.sets[activeSetId!].entries = index!.sets[activeSetId!].entries.filter(item => item.hash !== hash);
     await writeIndex();
     return null;
   }
@@ -279,44 +280,61 @@ export async function persistActiveShadowingAudio(params: {
   kind: 'sentence' | 'extra';
 }): Promise<boolean> {
   await ensureInitialized();
-  if (!params.dataUrl || params.setId !== activeSetId || params.generation !== generation || index?.setId !== params.setId) return false;
+  if (!params.dataUrl || params.setId !== activeSetId || params.generation !== generation || index?.activeSetId !== params.setId) return false;
+  const set = index.sets[params.setId];
+  if (!set) return false;
   const path = filePath(params.setId, params.hash);
-  const existing = index.entries.find(entry => entry.hash === params.hash);
+  const existing = set.entries.find(entry => entry.hash === params.hash);
   const kind: Entry['kind'] = existing?.kind === 'sentence' || params.kind === 'sentence' ? 'sentence' : 'extra';
-  const entriesWithoutCurrent = index.entries.filter(entry => entry.hash !== params.hash);
-  // Preserve all canonical sentence audio. Evict slow/word replay extras first,
-  // including when an existing extra grows or is promoted to a sentence.
+  const entriesWithoutCurrent = set.entries.filter(entry => entry.hash !== params.hash);
   const evictions = selectActiveSetAudioEvictions(entriesWithoutCurrent, params.dataUrl.length);
   for (const hash of evictions) {
-    const extra = index.entries.find(entry => entry.hash === hash);
+    const extra = set.entries.find(entry => entry.hash === hash);
     if (extra) await removeFile(extra.file);
     ram.delete(ramKey(params.setId, hash));
     removeTtsAudioFromMemory(hash);
-    index.entries = index.entries.filter(entry => entry.hash !== hash);
+    set.entries = set.entries.filter(entry => entry.hash !== hash);
   }
   await removeTtsAudioCacheEntries(evictions);
-  const total = index.entries.filter(entry => entry.hash !== params.hash).reduce((sum, entry) => sum + entry.size, 0);
-  // If sentence audio alone exceeds the budget, retain it rather than evicting
-  // one of the active set's canonical sentences. Extras may be declined.
+  const total = set.entries.filter(entry => entry.hash !== params.hash).reduce((sum, entry) => sum + entry.size, 0);
   if (kind === 'extra' && total + params.dataUrl.length > MAX_SET_CHARS) return false;
   await writeFile(path, params.dataUrl);
-  index.entries = index.entries.filter(entry => entry.hash !== params.hash);
-  index.entries.push({ hash: params.hash, file: path, size: params.dataUrl.length, createdAt: Date.now(), kind });
+  set.entries = set.entries.filter(entry => entry.hash !== params.hash);
+  set.entries.push({ hash: params.hash, file: path, size: params.dataUrl.length, createdAt: Date.now(), kind });
+  set.lastUsedAt = Date.now();
   rememberSetRam(params.setId, params.hash, params.dataUrl);
+  await writeIndex();
+  const audioSets = Object.entries(index.sets).filter(([, value]) => value.entries.length > 0);
+  const evictionCandidates = audioSets.filter(([id]) => id !== activeSetId).sort((a, b) => a[1].createdAt - b[1].createdAt);
+  while (audioSets.length > MAX_RETAINED_AUDIO_SETS && evictionCandidates.length) {
+    const candidate = evictionCandidates.shift();
+    if (!candidate) break;
+    const [evictedId, evicted] = candidate;
+    delete index.sets[evictedId];
+    audioSets.splice(audioSets.findIndex(([id]) => id === evictedId), 1);
+    if (hasPlayingAudio(evictedId)) deferSetFiles(evictedId, evicted.entries);
+    else await removeSetFiles(evictedId, evicted.entries);
+  }
   await writeIndex();
   return true;
 }
+
 export async function clearActiveShadowingAudioStore(): Promise<void> {
   await ensureInitialized();
   generation++;
-  if (index) {
-    if (hasPlayingAudio(index.setId)) deferSetFiles(index.setId, index.entries);
-    else await removeSetFiles(index.setId, index.entries);
+  for (const [setId, set] of Object.entries(index?.sets ?? {})) {
+    if (hasPlayingAudio(setId)) deferSetFiles(setId, set.entries);
+    else await removeSetFiles(setId, set.entries);
   }
   ram.clear();
-  index = activeSetId ? { setId: activeSetId, entries: [] } : null;
+  index = { version: 2, activeSetId, sets: {} };
+  if (activeSetId) {
+    const now = Date.now();
+    index.sets[activeSetId] = { createdAt: now, lastUsedAt: now, entries: [] };
+  }
   await writeIndex();
 }
+
 export function resetShadowingAudioStoreForTests(): void {
   activeSetId = null; generation = 0; index = null; initialization = null; activationQueue = Promise.resolve(); ram.clear(); playing.clear(); deferredSetDeletes.clear();
 }

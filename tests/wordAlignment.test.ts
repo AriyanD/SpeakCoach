@@ -5,6 +5,7 @@ import {
 } from '../src/services/shadowingScorer';
 import {
   alignSpokenWordsToReference,
+  buildSpokenTokensFromTranscript,
   computeWordSpeedLabel
 } from '../src/services/wordAlignment';
 
@@ -233,5 +234,42 @@ describe('Word Alignment & Tier 3 Offline Shadowing Scorer (5 Required Cases)', 
       // While individual words are not distorted
       expect(report.words.every((w) => w.speedLabel === 'OK')).toBe(true);
     });
+  });
+});
+
+
+describe('Shadowing text normalization', () => {
+  it.each([
+    ['well-known', 'well known'], ['well-known', 'well-known'], ['well-known', 'wellknown'],
+    ['twenty-four', '24'], ['twenty-four', 'twenty four'], ['twenty four', '24'], ['two thousand and twenty-four', '2024'],
+    ['I have 20 apples', 'I have twenty apples'],
+    ['born in 1990', 'born in nineteen ninety'], ['born in 1990', 'born in 1990'],
+    ['in 2024', 'in twenty twenty four'], ['in 2024', 'in two thousand twenty four'],
+    ['in 2024', 'in two thousand and twenty-four'],
+    ['3.5', 'three point five'], ['10%', 'ten percent'], ['10%', '10 percent'], ['10 percent', '10%'], ['$5', 'five dollars'], ['$5', '5 dollars'], ['5 dollars', '$5'], ['5 dollars', 'five dollars'],
+    ['1st', 'first'], ['9:30', 'nine thirty'], ['12:05', 'twelve oh five'], ['don’t', "don't"], ['café', 'café'], ['سال ۲۰۲۴', 'سال 2024']
+  ])('matches normalized reference %s spoken as %s', (reference, spoken) => {
+    const language = reference.includes('سال') ? 'fa' : 'en';
+    const tokens = buildSpokenTokensFromTranscript(spoken, 2400, 0.95, language);
+    const aligned = alignSpokenWordsToReference(reference, tokens, 2400, undefined, language);
+    expect(aligned.filter(word => word.referenceWord).every(word => word.status === 'match')).toBe(true);
+  });
+  it.each([
+    ['well-known', 'well'], ['20', 'thirty'], ['1990', 'nineteen eighty'], ['2004', 'twenty-four'], ['10%', 'ten']
+  ])('does not forgive incorrect or incomplete input: %s / %s', (reference, spoken) => {
+    const tokens = buildSpokenTokensFromTranscript(spoken, 1600, 0.95, 'en');
+    const aligned = alignSpokenWordsToReference(reference, tokens, 1600, undefined, 'en');
+    expect(aligned.filter(word => word.referenceWord).every(word => word.status === 'match')).toBe(false);
+  });
+  it('keeps Tier-2 timing tokens aligned to one whitespace reference unit', () => {
+    const result = alignSpokenWordsToReference('well-known 2024', [
+      { word: 'well', startMs: 0, endMs: 300, confidence: .9 },
+      { word: 'known', startMs: 300, endMs: 600, confidence: .9 },
+      { word: 'twenty', startMs: 650, endMs: 900, confidence: .9 },
+      { word: 'twenty', startMs: 900, endMs: 1150, confidence: .9 },
+      { word: 'four', startMs: 1150, endMs: 1300, confidence: .9 }
+    ], 1600, undefined, 'en');
+    expect(result.filter(word => word.referenceWord)).toHaveLength(2);
+    expect(result.filter(word => word.referenceWord).every(word => word.status === 'match')).toBe(true);
   });
 });

@@ -4219,3 +4219,51 @@ body {
   .secondary-api-switch-label { flex: 0 0 auto; justify-content: flex-end; }
   .secondary-api-content .settings-copy-key-btn { flex: 1 1 100%; }
 }
+
+
+.shadowing-main-card .shadowing-topic-label.sh-ai-sentence-count { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:18px 0 8px; font-size:.82rem; }
+.shadowing-topic-label .sh-topic-caption { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:start; }
+.shadowing-topic-label .sh-sentence-count { flex:0 0 auto; white-space:nowrap; text-align:end; }
+
+
+/* Shared page hierarchy: pages are not cards; distinct content still may be. */
+.page-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;padding:0 0 12px;margin:0 0 14px;border-bottom:1px solid var(--border)}
+.page-heading-title{display:flex;align-items:center;min-width:0}
+.page-heading .card-title{margin:0}
+.section-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;padding:0 0 8px;margin:0 0 10px;border:0;border-bottom:1px solid var(--border);border-radius:0;color:var(--text-primary);font-size:.95rem;font-weight:700}
+.section-heading h2,.section-heading h3{margin:0;font:inherit;color:inherit}
+.shadowing-page,.ielts-library-page{background:transparent;border:0;border-radius:0;box-shadow:none;padding:0}
+.shadowing-page .shadowing-main-header{margin-bottom:12px}
+.shadowing-page .shadowing-page-title{display:flex;align-items:center;gap:8px}
+.shadowing-page .sh-provider-notice{display:block;margin:-6px 0 10px;color:var(--text-secondary);font-size:.78rem;line-height:1.4}
+.shadowing-page .sh-language-picker-field{background:transparent;border:0;padding:6px 0}
+.shadowing-page .sh-sentence-set-details{margin-top:12px;padding:0;border:0;border-radius:0;background:transparent}
+.shadowing-page .sh-sentence-set-heading{padding:0 0 8px;margin-bottom:8px;border:0}
+.shadowing-page .sh-set-guidance{margin:0 0 10px;color:var(--text-secondary);font-size:.78rem}
+.shadowing-page .sh-sentence-set-controls{margin:0;padding:0;border:0;background:transparent}
+.shadowing-page .shadowing-difficulty-tabs{display:flex;gap:8px;margin:0 0 10px;background:transparent}
+.shadowing-page .shadowing-difficulty-tabs .pill-btn{flex:1 1 0;min-height:48px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);border-radius:12px}
+.shadowing-page .shadowing-difficulty-tabs .pill-btn.active{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.shadowing-page .shadowing-difficulty-tabs .pill-btn:disabled{opacity:.55;cursor:not-allowed}
+.shadowing-page .sentence-box{background:var(--bg-surface);border:1px solid var(--border)}
+.shadowing-page .sh-score-card{margin:0;padding:0;border:0;background:transparent;box-shadow:none}
+.shadowing-page .sh-score-heading{align-items:flex-start}
+.shadowing-page .sh-score-heading .card-subtitle{margin-top:4px}
+.shadowing-page .sh-result-details{margin-top:12px}
+.ielts-library-page{padding:0}
+.ielts-library-page .page-heading{margin-bottom:14px}
+.backup-card>.card-subtitle{display:none}
+.backup-card .backup-section{margin:0;padding:14px 0;border:0;border-radius:0;background:transparent}
+.backup-card .backup-section+.backup-section{border-top:1px solid var(--border)}
+.backup-card .backup-section .section-heading{display:block}
+.settings-language-card .appearance-setting,.settings-shadowing-performance-card .appearance-setting,.settings-appearance-card .appearance-setting{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.shadowing-page .sh-ai-sentence-count{margin:18px 0 8px;font-size:.8rem}
+.shadowing-page .shadowing-topic-label{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.shadowing-page .sh-topic-caption{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
+.shadowing-page .sh-sentence-count{flex:0 0 auto;white-space:nowrap;text-align:end}
+
+.shadowing-page .drill-word-progress{display:block;margin-top:3px;color:var(--text-secondary);font-size:.72rem;font-weight:600}
+.shadowing-page .sh-drill-metrics{grid-template-columns:minmax(0,1fr)}
+.shadowing-page .sh-drill-metrics .metric-tile{max-width:180px}
+.shadowing-page .sh-drill-success{margin:0;padding:10px 12px;color:var(--success);font-weight:700}
+.shadowing-page .sh-result-strip .btn{min-height:42px}

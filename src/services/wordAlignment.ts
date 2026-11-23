@@ -1,5 +1,6 @@
 import { buildReferenceWordTimings, type ReferenceWordTiming } from '../data/shadowingBank';
 import { getShadowingLanguage } from '../data/shadowingLanguages';
+import { canonicalizeShadowingText, normalizeShadowingToken, parseEnglishClockRun, parseEnglishNumberRun, splitShadowingCompound } from './shadowingTextNormalizer';
 
 export type WordMatchStatus = 'match' | 'mispronounced' | 'missing' | 'extra';
 export type WordSpeedLabel = 'too fast' | 'OK' | 'too slow';
@@ -9,6 +10,7 @@ export interface SpokenWordToken {
   startMs: number;
   endMs: number;
   confidence?: number;
+  normalizedWord?: string;
 }
 
 export interface AlignedWordResult {
@@ -80,7 +82,9 @@ export function tokenizeShadowingText(text: string, languageCode = 'en'): string
   const clean = text.normalize('NFKC').trim();
   if (!clean) return [];
   if (language.usesWordSegmentation) {
-    return clean.split(/\s+/u).map(token => token.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '')).filter(Boolean);
+    return clean.split(/\s+/u).map(token => languageCode === 'en'
+      ? token.replace(/^[^\p{L}\p{N}$£€']+|[^\p{L}\p{N}%$£€']+$/gu, '')
+      : token.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '')).filter(Boolean);
   }
   try {
     const Segmenter = (Intl as unknown as {
@@ -100,9 +104,9 @@ export function tokenizeShadowingText(text: string, languageCode = 'en'): string
 
 function normalizeForLanguage(raw: string, languageCode = 'en'): string {
   const language = getShadowingLanguage(languageCode);
-  const value = raw.normalize('NFKC').toLocaleLowerCase(language.locale);
+  const value = canonicalizeShadowingText(raw, language.locale);
   return language.usesWordSegmentation
-    ? value.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '')
+    ? (languageCode === 'en' ? value.replace(/[-/]/gu, '').replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '') : value.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, ''))
     : value.replace(/[\s\p{P}\p{S}]/gu, '');
 }
 
@@ -112,6 +116,13 @@ export function computeWordSimilarity(aRaw: string, bRaw: string, languageCode =
   if (!a && !b) return 1;
   if (!a || !b) return 0;
   if (a === b) return 1;
+  if (a.startsWith('time:') || b.startsWith('time:')) return 0;
+  if (a.startsWith('num:') || b.startsWith('num:')) {
+    if (!a.startsWith('num:') || !b.startsWith('num:')) return 0;
+    const leftValues = a.slice(4).split('|');
+    const rightValues = b.slice(4).split('|');
+    return leftValues.some(value => rightValues.includes(value)) ? 1 : 0;
+  }
   const left = Array.from(a);
   const right = Array.from(b);
   const m = left.length;
@@ -159,6 +170,152 @@ export function buildSpokenTokensFromTranscript(
   });
 }
 
+
+function referenceComparable(raw: string, languageCode: string): string {
+  const value = canonicalizeShadowingText(raw, getShadowingLanguage(languageCode).locale);
+  if (languageCode !== 'en') return normalizeForLanguage(value, languageCode);
+  const clock = value.match(/^(\d{1,2}):(\d{2})(am|pm)?$/u);
+  if (clock) { let hour = Number(clock[1]); const minute = Number(clock[2]); if (minute > 59 || hour > 23) return value; if (clock[3] === 'pm' && hour < 12) hour += 12; if (clock[3] === 'am' && hour === 12) hour = 0; return `time:${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`; }
+  const currency = value.match(/^([$£€])([\d,]+(?:\.\d+)?)$/u);
+  if (currency) return `num:${currency[2].replace(/,/g, '')} ${currency[1] === '$' ? 'dollar' : currency[1] === '£' ? 'pound' : 'euro'}`;
+  const percent = value.match(/^([\d,]+(?:\.\d+)?)%$/u);
+  if (percent) return `num:${percent[1].replace(/,/g, '')} percent`;
+  const ordinal = value.match(/^(\d+)(?:st|nd|rd|th)$/u);
+  if (ordinal) return `num:${ordinal[1]}`;
+  if (/^\d[\d,]*(?:\.\d+)?$/u.test(value)) return `num:${value.replace(/,/g, '')}`;
+  const parts = splitShadowingCompound(value);
+  const parsed = parseEnglishNumberRun(parts);
+  if (parsed && parsed.consumed === parts.length) return `num:${parsed.candidates.join('|')}`;
+  return normalizeForLanguage(value, languageCode);
+}
+function cleanNumericForAlignment(value: string): string { return value.replace(/,/g, ''); }
+function findReferenceNumberPhrase(referenceWords: string[], candidates: string[]): string[] | null {
+  for (let index = 0; index < referenceWords.length; index++) {
+    const raw = canonicalizeShadowingText(referenceWords[index]);
+    const digits = raw.match(/^(\d[\d,]*(?:\.\d+)?)(%|)?$/u);
+    if (digits && candidates.includes(digits[1].replace(/,/g, ''))) {
+      let count = 1;
+      const next = (referenceWords[index + count] ?? '').toLocaleLowerCase('en').replace(/[^a-z]/g, '');
+      if (!digits[2] && ['percent','percentage','dollar','dollars','pound','pounds','euro','euros'].includes(next)) count++;
+      if (count > 1) return referenceWords.slice(index, index + count);
+    }
+    const run = parseEnglishNumberRun(referenceWords, index);
+    if (!run || !run.candidates.some(value => candidates.includes(value))) continue;
+    let count = run.consumed;
+    const next = (referenceWords[index + count] ?? '').toLocaleLowerCase('en').replace(/[^a-z]/g, '');
+    if (['percent','percentage','dollar','dollars','pound','pounds','euro','euros'].includes(next)) count++;
+    if (count > 1) return referenceWords.slice(index, index + count);
+  }
+  return null;
+}
+function distributeSpokenNumber(tokenStart: number, tokenEnd: number, words: string[], confidence?: number, displayText = ''): SpokenWordToken[] {
+  const weights = words.map(word => Math.max(1, word.length)), total = weights.reduce((sum, value) => sum + value, 0);
+  let cursor = tokenStart;
+  return words.map((word, index) => {
+    const end = index === words.length - 1 ? tokenEnd : cursor + (tokenEnd - tokenStart) * weights[index] / total;
+    const item = { word: index === 0 && displayText ? displayText : index === 0 ? word : '', normalizedWord: referenceComparable(word, 'en'), startMs: cursor, endMs: end, confidence };
+    cursor = end;
+    return item;
+  });
+}
+
+function prepareSpokenTokens(tokens: SpokenWordToken[], referenceWords: string[], languageCode: string): SpokenWordToken[] {
+  const normalizePhrase = (phrase: SpokenWordToken[]): SpokenWordToken[] => phrase.map(token => ({ ...token, normalizedWord: referenceComparable(token.word, languageCode) }));
+  if (languageCode !== 'en') return tokens.map(token => ({ ...token, normalizedWord: canonicalizeShadowingText(token.word, getShadowingLanguage(languageCode).locale) }));
+  const refs = referenceWords.map(word => referenceComparable(word, languageCode));
+  const timeRefs = new Set(refs.filter(ref => ref.startsWith('time:')));
+  const output: SpokenWordToken[] = [];
+  for (let i = 0; i < tokens.length;) {
+    const current = tokens[i], raw = canonicalizeShadowingText(current.word);
+    const clock = raw.match(/^\d{1,2}:\d{2}(?:am|pm)?$/u);
+    if (clock) { output.push({ ...current, normalizedWord: referenceComparable(raw, languageCode) }); i++; continue; }
+    const currency = raw.match(/^([$£€])([\d,]+(?:\.\d+)?)$/u);
+    if (currency) {
+      const value = cleanNumericForAlignment(currency[2]);
+      const phrase = findReferenceNumberPhrase(referenceWords, [value]);
+      if (phrase) output.push(...distributeSpokenNumber(current.startMs, current.endMs, phrase, current.confidence, current.word));
+      else output.push({ ...current, normalizedWord: referenceComparable(raw, languageCode) });
+      i++; continue;
+    }
+    const percent = raw.match(/^([\d,]+(?:\.\d+)?)%$/u);
+    if (percent) {
+      const value = cleanNumericForAlignment(percent[1]), phrase = findReferenceNumberPhrase(referenceWords, [value]);
+      if (phrase) output.push(...distributeSpokenNumber(current.startMs, current.endMs, phrase, current.confidence, current.word)));
+      else output.push({ ...current, normalizedWord: referenceComparable(raw, languageCode) });
+      i++; continue;
+    }
+    const ordinal = raw.match(/^(\d+)(?:st|nd|rd|th)$/u);
+    if (ordinal || /^\d[\d,]*(?:\.\d+)?$/u.test(raw)) {
+      const value = ordinal?.[1] ?? cleanNumericForAlignment(raw);
+      let phrase = findReferenceNumberPhrase(referenceWords, [value]);
+      const nextUnit = (tokens[i + 1]?.word ?? '').toLocaleLowerCase('en').replace(/[^a-z]/g, '');
+      const phraseUnit = phrase?.[phrase.length - 1]?.toLocaleLowerCase('en').replace(/[^a-z]/g, '');
+      if (phraseUnit && ['percent','percentage','dollar','dollars','pound','pounds','euro','euros'].includes(phraseUnit) && phraseUnit !== nextUnit) phrase = null;
+      if (phrase) {
+        const end = phraseUnit && phraseUnit === nextUnit ? tokens[i + 1].endMs : current.endMs;
+        output.push(...distributeSpokenNumber(current.startMs, end, phrase, current.confidence, current.word)));
+        if (phraseUnit && phraseUnit === nextUnit) { i += 2; continue; }
+      } else {
+        let combined = '';
+        if (['percent','percentage'].includes(nextUnit)) combined = `num:${value} percent`;
+        else if (['dollar','dollars','pound','pounds','euro','euros'].includes(nextUnit)) combined = `num:${value} ${nextUnit.replace(/s$/, '')}`;
+        if (combined && refs.includes(combined)) {
+          output.push({ word: current.word + ' ' + tokens[i + 1].word, normalizedWord: combined, startMs: current.startMs, endMs: tokens[i + 1].endMs });
+          i += 2; continue;
+        }
+        output.push({ ...current, normalizedWord: referenceComparable(raw, languageCode) });
+      }      i++; continue;
+    }
+    const clockRun = parseEnglishClockRun(tokens.map(token => token.word), i);
+    if (clockRun && timeRefs.has(clockRun.value)) { const last=tokens[i+clockRun.consumed-1]; output.push({ word:tokens.slice(i,i+clockRun.consumed).map(token=>token.word).join(' '),normalizedWord:clockRun.value,startMs:current.startMs,endMs:last.endMs,confidence:Math.min(...tokens.slice(i,i+clockRun.consumed).map(token=>token.confidence??1)) }); i+=clockRun.consumed; continue; }
+    const run = parseEnglishNumberRun(tokens.map(token => token.word), i);
+    if (run) {
+      let phrase = findReferenceNumberPhrase(referenceWords, run.candidates);
+      if (phrase) {
+        let consumed = run.consumed;
+        const nextUnit = (tokens[i + consumed]?.word ?? '').toLocaleLowerCase('en').replace(/[^a-z]/g, '');
+        const phraseUnit = phrase[phrase.length - 1]?.toLocaleLowerCase('en').replace(/[^a-z]/g, '');
+        if (phraseUnit && ['percent','percentage','dollar','dollars','pound','pounds','euro','euros'].includes(phraseUnit) && phraseUnit !== nextUnit) phrase = null;
+        if (phrase) {
+          if (phraseUnit && phraseUnit === nextUnit) consumed++;
+          const last = tokens[i + consumed - 1];
+          const exactPhrase = consumed === phrase.length && tokens.slice(i, i + consumed).every((token, index) =>
+            normalizeShadowingToken(token.word) === normalizeShadowingToken(phrase![index]));
+          if (exactPhrase) output.push(...normalizePhrase(tokens.slice(i, i + consumed)));
+          else output.push(...distributeSpokenNumber(current.startMs, last.endMs, phrase,
+            Math.min(...tokens.slice(i, i + consumed).map(token => token.confidence ?? 1)), tokens.slice(i, i + consumed).map(token => token.word).join(' ')));
+          i += consumed; continue;
+        }
+      }
+      let consumed = run.consumed;
+      let value = `num:${run.candidates.join('|')}`;
+      const nextUnit = tokens[i + consumed]?.word.toLocaleLowerCase('en').replace(/[^a-z]/g, '');
+      const combined = ['percent','percentage'].includes(nextUnit ?? '') ? value + ' percent'
+        : ['dollar','dollars','pound','pounds','euro','euros'].includes(nextUnit ?? '') ? value + ' ' + nextUnit.replace(/s$/, '') : '';
+      if (combined && refs.includes(combined)) { value = combined; consumed++; }
+      const last = tokens[i + consumed - 1];
+      output.push({ word: tokens.slice(i, i + consumed).map(token => token.word).join(' '), normalizedWord: value, startMs: current.startMs, endMs: last.endMs,
+        confidence: Math.min(...tokens.slice(i, i + consumed).map(token => token.confidence ?? 1)) });
+      i += consumed; continue;
+    }
+    // Reconcile open/closed compounds only against a known reference token.
+    let merged = false;
+    for (let count = 2; count <= Math.min(3, tokens.length - i); count++) {
+      const joined = tokens.slice(i, i + count).map(token => normalizeShadowingToken(token.word)).join('');
+      const match = refs.some(ref => !ref.startsWith('num:') && normalizeForLanguage(ref, languageCode) === joined);
+      if (match) {
+        const last = tokens[i + count - 1];
+        output.push({ word: tokens.slice(i, i + count).map(token => token.word).join('-'), startMs: current.startMs, endMs: last.endMs });
+        i += count; merged = true; break;
+      }
+    }
+    if (merged) continue;
+    output.push({ ...current });
+    i++;
+  }
+  return output;
+}
+
 export function alignSpokenWordsToReference(
   referenceText: string,
   spokenTokens: SpokenWordToken[],
@@ -175,9 +332,11 @@ export function alignSpokenWordsToReference(
     cursorMs += duration;
     return item;
   });
-  const refTimings = referenceTimingsOverride?.length ? referenceTimingsOverride : languageCode === 'en' ? buildReferenceWordTimings(referenceText, expectedTotalDurationMs) : languageTimings;
+  const rawRefTimings = referenceTimingsOverride?.length === languageTokens.length ? referenceTimingsOverride : languageCode === 'en' ? buildReferenceWordTimings(referenceText, expectedTotalDurationMs) : languageTimings;
+  const refTimings = rawRefTimings.map((timing, index) => ({ ...timing, normalized: referenceComparable(languageTokens[index], languageCode) }));
+  const preparedSpokenTokens = prepareSpokenTokens(spokenTokens, languageTokens, languageCode);
   const m = refTimings.length;
-  const n = spokenTokens.length;
+  const n = preparedSpokenTokens.length;
 
   // Dynamic programming needleman-wunsch / edit-distance table
   const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
@@ -196,7 +355,7 @@ export function alignSpokenWordsToReference(
 
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
-      const sim = computeWordSimilarity(refTimings[i - 1].normalized, spokenTokens[j - 1].word, languageCode);
+      const sim = computeWordSimilarity(refTimings[i - 1].normalized, preparedSpokenTokens[j - 1].normalizedWord ?? preparedSpokenTokens[j - 1].word, languageCode);
       const subCost = sim >= 0.62 ? 1 - sim : 2.5; // Disallow aligning unrelated words
       const costMatch = dp[i - 1][j - 1] + subCost;
       const costDel = dp[i - 1][j] + 1.0;
@@ -223,8 +382,8 @@ export function alignSpokenWordsToReference(
     const op = back[i][j];
     if (i > 0 && j > 0 && op === 'M') {
       const ref = refTimings[i - 1];
-      const spk = spokenTokens[j - 1];
-      const sim = computeWordSimilarity(ref.normalized, spk.word, languageCode);
+      const spk = preparedSpokenTokens[j - 1];
+      const sim = computeWordSimilarity(ref.normalized, spk.normalizedWord ?? spk.word, languageCode);
       const hasRealConf =
         typeof spk.confidence === 'number' && spk.confidence > 0 && spk.confidence <= 1;
       const spokenDur = Math.max(80, spk.endMs - spk.startMs);
@@ -266,7 +425,7 @@ export function alignSpokenWordsToReference(
       });
       i--;
     } else {
-      const spk = spokenTokens[j - 1];
+      const spk = preparedSpokenTokens[j - 1];
       const spokenDur = Math.max(80, spk.endMs - spk.startMs);
       aligned.push({
         spokenWord: spk.word,
@@ -288,7 +447,7 @@ export function alignSpokenWordsToReference(
   const matchedWords = results.filter((w) => w.spokenDurationMs && w.referenceWord);
   const totalSpokenMs =
     matchedWords.reduce((sum, w) => sum + (w.spokenDurationMs ?? 0), 0) ||
-    (spokenTokens.length > 0 ? spokenTokens[spokenTokens.length - 1].endMs - spokenTokens[0].startMs : 1);
+    (preparedSpokenTokens.length > 0 ? preparedSpokenTokens[preparedSpokenTokens.length - 1].endMs - preparedSpokenTokens[0].startMs : 1);
 
   for (const w of results) {
     if (w.spokenDurationMs && w.expectedDurationMs) {

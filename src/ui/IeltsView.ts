@@ -241,11 +241,10 @@ export function renderIeltsView(
       `).join('');
 
       container.innerHTML = `
-        <section class="card ielts-library-card">
-          <div class="card-header">
-            <div>
+        <div class="ielts-library-page ielts-library-card">
+          <div class="page-heading">
+            <div class="page-heading-title">
               <h1 class="card-title">IELTS Speaking</h1>
-              
             </div>
             <span class="tier-badge ${tierBadge}"><span class="tier-dot"></span>${summary.slots.llm_evaluator.tier === 3 ? 'API required' : 'Online AI'}</span>
           </div>
@@ -313,7 +312,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
             ${setRows || '<div class="ielts-library-empty" id="ielts-library-empty" aria-live="polite"><strong>No saved question sets yet</strong><p>Connect and successfully test an AI Question &amp; Sentence Generator in Settings, then tap “Get new question sets” to create your first IELTS practice sets.</p><button type="button" class="btn btn-secondary ielts-empty-settings-btn" id="ielts-empty-settings-btn">Open AI settings</button></div>'}
           </div>
           <button type="button" class="btn btn-secondary ielts-history-link" id="ielts-history-btn">View past results &amp; trends</button>
-        </section>
+        </div>
       `;
 
       if (!preTestCheckDone && summary.slots.llm_evaluator.label === 'Online AI') {
