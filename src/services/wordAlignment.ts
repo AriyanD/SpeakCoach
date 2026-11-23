@@ -253,7 +253,7 @@ function prepareSpokenTokens(tokens: SpokenWordToken[], referenceWords: string[]
       if (phraseUnit && ['percent','percentage','dollar','dollars','pound','pounds','euro','euros'].includes(phraseUnit) && phraseUnit !== nextUnit) phrase = null;
       if (phrase) {
         const end = phraseUnit && phraseUnit === nextUnit ? tokens[i + 1].endMs : current.endMs;
-        output.push(...distributeSpokenNumber(current.startMs, end, phrase, current.confidence, current.word)));
+        output.push(...distributeSpokenNumber(current.startMs, end, phrase, current.confidence, current.word));
         if (phraseUnit && phraseUnit === nextUnit) { i += 2; continue; }
       } else {
         let combined = '';
