@@ -613,8 +613,8 @@ export function renderShadowingView(
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'slow') && !isCaptureBusy && (!isPlaybackActive || state.audioActivity === 'playingModel(slow)') ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
           ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
         </button>
-${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
       </div>
+      ${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
 
       <div class="btn-row sh-record-controls">
         <button type="button" class="btn btn-record sh-record-action ${isRec ? 'is-recording' : ''} ${isStopping ? 'is-stopping' : ''}" id="sh-record-btn" ${hasSentence && !isStopping && !isPlaybackActive ? '' : 'disabled'} aria-label="${isStopping ? 'Finishing recording' : isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
