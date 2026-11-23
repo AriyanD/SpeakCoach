@@ -184,6 +184,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     root.querySelector<HTMLButtonElement>('#sh-record-btn')?.click();
     await new Promise((r) => setTimeout(r, 60));
     expect(root.querySelector('#sh-drill-correct-count')?.textContent).toContain('1 / 2');
+    expect(root.querySelector('.drill-word-progress')?.textContent).toBe('Improved');
     expect(root.querySelector('#sh-retry-weak-btn')?.textContent).toContain('Retry remaining weak words');
     expect(root.querySelector('#sh-target-text')?.textContent).toBe('usually hot');
   });
@@ -236,7 +237,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     record?.click();
     await new Promise(resolve => setTimeout(resolve, 30));
     expect(audioRecorder.isRecording()).toBe(true);
-    for (const selector of ['#sh-play-normal-btn','#sh-play-slow-btn','#sh-prev-btn','#sh-next-btn','#sh-generate-ai-btn','#sh-history-prev-btn','#sh-history-next-btn','#sh-language-select','[data-diff]']) {
+    for (const selector of ['#sh-play-normal-btn','#sh-play-slow-btn','#sh-prev-btn','#sh-next-btn','#sh-generate-ai-btn','#sh-history-prev-btn','#sh-history-next-btn','#sh-language-select','#sh-translate-btn','#sh-grammar-btn','#sh-translation-language','[data-diff]']) {
       expect(root.querySelector<HTMLElement>(selector)?.hasAttribute('disabled')).toBe(true);
     }
     expect(root.querySelector<HTMLButtonElement>('#sh-record-btn')?.disabled).toBe(false);
