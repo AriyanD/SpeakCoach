@@ -311,3 +311,12 @@ html[data-theme="dark"] .ielts-library-heading {
 html[data-theme="dark"] .ielts-library-heading > div:first-child {
   flex: 1 1 100%;
 }
+
+
+/* Shadowing uses a quiet, solid canvas in dark mode after the card surfaces were removed. */
+html[data-theme="dark"]:has(.shadowing-page),
+html[data-theme="dark"]:has(.shadowing-page) body,
+html[data-theme="dark"]:has(.shadowing-page) #app,
+html[data-theme="dark"]:has(.shadowing-page) .view-container {
+  background: #10251c !important;
+}

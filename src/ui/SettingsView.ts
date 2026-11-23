@@ -680,7 +680,7 @@ export async function renderSettingsView(
           ${hasConfiguredOnlineAccount ? '<button type="button" class="btn btn-secondary" id="test-all-apis-btn">Test all APIs</button>' : ''}
           <input type="file" id="import-ai-file" accept="application/json,.json" hidden />
         </div>
-        <p class="card-subtitle">Tests run sequentially and may use a small amount of API quota. A slot is marked saved only when every configured online account in that slot passes; otherwise its previous verification is preserved.</p>
+        <p class="card-subtitle">Tests run sequentially and may use a small amount of API quota. API 1 and API 2 are checked independently; a passing account remains available even if the alternate fails. Failed accounts keep their own re-test or cooldown status.</p>
         <div id="backup-status" class="status-box info" role="status" aria-live="polite">AI settings can be exported with API keys for device migration, or without keys for safer sharing. Importing a no-key backup leaves the API keys already stored on this device unchanged.</div>
       </div>
       <div class="backup-section">
@@ -1505,7 +1505,7 @@ export async function renderSettingsView(
     }
     const confirmed = await confirmInApp({
       title: 'Test all configured APIs?',
-      message: 'Connection probes send real requests and may use a small amount of API quota. Tests run sequentially. A slot is saved only if every configured online account in that slot passes; otherwise its previous verification remains unchanged.',
+      message: 'Connection probes send real requests and may use a small amount of API quota. Tests run sequentially. API 1 and API 2 are verified independently: a passing account remains available even if its alternate fails, while the failed account receives its own re-test or cooldown state.',
       confirmLabel: 'Test all APIs',
       cancelLabel: 'Cancel',
       tone: 'normal'
@@ -1603,15 +1603,22 @@ export async function renderSettingsView(
           const previousLastTest = lastTestResults.get(slotId);
           try {
             for (const item of tested) {
+              const accountPassed = item.result.ok && item.result.tier !== 3;
               const persistedResult = await persistSlotAccountTestResult(item.config, item.result, item.account);
-              if (item.account === 'primary' && persistedResult) lastTestResults.set(slotId, persistedResult);
-              else configs[slotId].secondary = { ...item.config, verified: true, testResult: {
-                ok: true, latencyMs: item.result.latencyMs, message: item.result.message,
-                testedAt: Date.now(), verificationFingerprint: item.result.verificationFingerprint
-              } };
+              if (item.account === 'primary' && persistedResult) {
+                lastTestResults.set(slotId, persistedResult);
+              } else if (item.account === 'secondary') {
+                configs[slotId].secondary = { ...item.config, verified: accountPassed, testResult: {
+                  ok: accountPassed, latencyMs: item.result.latencyMs, message: item.result.message,
+                  testedAt: Date.now(), verificationFingerprint: item.result.verificationFingerprint
+                } };
+              }
             }
             savedSlots += 1;
-            reports.push(`<li class="pass"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) PASS`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Saved</strong></li>`);
+            const usable = tested.filter(item => item.result.ok && item.result.tier !== 3);
+            const usableLabels = usable.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name})`);
+            const failedLabels = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) failed: ${escapeHtml(redactKeys(describeConnectionTestFailure(item.result)))}`);
+            reports.push(`<li class="${failed.length ? 'info' : 'pass'}"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Saved</strong>. Available: ${usableLabels.join(' · ')}.${failedLabels.length ? ` Failed account isolated: ${failedLabels.join(' · ')}.` : ''}</li>`);
           } catch (saveError) {
             try {
               if (previousPrimary) await saveSlotConnectionTestResult(slotId, previousPrimary);
@@ -1624,23 +1631,35 @@ export async function renderSettingsView(
               // Preserve the original storage failure in the report; rollback is best effort.
             }
             notSavedSlots += 1;
-            reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: Tests passed, but verification could not be saved: ${escapeHtml(saveError instanceof Error ? saveError.message : String(saveError))}. Previous verification was restored where storage allowed.</li>`);
+            reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: At least one API passed, but verification could not be saved: ${escapeHtml(saveError instanceof Error ? saveError.message : String(saveError))}. Previous verification was restored where storage allowed.</li>`);
           }
         } else {
           notSavedSlots += 1;
           const reasons = failed.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) failed: ${escapeHtml(redactKeys(describeConnectionTestFailure(item.result)))}`).join(' · ');
-          reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) ${item.result.ok ? 'PASS' : 'FAIL'}`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Not saved</strong>. ${reasons}. Previous verification preserved.</li>`);
+          reports.push(`<li class="fail"><strong>${escapeHtml(slotTitle)}</strong>: ${tested.map(item => `${item.account === 'primary' ? 'API 1' : 'API 2'} (${getPreset(slotId, item.config.providerId).name}) FAIL`).join(' · ')}${skippedAccounts.length ? ` · ${skippedAccounts.join(' · ')}` : ''} — <strong>Not saved</strong>. No configured online account passed. ${reasons}. Previous verification snapshots were preserved; failed accounts retain their own health state.</li>`);
         }
 
         const primaryResult = lastTestResults.get(slotId);
+        const primaryHealth = await getProviderAccountHealth(slotId, 'primary');
+        const secondaryHealth = await getProviderAccountHealth(slotId, 'secondary');
+        const primaryAvailable = primaryResult?.ok === true && primaryResult.tier !== 3 && !primaryHealth;
+        const secondaryConfig = configs[slotId].secondary;
+        const secondaryAvailable = !!secondaryConfig?.verified && secondaryConfig.testResult?.ok === true && !secondaryHealth;
+        const onlineVerified = primaryAvailable || secondaryAvailable;
+        const failedAccount = failed[0]?.account;
+        const failedHealth = failedAccount ? await getProviderAccountHealth(slotId, failedAccount) : null;
+        const availableLabel = primaryAvailable && secondaryAvailable ? 'both APIs' : primaryAvailable ? 'API 1' : 'API 2';
         const badge = container.querySelector<HTMLElement>(`#badge-${slotId}`);
         if (badge) {
-          const failedAccount = failed[0]?.account;
-          const health = failedAccount ? await getProviderAccountHealth(slotId, failedAccount) : null;
-          const onlineVerified = !failed.length && isOnlineProviderVerified(primaryResult, configs[slotId].secondary);
-          const badgeLabel = failed.length ? (health?.state === 'cooldown' ? 'Cooling down' : 'Needs re-test') : onlineVerified ? 'Online AI' : 'Basic offline';
-          badge.className = `tier-badge settings-slot-status ${onlineVerified ? 'online' : 'offline'}`;
-          badge.dataset.slotStatus = failed.length ? (health?.state === 'cooldown' ? 'cooldown' : 'needs-retest') : onlineVerified ? 'online' : 'offline';
+          const badgeLabel = onlineVerified
+            ? (failed.length ? `Ready · ${availableLabel} available` : 'Online AI')
+            : failedHealth?.state === 'cooldown' ? 'Cooling down'
+              : failed.length ? 'Needs re-test' : 'Basic offline';
+          badge.className = `tier-badge settings-slot-status ${onlineVerified ? 'online' : failedHealth?.state === 'needs-retest' ? 'error' : 'offline'}`;
+          badge.dataset.slotStatus = onlineVerified
+            ? (failed.length ? 'ready-degraded' : 'ready')
+            : failedHealth?.state === 'cooldown' ? 'cooldown'
+              : failed.length ? 'needs-retest' : 'offline';
           badge.innerHTML = `<span class="tier-dot"></span>${badgeLabel}`;
         }
         const primaryStatus = container.querySelector<HTMLElement>(`#status-${slotId}`);

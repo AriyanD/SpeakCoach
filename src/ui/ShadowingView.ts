@@ -518,10 +518,10 @@ export function renderShadowingView(
   const remainingDrillWords = [...new Set(drillWords.filter(word => word.status !== 'match').map(word => word.referenceWord!).filter(Boolean))];
   const weakActionHtml = state.lastReport ? (drillMode
     ? remainingDrillWords.length
-      ? `<button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}><span>Retry remaining weak words</span> (<span>${remainingDrillWords.length}</span>)</button>`
+      ? `<div class="sh-retry-weak-actions"><button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}><span>Retry remaining weak words</span> (<span>${remainingDrillWords.length}</span>)</button></div>`
       : '<p class="sh-drill-success" role="status">All target words matched.</p>'
     : weakReferenceWords.length
-      ? `<button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}><span>${weakReferenceWords.length === 1 ? 'Practice weak word' : 'Retry weak words'}</span> ${weakReferenceWords.length === 1 ? '' : `(<span>${weakReferenceWords.length}</span>)`}</button>`
+      ? `<div class="sh-retry-weak-actions"><button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}><span>${weakReferenceWords.length === 1 ? 'Practice weak word' : 'Retry weak words'}</span> ${weakReferenceWords.length === 1 ? '' : `(<span>${weakReferenceWords.length}</span>)`}</button></div>`
       : '') : '';
   const resultStripHtml = state.lastReport ? `
     <div class="sh-result-strip" role="group" aria-label="Latest recording result">
@@ -574,22 +574,17 @@ export function renderShadowingView(
         </div>
         <div class="sh-history-controls" aria-label="Sentence set history">
           <span class="sh-history-caption">From history</span>
-          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
           <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1 : 0} of ${activeHistory.sets.length}</span>
-          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
+          <div class="sh-history-arrows">
+            <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
+            <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
+          </div>
         </div>
         
         ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
       </div>
       </section>
-      <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
-      <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
-        <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
-        <strong>Important: speech APIs have separate capabilities</strong>
-        <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
-        <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
-        <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
-      </details>
+
       
       ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate. <button type="button" class="btn btn-primary" id="sh-empty-generate-btn">Generate now</button></div>` : ''}
 
@@ -618,11 +613,7 @@ export function renderShadowingView(
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'slow') && !isCaptureBusy && (!isPlaybackActive || state.audioActivity === 'playingModel(slow)') ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
           ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
         </button>
-        ${
-          state.customDrillText
-            ? `<button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button>`
-            : ''
-        }
+${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
       </div>
 
       <div class="btn-row sh-record-controls">
@@ -691,6 +682,14 @@ export function renderShadowingView(
       ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, '<br>')}</div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
+      <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
+        <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
+        <strong>Important: speech APIs have separate capabilities</strong>
+        <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
+        <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
+        <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
+      </details>
+      <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
   `;
 
   if (isCaptureBusy) {

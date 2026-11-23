@@ -34,6 +34,11 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(sentenceSet?.tagName).toBe('SECTION');
     expect(scoreDetails?.tagName).toBe('SECTION');
     expect(sentenceSet?.querySelector('#sh-history-position')).not.toBeNull();
+    expect(sentenceSet?.querySelector('.sh-history-arrows')).not.toBeNull();
+    expect(sentenceSet?.querySelector('.sh-history-caption')?.nextElementSibling?.id).toBe('sh-history-position');
+    expect(root.querySelector('.sh-sentence-set-heading')).not.toBeNull();
+    expect(root.querySelector('#sh-api-notice-toggle-btn')?.parentElement?.lastElementChild?.id).toBe('sh-api-notice-toggle-btn');
+    expect(root.querySelector('.sh-api-capability-notice')?.nextElementSibling?.id).toBe('sh-api-notice-toggle-btn');
     expect(language && sentenceSet && language.compareDocumentPosition(sentenceSet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(language?.parentElement?.nextElementSibling).toBe(sentenceSet);
     expect(sentenceSet && target && sentenceSet.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -170,10 +175,13 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     const retryWeakBtn = root.querySelector<HTMLButtonElement>('#sh-retry-weak-btn');
     expect(retryWeakBtn).not.toBeNull();
     expect(retryWeakBtn?.closest('.sh-result-strip')).not.toBeNull();
+    expect(retryWeakBtn?.closest('.sh-retry-weak-actions')).not.toBeNull();
     expect(root.querySelector('#sh-score-card #sh-retry-weak-btn')).toBeNull();
     retryWeakBtn?.click();
 
     expect(root.querySelector('#sh-target-text')?.textContent).toBe('usually hot');
+    expect(root.querySelector('#sh-exit-drill-btn')?.closest('.sh-drill-exit-actions')).not.toBeNull();
+    expect(root.querySelector('#sh-exit-drill-btn')?.closest('.sh-player-controls')).toBeNull();
     expect(root.querySelector<HTMLInputElement>('#sh-transcript-input')?.value).toBe('');
     expect(root.querySelector('#sh-fluency-score')).toBeNull();
     expect(root.querySelector('#sh-pace-score')).toBeNull();

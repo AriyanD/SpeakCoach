@@ -71,6 +71,10 @@ describe('theme contrast and semantic palette', () => {
     }
   });
 
+  it('uses a solid deep-green canvas for the unframed Shadowing page in dark mode', () => {
+    expect(darkCss).toContain('background: #10251c !important;');
+  });
+
   it('uses semantic status tokens for word chips and avoids decorative dark gradients/shadows', () => {
     for (const selector of ['.word-chip.match', '.word-chip.mispronounced', '.word-chip.missing', '.word-chip.extra']) {
       expect(lightCss).toContain(selector);

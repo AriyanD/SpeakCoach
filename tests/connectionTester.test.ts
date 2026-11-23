@@ -78,14 +78,15 @@ describe('Functional Deep Connection Tester', () => {
     expect(await getProviderAccountHealth('voice_tts', 'primary')).toBeNull();
   });
 
-  it('saves a slot only when every configured online account passes', () => {
+  it('keeps a slot verifiable when either configured online account passes independently', () => {
     const passPrimary = { result: { ok: true, tier: 1 } as ConnectionTestResult };
     const passSecondary = { result: { ok: true, tier: 2 } as ConnectionTestResult };
     const failPrimary = { result: { ok: false, tier: 1 } as ConnectionTestResult };
     const failSecondary = { result: { ok: false, tier: 2 } as ConnectionTestResult };
     expect(shouldPersistSlotVerification([passPrimary], 1)).toBe(true);
     expect(shouldPersistSlotVerification([passPrimary, passSecondary], 2)).toBe(true);
-    expect(shouldPersistSlotVerification([passPrimary, failSecondary], 2)).toBe(false);
+    expect(shouldPersistSlotVerification([passPrimary, failSecondary], 2)).toBe(true);
+    expect(shouldPersistSlotVerification([failPrimary, passSecondary], 2)).toBe(true);
     expect(shouldPersistSlotVerification([failPrimary, failSecondary], 2)).toBe(false);
     expect(shouldPersistSlotVerification([], 0)).toBe(false);
   });
