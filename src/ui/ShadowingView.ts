@@ -41,7 +41,7 @@ interface ShadowingState {
   index: number;
   customDrillText: string | null;
   drillWords: string[];
-  drillPreviousStatuses: Record<string, WordMatchStatus>;
+  drillPreviousStatuses: Record<string, { status: WordMatchStatus; accuracyScore: number }>;
   recognizedTranscript: string;
   recognizedConfidence: number;
   recognizedAlternatives: RecognizerAlternative[];
@@ -248,7 +248,7 @@ function renderVadWaveformSection(vad?: WavVadAnalysisResult): string {
   `;
 }
 
-function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, drillMode = false, previousStatuses: Record<string, WordMatchStatus> = {}, audioBusy = false, playbackActive = false, wordPlayback = false): string {
+function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, drillMode = false, previousStatuses: Record<string, { status: WordMatchStatus; accuracyScore: number }> = {}, audioBusy = false, playbackActive = false, wordPlayback = false): string {
   const isOfflineMode = report.activeTier.tier === 3 || report.activeTier.label === 'Basic offline';
 
   const chipsHtml = report.words
@@ -263,7 +263,9 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, d
       const durationText = !drillMode && !isOfflineMode && w.spokenDurationMs ? ` · ${w.spokenDurationMs}ms` : '';
       const previous = w.referenceWord ? previousStatuses[w.referenceWord] : undefined;
       const rank: Record<WordMatchStatus, number> = { missing: 0, mispronounced: 1, match: 2, extra: -1 };
-      const progress = drillMode && previous ? (rank[w.status] > rank[previous] ? 'Improved' : rank[w.status] === rank[previous] ? 'No change' : 'Needs work') : '';
+      const currentQuality = rank[w.status] * 100 + w.accuracyScore;
+      const previousQuality = previous ? rank[previous.status] * 100 + previous.accuracyScore : 0;
+      const progress = drillMode && previous ? (currentQuality > previousQuality + 5 ? 'Improved' : currentQuality < previousQuality - 5 ? 'Needs work' : 'No change') : '';
       const meta =
         w.status === 'missing'
           ? 'missing'
@@ -1228,7 +1230,7 @@ export function renderShadowingView(
     if (!state.lastReport || isAudioCaptureBusy() || isAudioPlaybackActive()) return;
     const words = [...new Set(state.lastReport.words.filter(word => word.referenceWord && word.status !== 'match').map(word => word.referenceWord!))];
     if (!words.length) return;
-    state.drillPreviousStatuses = Object.fromEntries(state.lastReport.words.filter(word => word.referenceWord).map(word => [word.referenceWord!, word.status]));
+    state.drillPreviousStatuses = Object.fromEntries(state.lastReport.words.filter(word => word.referenceWord).map(word => [word.referenceWord!, { status: word.status, accuracyScore: word.accuracyScore }]));
     state.drillWords = words;
     state.customDrillText = words.join(' ');
     clearAttemptState();
