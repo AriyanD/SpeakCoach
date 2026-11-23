@@ -240,7 +240,7 @@ function prepareSpokenTokens(tokens: SpokenWordToken[], referenceWords: string[]
     const percent = raw.match(/^([\d,]+(?:\.\d+)?)%$/u);
     if (percent) {
       const value = cleanNumericForAlignment(percent[1]), phrase = findReferenceNumberPhrase(referenceWords, [value]);
-      if (phrase) output.push(...distributeSpokenNumber(current.startMs, current.endMs, phrase, current.confidence, current.word)));
+      if (phrase) output.push(...distributeSpokenNumber(current.startMs, current.endMs, phrase, current.confidence, current.word));
       else output.push({ ...current, normalizedWord: referenceComparable(raw, languageCode) });
       i++; continue;
     }
