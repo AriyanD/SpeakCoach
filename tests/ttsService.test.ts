@@ -85,7 +85,7 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
 
 
   it('persists generated audio from every supported online TTS provider into the active set', async () => {
-    const mp3 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA';
+    const mp3 = 'SUQz' + 'A'.repeat(200);
     const providers = [
       { providerId: 'openai_tts', baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'tts-1:alloy' },
       { providerId: 'azure_tts', baseUrl: 'https://eastus.tts.speech.microsoft.com', modelOrVoice: 'en-US-JennyNeural' },
@@ -780,14 +780,14 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
       if (opts.method === 'POST') {
         return { url: opts.url, status: 200, headers: { 'content-type': 'application/json' }, data: { file_id: 'test-file-id' } };
       }
-      return { url: opts.url, status: 200, headers: { 'content-type': 'audio/mpeg' }, data: 'SUQzBAAAAAAA' };
+      return { url: opts.url, status: 200, headers: { 'content-type': 'audio/mpeg' }, data: 'SUQz' + 'A'.repeat(200) };
     });
     expect(requests).toHaveLength(2);
     expect(requests[0].url).toBe('https://freetts.org/api/v1/tts');
     expect(requests[0].headers['x-api-key']).toBe('freetts-test-key');
     expect(requests[0].data).toMatchObject({ text: 'A FreeTTS sentence.', voice: 'en-US-JennyNeural', rate: '+0%', pitch: '+0Hz' });
     expect(requests[1].url).toBe('https://freetts.org/api/audio/test-file-id');
-    expect(result.dataUrl).toBe('data:audio/mpeg;base64,SUQzBAAAAAAA');
+    expect(result.dataUrl).toBe('data:audio/mpeg;base64,' + 'SUQz' + 'A'.repeat(200));
   });
 
   it('rejects Groq Orpheus text over its 200-character input limit', async () => {
