@@ -1399,6 +1399,14 @@ export async function renderSettingsView(
     );
     if (importButton) importButton.disabled = true;
     if (testAllApisButton) testAllApisButton.disabled = true;
+    // Native Android file pickers can restore focus by scrolling the WebView.
+    // Preserve the user's settings position across the import and UI refresh.
+    const settingsScrollTop = container.scrollTop;
+    const windowScrollTop = window.scrollY;
+    const restoreSettingsScroll = (): void => {
+      window.scrollTo({ top: windowScrollTop, behavior: 'auto' });
+      container.scrollTop = settingsScrollTop;
+    };
     const operationStatus = kind === 'ai-settings' ? backupStatus : testDataBackupStatus;
     if (operationStatus) {
       operationStatus.hidden = false;
@@ -1416,6 +1424,11 @@ export async function renderSettingsView(
           : 'Test history and practice data restored.';
       }
       await _onSettingsUpdated();
+      restoreSettingsScroll();
+      requestAnimationFrame(() => {
+        restoreSettingsScroll();
+        requestAnimationFrame(restoreSettingsScroll);
+      });
     } catch (error) {
       if (operationStatus) {
         operationStatus.hidden = false;

@@ -3056,13 +3056,13 @@ html[data-theme="dark"] .ielts-library-card .ielts-library-notice.error {
 }
 
 /* Bilingual first-run setup guide */
-.setup-dialog{width:min(580px,calc(100vw - 28px));max-width:min(580px,calc(100vw - 28px));height:min(88dvh,calc(100dvh - 28px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));max-height:calc(100dvh - 28px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding:0;color:var(--text-primary);background:var(--bg-surface);border:1px solid var(--border);border-radius:22px;box-shadow:0 18px 70px rgba(0,0,0,.32)}
+.setup-dialog{width:min(580px,calc(100vw - 28px));max-width:min(580px,calc(100vw - 28px));height:auto;max-height:calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding:0;color:var(--text-primary);background:var(--bg-surface);border:1px solid var(--border);border-radius:22px;box-shadow:0 18px 70px rgba(0,0,0,.32)}
 .setup-dialog::backdrop{background:rgba(8,14,10,.68);backdrop-filter:blur(3px)}
-.setup-dialog-inner{display:flex;flex-direction:column;height:100%;max-height:100%;min-height:0;overflow:hidden}
+.setup-dialog-inner{display:flex;flex-direction:column;height:auto;max-height:inherit;min-height:0;overflow:hidden}
 .setup-dialog-header{padding:20px 20px 12px;border-bottom:1px solid var(--border)}
 .setup-dialog-title{font-size:1.18rem;font-weight:800}
 .setup-dialog-subtitle{margin-top:5px;color:var(--text-secondary);font-size:.88rem;line-height:1.55}
-.setup-dialog-body{flex:1 1 0;min-height:0;padding:16px 20px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.setup-dialog-body{flex:0 1 auto;min-height:0;max-height:calc(100dvh - 220px - env(safe-area-inset-top) - env(safe-area-inset-bottom));padding:16px 20px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .setup-dialog-footer{position:relative;flex:0 0 auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;padding:12px 20px max(16px,env(safe-area-inset-bottom));border-top:1px solid var(--border);background:var(--bg-surface);z-index:1}
 .setup-language-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
 .setup-language-option{min-height:66px;padding:14px;border:1px solid var(--border);border-radius:13px;background:var(--bg-primary);color:var(--text-primary);font:inherit;font-weight:700;cursor:pointer}
@@ -3073,6 +3073,7 @@ html[data-theme="dark"] .ielts-library-card .ielts-library-notice.error {
 .setup-link{display:inline-block;margin:4px 0;color:var(--accent-strong);font-weight:700;overflow-wrap:anywhere;direction:ltr;unicode-bidi:plaintext}
 .setup-prompt{width:100%;min-height:150px;margin-top:8px;padding:10px;resize:vertical;border:1px solid var(--border);border-radius:10px;background:var(--bg-primary);color:var(--text-primary);direction:ltr;text-align:left;font:.78rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
 .setup-auto-show{display:flex;align-items:flex-start;gap:9px;margin-top:14px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;font-size:.83rem;line-height:1.5}
+@media(max-width:640px){.setup-dialog{margin:max(8px,env(safe-area-inset-top)) auto auto;width:calc(100vw - 20px);max-width:580px;}}
 html[lang="fa"] .setup-dialog{direction:rtl;text-align:right}html[lang="fa"] .setup-dialog .setup-prompt,html[lang="fa"] .setup-dialog .setup-link{direction:ltr;text-align:left}
 html[lang="fa"] .setup-dialog .setup-page ul,html[lang="fa"] .setup-dialog .setup-page ol{padding-inline-start:0;padding-inline-end:22px}
 

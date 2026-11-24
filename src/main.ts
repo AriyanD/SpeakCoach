@@ -191,9 +191,6 @@ export async function bootstrapApp(
   await initializeShadowingAudioStore().catch(error => {
     console.warn('[SpeakCoach] Active-set Shadowing audio reconciliation was skipped.', error);
   });
-  await runFirstLaunchOnboarding();
-  await initializeAppLanguage();
-
   root.innerHTML = `
     <main class="view-container" id="view-container"></main>
     <nav class="bottom-nav" aria-label="Main navigation">
@@ -204,6 +201,11 @@ export async function bootstrapApp(
   `;
 
   observeAppLanguage(document.body);
+
+  // Render the app shell before opening first-run dialogs so the guide overlays
+  // a real app screen instead of an empty root.
+  await runFirstLaunchOnboarding();
+  await initializeAppLanguage();
 
   const viewContainer = root.querySelector<HTMLElement>('#view-container');
   const navShadowingBtn = root.querySelector<HTMLButtonElement>('#nav-shadowing');
