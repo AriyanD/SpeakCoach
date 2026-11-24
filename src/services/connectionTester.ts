@@ -569,7 +569,7 @@ export async function testSlotConnection(
       const testPhrase = 'Hello from SpeakCoach.';
       let dataUrl = '';
 
-      if (preset.id === 'groq_tts' || preset.id === 'freetts_tts' || preset.id === 'speechify_tts' || preset.id === 'gemini_tts' || (preset.id === 'openai_tts' && /api\.groq\.com/i.test(baseUrl))) {
+      if (preset.id === 'groq_tts' || preset.id === 'freetts_tts' || preset.id === 'speechify_tts' || preset.id === 'gemini_tts' || ((preset.id === 'openai_tts' || preset.id === 'custom_openai_tts') && /api\.groq\.com/i.test(baseUrl))) {
         // Provider-specific adapters are shared with Preview/playback:
         // Groq requires WAV; FreeTTS uses job/download; JSON/Base64 mode returns encoded audio.
         const synthRes = await synthesizeOnlineNeuralAudio(
