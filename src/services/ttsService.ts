@@ -309,12 +309,19 @@ async function synthesizeOnlineNeuralAudioUnshared(
       },
       transport
     );
-    const payload = typeof create.data === 'string' ? JSON.parse(create.data) as { file_id?: string } : create.data;
+    const payload = typeof create.data === 'string' ? JSON.parse(create.data) as { file_id?: string; audio_url?: string } : create.data;
     const fileId = typeof payload?.file_id === 'string' ? payload.file_id.trim() : '';
-    if (!fileId) throw new Error('FreeTTS did not return a file_id. Check the API key and REST response.');
+    const suppliedAudioUrl = typeof payload?.audio_url === 'string' ? payload.audio_url.trim() : '';
+    if (!fileId && !suppliedAudioUrl) throw new Error('FreeTTS returned neither file_id nor audio_url. Check the API key and REST response.');
+    const downloadUrl = suppliedAudioUrl
+      ? new URL(suppliedAudioUrl, baseUrl).toString()
+      : `${baseUrl}/api/audio/${encodeURIComponent(fileId)}`;
+    if (new URL(downloadUrl).origin !== new URL(baseUrl).origin) {
+      throw new Error('FreeTTS returned an audio URL on a different host. The download was blocked for security.');
+    }
     const audio = await nativeHttpRequest<string>(
       {
-        url: `${baseUrl}/api/audio/${encodeURIComponent(fileId)}`,
+        url: downloadUrl,
         method: 'GET',
         headers: { Accept: 'audio/mpeg' },
         responseType: 'blob',
@@ -323,7 +330,10 @@ async function synthesizeOnlineNeuralAudioUnshared(
       transport
     );
     const dataUrl = normalizeAudioDataUrl(audio.data, 'audio/mpeg');
-    if (!dataUrl) throw new Error('FreeTTS returned an empty MP3 download.');
+    const encodedAudio = dataUrl.split(',')[1] ?? '';
+    if (!dataUrl || encodedAudio.length < 160) {
+      throw new Error('FreeTTS returned an empty or invalid audio file instead of MP3 data. Check the API download response.');
+    }
     const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
     return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
   }
