@@ -34,6 +34,19 @@ describe('TTS voice discovery', () => {
     expect(transport).not.toHaveBeenCalled();
   });
 
+  it('loads Groq Orpheus voices for the custom OpenAI-compatible option when its URL is Groq', async () => {
+    const transport = vi.fn();
+    const result = await fetchAvailableTtsVoices({
+      slotId: 'voice_tts', providerId: 'custom_openai_tts',
+      baseUrl: 'https://api.groq.com/openai/v1',
+      modelOrVoice: 'canopylabs/orpheus-v1-english'
+    }, 'groq-key', { transport });
+    expect(result.voices.map(voice => voice.value)).toEqual(
+      expect.arrayContaining(['troy', 'hannah', 'autumn'])
+    );
+    expect(transport).not.toHaveBeenCalled();
+  });
+
   it('loads Speechify voice IDs from GET /v1/voices using Bearer auth', async () => {
     const transport = vi.fn(async (options: any) => ({
       url: options.url, status: 200, headers: {},
