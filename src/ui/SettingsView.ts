@@ -344,10 +344,11 @@ export async function renderSettingsView(
               type="url"
               class="form-input settings-baseurl-input"
               id="baseurl-${slotId}"
-              value="${escapeHtml(slotCfg.baseUrl || preset.defaultBaseUrl)}"
+              value="${escapeHtml(slotCfg.baseUrl && slotCfg.baseUrl !== preset.defaultBaseUrl ? slotCfg.baseUrl : '')}"
               placeholder="${escapeHtml(preset.baseUrlPlaceholder)}"
               ${preset.tier === 3 ? 'disabled' : ''}
             />
+            <p class="form-hint settings-baseurl-hint">Suggested address only. Leave this field unchanged to use the selected provider's default address; enter a different URL only when using a custom endpoint.</p>
             <div
               class="status-box fail settings-mismatch-warning"
               id="mismatch-warning-${slotId}"
@@ -1804,7 +1805,7 @@ export async function renderSettingsView(
       closeProviderPicker();
       const modelField = modelInput?.closest<HTMLElement>('.form-field');
       if (modelField) modelField.style.display = selected.id === 'freetts_tts' ? 'none' : '';
-      if (baseUrlInput && selected.id !== configs[slotId].providerId) baseUrlInput.value = selected.defaultBaseUrl;
+      if (baseUrlInput && selected.id !== configs[slotId].providerId) { baseUrlInput.value = ''; baseUrlInput.placeholder = selected.baseUrlPlaceholder; }
       if (modelInput && selected.id !== configs[slotId].providerId) modelInput.value = selected.defaultModelOrVoice;
       const voiceContainer = container.querySelector<HTMLElement>(`#tts-voice-container-${slotId}`);
       if (voiceContainer) voiceContainer.style.display = selected.id === 'android_native_tts' ? 'none' : '';
