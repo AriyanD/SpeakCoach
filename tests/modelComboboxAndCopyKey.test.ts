@@ -233,25 +233,23 @@ describe('Editable Combobox, Fetch Models & Copy Key across Slots (Task F5b)', (
     expect(fetchBtn).not.toBeNull();
     expect(fetchBtn?.textContent).toContain('Fetch models');
 
-    // Check "Copy key" button exists on llm_evaluator (because voice_tts has a key saved)
+    // Copy-key dropdown is a separate second row and copies immediately on selection.
     const copyKeyBtn = root.querySelector<HTMLButtonElement>('#copy-key-btn-llm_evaluator');
     const copyKeySelect = root.querySelector<HTMLSelectElement>('#copy-key-source-llm_evaluator');
     const keyInput = root.querySelector<HTMLInputElement>('#key-llm_evaluator');
 
-    expect(copyKeyBtn).not.toBeNull();
+    expect(copyKeyBtn).toBeNull();
     expect(copyKeySelect?.innerHTML).toContain('voice_tts');
+    expect(copyKeySelect?.value).toBe('');
     const copyKeyTrigger = root.querySelector<HTMLButtonElement>('#copy-key-trigger-llm_evaluator');
     const copyKeyOptions = root.querySelector<HTMLElement>('#copy-key-options-llm_evaluator');
-    expect(copyKeyTrigger).not.toBeNull();
+    expect(copyKeyTrigger?.textContent).toContain('Or copy API key from another slot');
     expect(copyKeyOptions?.hidden).toBe(true);
     copyKeyTrigger?.click();
     expect(copyKeyOptions?.hidden).toBe(false);
     copyKeyOptions?.querySelector<HTMLButtonElement>('[data-copy-key-source="voice_tts|primary"]')?.click();
     expect(copyKeyOptions?.hidden).toBe(true);
     expect(copyKeySelect?.value).toBe('voice_tts|primary');
-
-    // Click "Copy key" and verify key input is populated
-    copyKeyBtn?.click();
     expect(keyInput?.value).toBe('sk-reusable-openai-key');
   });
 });
