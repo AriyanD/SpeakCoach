@@ -288,7 +288,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
       transport
     );
     const payload = typeof response.data === 'string' ? JSON.parse(response.data) as { audio_data?: string; audio_format?: string } : response.data;
-    if (!payload?.audio_data) throw new Error('Speechify returned no audio_data. Check the API key, voice ID and model.');
+    if (!payload?.audio_data) throw new Error('The JSON/Base64 TTS provider returned no audio_data. Check the API key, voice ID and model.');
     const mime = payload.audio_format === 'wav' ? 'audio/wav' : payload.audio_format === 'ogg' ? 'audio/ogg' : payload.audio_format === 'aac' ? 'audio/aac' : 'audio/mpeg';
     const dataUrl = normalizeAudioDataUrl(payload.audio_data, mime);
     const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
