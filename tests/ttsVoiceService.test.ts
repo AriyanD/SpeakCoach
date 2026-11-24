@@ -21,6 +21,19 @@ describe('TTS voice discovery', () => {
     expect(transport).not.toHaveBeenCalled();
   });
 
+  it('detects Groq Orpheus voices when the unified OpenAI-compatible provider uses the Groq URL', async () => {
+    const transport = vi.fn();
+    const result = await fetchAvailableTtsVoices({
+      slotId: 'voice_tts', providerId: 'openai_tts',
+      baseUrl: 'https://api.groq.com/openai/v1', modelOrVoice: 'canopylabs/orpheus-v1-english'
+    }, 'groq-key', { transport });
+    expect(result.voices.map(voice => voice.value)).toEqual(
+      expect.arrayContaining(['troy', 'hannah', 'autumn'])
+    );
+    expect(result.message).toContain('Groq Orpheus');
+    expect(transport).not.toHaveBeenCalled();
+  });
+
   it('loads Azure voice names and useful labels from the provider catalogue', async () => {
     const transport = vi.fn(async (options: any) => ({
       url: options.url, status: 200, headers: {},
