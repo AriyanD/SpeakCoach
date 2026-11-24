@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - refine/settings-ielts-dark-palette
+      - tts
     tags:
       - 'v*'
   pull_request:
