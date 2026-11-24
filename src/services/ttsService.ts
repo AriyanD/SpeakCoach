@@ -273,6 +273,28 @@ async function synthesizeOnlineNeuralAudioUnshared(
     ? normalizedBaseUrl.replace(/\/api(?:\/v1)?$/i, '')
     : normalizedBaseUrl;
 
+  if (slotCfg.providerId === 'speechify_tts') {
+    const model = slotCfg.modelOrVoice.trim() || 'simba-3.5';
+    const voiceId = slotCfg.customTtsVoice?.trim() || 'sabrina';
+    const response = await nativeHttpRequest<{ audio_data?: string; audio_format?: string } | string>(
+      {
+        url: `${baseUrl}/audio/speech`,
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey.trim()}`, 'Content-Type': 'application/json' },
+        data: { input: text, model, voice_id: voiceId, audio_format: 'mp3', language: locale },
+        responseType: 'json',
+        timeoutMs: requestTimeoutMs
+      },
+      transport
+    );
+    const payload = typeof response.data === 'string' ? JSON.parse(response.data) as { audio_data?: string; audio_format?: string } : response.data;
+    if (!payload?.audio_data) throw new Error('Speechify returned no audio_data. Check the API key, voice ID and model.');
+    const mime = payload.audio_format === 'wav' ? 'audio/wav' : payload.audio_format === 'ogg' ? 'audio/ogg' : payload.audio_format === 'aac' ? 'audio/aac' : 'audio/mpeg';
+    const dataUrl = normalizeAudioDataUrl(payload.audio_data, mime);
+    const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
+    return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
+  }
+
   if (slotCfg.providerId === 'freetts_tts') {
     const voice = slotCfg.customTtsVoice?.trim() || 'en-US-JennyNeural';
     const ratePercent = Math.max(-50, Math.min(100, Math.round((rate - 1) * 100)));
