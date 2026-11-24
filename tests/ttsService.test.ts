@@ -140,7 +140,7 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
 
   it('downloads FreeTTS audio from the returned audio_url and rejects non-audio responses', async () => {
     const requests: any[] = [];
-    const mp3 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA';
+    const mp3 = 'SUQz' + 'A'.repeat(200);
     const result = await synthesizeOnlineNeuralAudio('FreeTTS playback check.', {
       slotId: 'voice_tts', providerId: 'freetts_tts',
       baseUrl: 'https://freetts.org/api', modelOrVoice: '',
