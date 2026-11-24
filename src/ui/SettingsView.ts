@@ -225,7 +225,7 @@ export async function renderSettingsView(
     const secondaryMismatchInfo = secondaryPreset ? detectProviderUrlMismatch({ slotId, providerId: secondaryPreset.id, baseUrl: slotCfg.secondary?.baseUrl || secondaryPreset.defaultBaseUrl, endpointPathOverride: slotCfg.secondary?.endpointPathOverride }) : { mismatch: false, reason: undefined as string | undefined };
 
     const visibleProviders = slotId === 'voice_tts'
-      ? def.providers.filter((provider) => provider.id !== 'android_native_tts' && provider.id !== 'groq_tts')
+      ? def.providers.filter((provider) => !['android_native_tts', 'groq_tts', 'openai_tts'].includes(provider.id))
       : def.providers;
     const optionsHtml = visibleProviders
       .map(
@@ -253,11 +253,12 @@ export async function renderSettingsView(
             : [])
         ];
       });
-    const copyKeyOptionsHtml = copyKeySources
-      .map((source) => `<option value="${source.slotId}|${source.account}">${escapeHtml(source.label)}</option>`)
-      .join('');
+    const copyKeyOptionsHtml = [
+      '<option value="" selected disabled>Or copy API key from another slot…</option>',
+      ...copyKeySources.map((source) => `<option value="${source.slotId}|${source.account}">${escapeHtml(source.label)}</option>`)
+    ].join('');
     const copyKeyPickerOptionsHtml = copyKeySources
-      .map((source, index) => `<button type="button" class="provider-picker-option ${index === 0 ? 'active' : ''}" data-copy-key-source="${source.slotId}|${source.account}">${escapeHtml(source.label)}</button>`)
+      .map((source) => `<button type="button" class="provider-picker-option" data-copy-key-source="${source.slotId}|${source.account}">${escapeHtml(source.label)}</button>`)
       .join('');
     // API 2 can reuse a key from either account of another capability slot.
     const secondaryCopyKeySources = SLOT_ORDER
@@ -271,11 +272,12 @@ export async function renderSettingsView(
           ...(secondaryKey.trim() ? [{ slotId: otherSlotId, account: 'secondary' as const, label: `From ${otherDef.title} (API 2)` }] : [])
         ];
       });
-    const secondaryCopyKeyOptionsHtml = secondaryCopyKeySources
-      .map((source) => `<option value="${source.slotId}|${source.account}">${escapeHtml(source.label)}</option>`)
-      .join('');
+    const secondaryCopyKeyOptionsHtml = [
+      '<option value="" selected disabled>Or copy API key from another slot…</option>',
+      ...secondaryCopyKeySources.map((source) => `<option value="${source.slotId}|${source.account}">${escapeHtml(source.label)}</option>`)
+    ].join('');
     const secondaryCopyKeyPickerOptionsHtml = secondaryCopyKeySources
-      .map((source, index) => `<button type="button" class="provider-picker-option ${index === 0 ? 'active' : ''}" data-secondary-copy-key-source="${source.slotId}|${source.account}">${escapeHtml(source.label)}</button>`)
+      .map((source) => `<button type="button" class="provider-picker-option" data-secondary-copy-key-source="${source.slotId}|${source.account}">${escapeHtml(source.label)}</button>`)
       .join('');
 
     const statusHtml = bothConfiguredApisReady
@@ -333,7 +335,7 @@ export async function renderSettingsView(
               </button>
               <div class="provider-picker-options" id="provider-options-${slotId}" hidden>
                 <details class="settings-info-help"><summary aria-label="Provider setup information">i</summary><p>After selecting a provider and adding its API key, tap <strong>Test API 1</strong> below. Wait for a successful result before using online features. Test API 2 separately for a secondary provider.</p></details>
-                ${def.providers.filter((p) => slotId !== 'voice_tts' || (p.id !== 'android_native_tts' && p.id !== 'groq_tts')).map((p) => `<button type="button" class="provider-picker-option ${p.id === preset.id ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
+                ${def.providers.filter((p) => slotId !== 'voice_tts' || (!['android_native_tts', 'groq_tts', 'openai_tts'].includes(p.id))).map((p) => `<button type="button" class="provider-picker-option ${p.id === preset.id ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
               </div>
             </div>
           </div>
@@ -382,14 +384,10 @@ export async function renderSettingsView(
             />
             ${preset.requiresKey && copyKeyOptionsHtml ? `
               <div class="settings-copy-key-field">
-                
                 <select class="form-select provider-native-select" id="copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${copyKeyOptionsHtml}</select>
-                <div class="settings-copy-key">
-                  <div class="provider-picker copy-key-provider-picker" id="copy-key-picker-${slotId}">
-                    <button type="button" class="provider-picker-trigger" id="copy-key-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(copyKeySources[0]?.label ?? 'Choose source')}</span><span class="provider-picker-chevron">⌄</span></button>
-                    <div class="provider-picker-options" id="copy-key-options-${slotId}" hidden>${copyKeyPickerOptionsHtml}</div>
-                  </div>
-                  <button type="button" class="btn btn-secondary settings-copy-key-btn" id="copy-key-btn-${slotId}">Or copy API key</button>
+                <div class="provider-picker copy-key-provider-picker" id="copy-key-picker-${slotId}">
+                  <button type="button" class="provider-picker-trigger" id="copy-key-trigger-${slotId}" aria-expanded="false"><span>Or copy API key from another slot…</span><span class="provider-picker-chevron">⌄</span></button>
+                  <div class="provider-picker-options" id="copy-key-options-${slotId}" hidden>${copyKeyPickerOptionsHtml}</div>
                 </div>
               </div>` : ''}
           </div>
@@ -549,15 +547,11 @@ export async function renderSettingsView(
 
             ${secondaryCopyKeyOptionsHtml ? `
             <div class="settings-copy-key-field">
-              <div class="settings-copy-key">
-                <select class="form-select provider-native-select" id="secondary-copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${secondaryCopyKeyOptionsHtml}</select>
-                <div class="provider-picker copy-key-provider-picker" id="secondary-copy-key-picker-${slotId}">
-                  <button type="button" class="provider-picker-trigger" id="secondary-copy-key-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(secondaryCopyKeySources[0]?.label ?? 'Choose source')}</span><span class="provider-picker-chevron">⌄</span></button>
-                  <div class="provider-picker-options" id="secondary-copy-key-options-${slotId}" hidden>${secondaryCopyKeyPickerOptionsHtml}</div>
-                </div>
-                <button type="button" class="btn btn-secondary settings-copy-key-btn" id="secondary-copy-key-btn-${slotId}">Or copy API key</button>
+              <select class="form-select provider-native-select" id="secondary-copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${secondaryCopyKeyOptionsHtml}</select>
+              <div class="provider-picker copy-key-provider-picker" id="secondary-copy-key-picker-${slotId}">
+                <button type="button" class="provider-picker-trigger" id="secondary-copy-key-trigger-${slotId}" aria-expanded="false"><span>Or copy API key from another slot…</span><span class="provider-picker-chevron">⌄</span></button>
+                <div class="provider-picker-options" id="secondary-copy-key-options-${slotId}" hidden>${secondaryCopyKeyPickerOptionsHtml}</div>
               </div>
-              
             </div>` : ''}
             <details class="advanced-provider-settings" id="secondary-custom-auth-container-${slotId}" style="${secondaryIsCustom ? '' : 'display:none;'}">
               <summary>Advanced authentication & endpoint</summary>
@@ -1863,7 +1857,6 @@ export async function renderSettingsView(
     });
 
     const copyKeySelect = container.querySelector<HTMLSelectElement>(`#copy-key-source-${slotId}`);
-    const copyKeyBtn = container.querySelector<HTMLButtonElement>(`#copy-key-btn-${slotId}`);
     const copyKeyPicker = container.querySelector<HTMLElement>(`#copy-key-picker-${slotId}`);
     const copyKeyTrigger = container.querySelector<HTMLButtonElement>(`#copy-key-trigger-${slotId}`);
     const copyKeyOptions = container.querySelector<HTMLElement>(`#copy-key-options-${slotId}`);
@@ -1885,6 +1878,15 @@ export async function renderSettingsView(
       copyKeyTrigger.setAttribute('aria-expanded', 'false');
       copyKeyOptions.hidden = true;
       copyKeyPicker?.classList.remove('open');
+      const [sourceSlot, sourceAccount] = source.split('|');
+      const sourceId = sourceSlot as SlotId;
+      const value = sourceAccount === 'secondary' ? secondaryKeysBySlot[sourceId] : keysBySlot[sourceId];
+      const targetKey = container.querySelector<HTMLInputElement>(`#key-${slotId}`);
+      if (value?.trim() && targetKey) {
+        targetKey.value = value;
+        targetKey.dispatchEvent(new Event('input', { bubbles: true }));
+        showToast('API key copied into this field. Save settings to keep the change.');
+      }
     });
 
     const authStyleSelect = container.querySelector<HTMLSelectElement>(`#authstyle-${slotId}`);
@@ -1987,7 +1989,6 @@ export async function renderSettingsView(
     const secondaryCustomVoiceContainer = container.querySelector<HTMLElement>(`#secondary-tts-voice-container-${slotId}`);
     const secondaryKeyInput = container.querySelector<HTMLInputElement>(`#secondary-key-${slotId}`);
     const secondaryCopyKeySelect = container.querySelector<HTMLSelectElement>(`#secondary-copy-key-source-${slotId}`);
-    const secondaryCopyKeyBtn = container.querySelector<HTMLButtonElement>(`#secondary-copy-key-btn-${slotId}`);
     const secondaryCopyKeyPicker = container.querySelector<HTMLElement>(`#secondary-copy-key-picker-${slotId}`);
     const secondaryCopyKeyTrigger = container.querySelector<HTMLButtonElement>(`#secondary-copy-key-trigger-${slotId}`);
     const secondaryCopyKeyOptions = container.querySelector<HTMLElement>(`#secondary-copy-key-options-${slotId}`);
@@ -2516,21 +2517,6 @@ export async function renderSettingsView(
       }
     });
 
-    // "Copy key from another slot" click handler
-    copyKeyBtn?.addEventListener('click', () => {
-      const [sourceSlot, sourceAccount] = (copyKeySelect?.value ?? '').split('|');
-      const sourceId = sourceSlot as SlotId | undefined;
-      if (!sourceId || !keyInput) return;
-      const value = sourceAccount === 'secondary' ? secondaryKeysBySlot[sourceId] : keysBySlot[sourceId];
-      if (value?.trim()) {
-        keyInput.value = value;
-        keyInput.dispatchEvent(new Event('input', { bubbles: true }));
-        showToast('API key copied into this field. Save settings to keep the change.');
-      } else {
-        showToast('No saved API key was found in the selected source.', 'info');
-      }
-    });
-
     secondaryCopyKeyTrigger?.addEventListener('click', () => {
       const isOpen = secondaryCopyKeyTrigger.getAttribute('aria-expanded') === 'true';
       secondaryCopyKeyTrigger.setAttribute('aria-expanded', String(!isOpen));
@@ -2549,21 +2535,15 @@ export async function renderSettingsView(
       secondaryCopyKeyTrigger.setAttribute('aria-expanded', 'false');
       secondaryCopyKeyOptions.hidden = true;
       secondaryCopyKeyPicker?.classList.remove('open');
-    });
-    secondaryCopyKeyBtn?.addEventListener('click', () => {
-      const [sourceSlot, sourceAccount] = (secondaryCopyKeySelect?.value ?? '').split('|');
-      const sourceId = sourceSlot as SlotId | undefined;
-      if (!sourceId || !secondaryKeyInput) return;
+      const [sourceSlot, sourceAccount] = source.split('|');
+      const sourceId = sourceSlot as SlotId;
       const value = sourceAccount === 'secondary' ? secondaryKeysBySlot[sourceId] : keysBySlot[sourceId];
-      if (value?.trim()) {
+      if (value?.trim() && secondaryKeyInput) {
         secondaryKeyInput.value = value;
         secondaryKeyInput.dispatchEvent(new Event('input', { bubbles: true }));
         showToast('API key copied into this field. Save settings to keep the change.');
-      } else {
-        showToast('No saved API key was found in the selected source.', 'info');
       }
     });
-
     // "Fetch models" click handler
     fetchModelsBtn?.addEventListener('click', async () => {
       if (!fetchModelsBtn || !fetchModelsMsg) return;
