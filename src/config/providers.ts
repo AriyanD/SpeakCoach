@@ -56,6 +56,19 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         description: 'Groq Orpheus speech endpoint. Requests WAV output; English and Saudi Arabic model variants are available.'
       },
       {
+        id: 'speechify_tts',
+        name: 'Speechify TTS',
+        slotId: 'voice_tts',
+        tier: 1,
+        requiresKey: true,
+        defaultBaseUrl: 'https://api.speechify.ai/v1',
+        defaultModelOrVoice: 'simba-3.5',
+        modelSuggestions: ['simba-3.5', 'simba-3.2', 'simba-3.0'],
+        modelFieldLabel: 'Speechify model',
+        baseUrlPlaceholder: 'https://api.speechify.ai/v1',
+        description: 'Speechify native JSON/Base64 TTS API with live voice catalogue. Use simba-3.5 for multilingual speech.'
+      },
+      {
         id: 'freetts_tts',
         name: 'Custom Job & Download TTS',
         slotId: 'voice_tts',
