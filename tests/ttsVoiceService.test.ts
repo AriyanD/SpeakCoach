@@ -34,6 +34,23 @@ describe('TTS voice discovery', () => {
     expect(transport).not.toHaveBeenCalled();
   });
 
+  it('loads Speechify voice IDs from GET /v1/voices using Bearer auth', async () => {
+    const transport = vi.fn(async (options: any) => ({
+      url: options.url, status: 200, headers: {},
+      data: { voices: [{ id: 'geffen_32', name: 'Geffen', locale: 'en-US' }] }
+    }));
+    const result = await fetchAvailableTtsVoices({
+      slotId: 'voice_tts', providerId: 'speechify_tts',
+      baseUrl: 'https://api.speechify.ai/v1', modelOrVoice: 'simba-3.5'
+    }, 'speechify-key', { transport });
+    expect(transport).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'https://api.speechify.ai/v1/voices',
+      method: 'GET',
+      headers: { Authorization: 'Bearer speechify-key' }
+    }));
+    expect(result.voices).toEqual([{ value: 'geffen_32', label: 'Geffen · en-US' }]);
+  });
+
   it('loads Azure voice names and useful labels from the provider catalogue', async () => {
     const transport = vi.fn(async (options: any) => ({
       url: options.url, status: 200, headers: {},
