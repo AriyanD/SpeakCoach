@@ -105,6 +105,10 @@ describe('Settings credential rendering', () => {
       expect(secondaryKey.parentElement?.contains(secondaryCopy)).toBe(true);
       expect(secondaryKey.nextElementSibling?.classList.contains('settings-copy-key-field')).toBe(true);
       expect(container.querySelector(`#secondary-mismatch-warning-${slotId}`), `${slotId} API 2 endpoint warning`).not.toBeNull();
+      const primaryProviderOptions = Array.from(container.querySelectorAll<HTMLElement>(`#provider-options-${slotId} [data-provider-id]`)).map((option) => option.textContent?.trim());
+      const secondaryProviderOptions = Array.from(container.querySelectorAll<HTMLElement>(`#secondary-provider-options-${slotId} [data-secondary-provider-id]`)).map((option) => option.textContent?.trim());
+      expect(secondaryProviderOptions, `${slotId} API 2 provider choices should match API 1`).toEqual(primaryProviderOptions);
+      expect(container.querySelector(`#secondary-provider-options-${slotId} .settings-info-help`), `${slotId} API 2 provider help`).not.toBeNull();
 
       const toggle = container.querySelector<HTMLInputElement>(`#secondary-api-enabled-${slotId}`)!;
       toggle.checked = true;
