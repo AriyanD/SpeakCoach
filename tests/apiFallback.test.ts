@@ -36,7 +36,7 @@ describe('Per-slot secondary API fallback', () => {
   }> = [
     { slotId: 'voice_tts', primaryProviderId: 'openai_tts', secondaryProviderId: 'elevenlabs_tts' },
     { slotId: 'pronunciation_scoring', primaryProviderId: 'whisper_alignment', secondaryProviderId: 'gemini_pronunciation' },
-    { slotId: 'ielts_stt', primaryProviderId: 'whisper_stt', secondaryProviderId: 'gemini_stt' },
+    { slotId: 'ielts_stt', primaryProviderId: 'gemini_stt', secondaryProviderId: 'whisper_stt' },
     { slotId: 'llm_evaluator', primaryProviderId: 'gemini_eval', secondaryProviderId: 'openai_compat_eval' },
     { slotId: 'llm_generator', primaryProviderId: 'gemini_gen', secondaryProviderId: 'openai_compat_gen' }
   ];
@@ -210,10 +210,17 @@ describe('Per-slot secondary API fallback', () => {
       }
     });
 
-    expect(requestedUrls.some(url => url.includes('/audio/transcriptions'))).toBe(true);
     expect(requestedUrls.some(url => url.includes(':generateContent'))).toBe(true);
+    if (slotId === 'ielts_stt') {
+      // IELTS STT prefers Gemini even when it is saved as API 2.
+      expect(requestedUrls.some(url => url.includes('/audio/transcriptions'))).toBe(false);
+      expect(outcome.activeTier.providerId).toBe(secondaryProviderId);
+    } else {
+      // Shadowing pronunciation prefers Groq/Whisper and falls back to Gemini.
+      expect(requestedUrls.some(url => url.includes('/audio/transcriptions'))).toBe(true);
+      expect(outcome.activeTier.providerId).toBe(secondaryProviderId);
+    }
     expect(outcome.transcript).toContain('hello from the secondary');
-    expect(outcome.activeTier.providerId).toBe(secondaryProviderId);
   });
 
   it('labels both failed TTS attempts explicitly as API 1 and API 2', async () => {
