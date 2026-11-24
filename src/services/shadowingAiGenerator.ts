@@ -117,14 +117,20 @@ async function generateAiShadowingSentences(
 IMPORTANT LANGUAGE RULE: Every sentence, topic, and pronunciation guidance MUST be written naturally and entirely in ${language.promptName} (${language.nativeName}). Never answer in English, translate the request, or mix languages, except proper names. This applies to JSON values too.
 Difficulty: ${difficulty}.${topicNote}${memoryNote}${existingNote}${retryNote}
 Requirements:
-- Output exactly ${requestedCount} sentence objects. Count them before responding.
-- Each sentence must be natural, idiomatic spoken ${language.promptName}; aim for 8–28 words (or equivalent language-appropriate units).
-- Easy: clear everyday vocabulary and simple structure.
-- Medium: varied vocabulary and moderately complex structure.
-- Hard: advanced but natural vocabulary and complex structure.
-- Give each sentence its own short specific topic and pronunciation feature, both in ${language.promptName}.
-- Avoid clichés, famous quotations, duplicates, and near-paraphrases.
-- If you cannot fit the full count, prioritize completing the exact number rather than adding explanations.
+- Return exactly ${requestedCount} distinct sentence objects. Count the objects before responding; never add an introduction, notes, markdown, or extra items.
+- Every text value must be ONE complete, speakable sentence in natural, contemporary, idiomatic spoken ${language.promptName}. Write what a real person might actually say aloud, not textbook prose, an essay sentence, a slogan, a list, or an artificial grammar exercise.
+- Keep each sentence between 8 and 28 words (or an equivalent natural length for this language). Prefer a comfortable breath group that can be spoken smoothly in one go; do not pad sentences just to reach the minimum.
+- Make the batch genuinely varied: use different everyday situations, communicative purposes, sentence openings, grammatical patterns, and rhythms. Across the batch, naturally mix forms such as observations, questions, requests, explanations, reactions, plans, comparisons, and conditional thoughts where appropriate. Do not force every category or make the sentences sound like a checklist.
+- Give every item a concise, concrete topic and ONE useful, audible pronunciation focus. The focus should identify a feature actually present in that sentence (for example, sentence stress, weak forms, linking, consonant clusters, rhythm, or intonation); avoid vague labels such as simply “pronunciation” or repeating the same focus for the whole batch.
+- Match the requested difficulty precisely:
+  * Easy: familiar everyday situations, common vocabulary, mostly direct sentence patterns, and little embedding; still natural, not childish.
+  * Medium: everyday and less predictable situations, more varied vocabulary, natural multi-clause sentences, and useful connectors or phrasal verbs; avoid unnecessarily academic wording.
+  * Hard: nuanced or less familiar situations, precise vocabulary, varied complex structures, and natural idiomatic phrasing; challenging but still plausible in spontaneous conversation, never needlessly obscure or literary.
+- Keep the difficulty consistent across the batch. Do not make Hard merely longer, or Easy unnaturally short.
+- Avoid clichés, famous quotations, copied material, repeated ideas, near-paraphrases, awkward collocations, overly formal phrasing, and sentences that require specialist knowledge.
+- Do not put multiple unrelated ideas into one sentence. Avoid dialogue labels, speaker names, stage directions, pronunciation markup, or explanations inside the sentence text.
+- If a topic is requested, keep every item within it while exploring clearly different real-life angles. If no topic is requested, cover a broad mix of useful, realistic situations rather than clustering around one theme.
+- If a response is incomplete or truncated, prioritize valid complete sentence objects; the app will request any missing items separately.
 Return ONLY valid JSON in this exact shape:
 {"sentences":[{"topic":"localized topic","text":"localized sentence","phoneticFocus":"localized pronunciation guidance"}]}
 The sentences array must contain exactly ${requestedCount} items.`;
