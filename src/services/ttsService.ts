@@ -331,8 +331,16 @@ async function synthesizeOnlineNeuralAudioUnshared(
     );
     const dataUrl = normalizeAudioDataUrl(audio.data, 'audio/mpeg');
     const encodedAudio = dataUrl.split(',')[1] ?? '';
-    if (!dataUrl || encodedAudio.length < 160) {
-      throw new Error('FreeTTS returned an empty or invalid audio file instead of MP3 data. Check the API download response.');
+    let mp3Header = '';
+    try { mp3Header = typeof atob === 'function' ? atob(encodedAudio).slice(0, 3) : ''; } catch { mp3Header = ''; }
+    const isMp3 = mp3Header === 'ID3' || (() => {
+      try {
+        const bytes = atob(encodedAudio);
+        return bytes.length > 2 && bytes.charCodeAt(0) === 0xff && (bytes.charCodeAt(1) & 0xe0) === 0xe0;
+      } catch { return false; }
+    })();
+    if (!dataUrl || encodedAudio.length < 160 || !isMp3) {
+      throw new Error('FreeTTS did not return a playable MP3 file. The API may have returned an error page or a non-audio response.');
     }
     const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
     return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
