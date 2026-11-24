@@ -298,7 +298,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
   if (slotCfg.providerId === 'freetts_tts') {
     const voice = slotCfg.customTtsVoice?.trim() || 'en-US-JennyNeural';
     const ratePercent = Math.max(-50, Math.min(100, Math.round((rate - 1) * 100)));
-    const create = await nativeHttpRequest<{ file_id?: string } | string>(
+    const create = await nativeHttpRequest<{ file_id?: string; audio_url?: string } | string>(
       {
         url: `${baseUrl}/api/v1/tts`,
         method: 'POST',
