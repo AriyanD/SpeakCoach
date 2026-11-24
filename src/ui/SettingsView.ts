@@ -511,15 +511,15 @@ export async function renderSettingsView(
           ${secondarySameModelAsPrimary ? `<div class="status-box info" role="note"><strong>API 2 uses the same provider and model as API 1.</strong> It may still have a separate key or quota, but it is not a different model or an independent model capability.</div>` : ''}
           <div class="form-grid">
             <div class="form-field"><label class="form-label" for="secondary-provider-${slotId}">Provider</label>
-              <select class="form-select provider-native-select" id="secondary-provider-${slotId}" aria-hidden="true" tabindex="-1">
+              <select class="form-select provider-native-select" id="secondary-provider-${slotId}" data-slot="${slotId}" aria-hidden="true" tabindex="-1">
                 <option value="">Not configured</option>
-                ${def.providers.filter((p) => p.tier !== 3).map((p) => `<option value="${escapeHtml(p.id)}" ${slotCfg.secondary?.providerId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+                ${visibleProviders.map((p) => `<option value="${escapeHtml(p.id)}" ${slotCfg.secondary?.providerId === p.id ? 'selected' : ''} ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</option>`).join('')}
               </select>
               <div class="provider-picker secondary-provider-picker" id="secondary-provider-picker-${slotId}">
                 <button type="button" class="provider-picker-trigger" id="secondary-provider-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(secondaryPreset?.name ?? 'Not configured')}</span><span class="provider-picker-chevron">⌄</span></button>
                 <div class="provider-picker-options" id="secondary-provider-options-${slotId}" hidden>
-                  <button type="button" class="provider-picker-option ${slotCfg.secondary?.providerId ? '' : 'active'}" data-secondary-provider-id="">Not configured</button>
-                  ${def.providers.filter((p) => p.tier !== 3).map((p) => `<button type="button" class="provider-picker-option ${slotCfg.secondary?.providerId === p.id ? 'active' : ''}" data-secondary-provider-id="${escapeHtml(p.id)}">${escapeHtml(p.name)}</button>`).join('')}
+                  <details class="settings-info-help"><summary aria-label="Provider setup information">i</summary><p>After selecting a provider and adding its API key, tap <strong>Test API 2</strong> below. Wait for a successful result before using online features.</p></details>
+                  ${visibleProviders.map((p) => `<button type="button" class="provider-picker-option ${slotCfg.secondary?.providerId === p.id ? 'active' : ''}" data-secondary-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
                 </div>
               </div>
             </div>
