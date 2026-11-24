@@ -109,7 +109,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'android_native_tts',
-        name: 'Android Native TextToSpeech (Tier 3 Offline)',
+        name: 'Android Native Text-to-Speech (automatic fallback)',
         slotId: 'voice_tts',
         tier: 3,
         requiresKey: false,
@@ -456,7 +456,9 @@ export function getOfflinePreset(slotId: SlotId): ProviderPreset {
 }
 
 export function createDefaultSlotConfig(slotId: SlotId): SlotConfig {
-  const defaultPreset = SLOT_DEFINITIONS[slotId].providers[0];
+  const defaultPreset = slotId === 'voice_tts'
+    ? getPreset('voice_tts', 'gemini_tts')
+    : SLOT_DEFINITIONS[slotId].providers[0];
   return {
     slotId,
     providerId: defaultPreset.id,
