@@ -350,7 +350,7 @@ export async function renderSettingsView(
               placeholder="${escapeHtml(preset.baseUrlPlaceholder)}"
               ${preset.tier === 3 ? 'disabled' : ''}
             />
-            <p class="form-hint settings-baseurl-hint">Suggested address only. Leave this field unchanged to use the selected provider's default address; enter a different URL only when using a custom endpoint.</p>
+              <details class="settings-info-help settings-field-info"><summary aria-label="Base URL information">i</summary><p>Use the provider's suggested address, or enter a different Base URL when connecting to another compatible service.</p></details>
             <div
               class="status-box fail settings-mismatch-warning"
               id="mismatch-warning-${slotId}"
@@ -518,6 +518,7 @@ export async function renderSettingsView(
 
             <div class="form-field settings-baseurl-field"><label class="form-label" for="secondary-baseurl-${slotId}">Base URL</label>
               <input type="url" class="form-input settings-baseurl-input" id="secondary-baseurl-${slotId}" value="${escapeHtml(slotCfg.secondary?.baseUrl || secondaryPreset?.defaultBaseUrl || '')}" placeholder="${escapeHtml(secondaryPreset?.baseUrlPlaceholder ?? 'https://api.example.com/v1')}" ${secondaryPreset?.tier === 3 ? 'disabled' : ''} />
+              <details class="settings-info-help settings-field-info"><summary aria-label="Base URL information">i</summary><p>Use the provider's suggested address, or enter a different Base URL when connecting to another compatible service.</p></details>
               <div class="status-box fail settings-mismatch-warning" id="secondary-mismatch-warning-${slotId}" style="${secondaryMismatchInfo.mismatch ? '' : 'display:none;'}">
                 <div id="secondary-mismatch-warning-text-${slotId}" class="settings-mismatch-copy">${escapeHtml(secondaryMismatchInfo.reason ?? '')}</div>
                 <button type="button" class="btn btn-secondary settings-switch-custom-btn" id="secondary-switch-custom-btn-${slotId}">Switch to Custom (OpenAI-compatible)</button>
