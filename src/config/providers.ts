@@ -39,7 +39,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         defaultModelOrVoice: 'tts-1:alloy',
         modelSuggestions: ['tts-1:alloy', 'tts-1:echo', 'tts-1:fable', 'tts-1:onyx', 'tts-1:nova', 'tts-1:shimmer'],
         modelFieldLabel: 'Model:Voice or Model Name',
-        baseUrlPlaceholder: 'https://your-custom-tts-gateway.com/v1',
+        baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
         description: 'Custom OpenAI-compatible /audio/speech endpoint with free-text model, voice, and selectable auth.'
       },
       {
@@ -57,7 +57,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'speechify_tts',
-        name: 'Speechify TTS',
+        name: 'JSON Audio (Base64) TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -66,7 +66,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         modelSuggestions: ['simba-3.5', 'simba-3.2', 'simba-3.0'],
         modelFieldLabel: 'Speechify model',
         baseUrlPlaceholder: 'https://api.speechify.ai/v1',
-        description: 'Speechify native JSON/Base64 TTS API with live voice catalogue. Use simba-3.5 for multilingual speech.'
+        description: 'JSON request with Base64 audio response and voice catalogue. Suggested endpoint is an example; compatible services can use their own Base URL, model and voice.'
       },
       {
         id: 'freetts_tts',
