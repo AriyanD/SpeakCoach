@@ -635,19 +635,21 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     secondaryVerificationNotice = `API 2 (${getPreset(requestedSlotId, secondary.providerId).name}) needs a successful connection test before it can be used.`;
   }
 
-  // Rotate only between the primary and secondary APIs of the requested slot.
-  const rotationKey = `speakcoach.stt.rotation.${requestedSlotId}.v1`;
-  let rotation = 0;
-  try {
-    rotation = Number(localStorage.getItem(rotationKey) ?? '0') || 0;
-  } catch { /* localStorage may be unavailable in native/test contexts */ }
-  const orderedCandidates = candidates.length > 1
-    ? candidates.map((_, index) => candidates[(rotation + index) % candidates.length])
-    : candidates;
-  if (candidates.length > 1) {
-    try { localStorage.setItem(rotationKey, String((rotation + 1) % candidates.length)); }
-    catch { /* rotation remains best-effort when storage is unavailable */ }
-  }
+  // Keep the user's saved API 1/API 2 configurations intact, but choose
+  // the preferred provider family first for this feature at request time.
+  const providerFamily = (config: SlotConfig): 'groq' | 'gemini' | 'other' => {
+    const id = config.providerId.toLowerCase();
+    const baseUrl = config.baseUrl.toLowerCase();
+    if (id.includes('groq') || baseUrl.includes('api.groq.com')) return 'groq';
+    if (id.includes('gemini') || baseUrl.includes('generativelanguage.googleapis.com')) return 'gemini';
+    return 'other';
+  };
+  const preferredFamily = requestedSlotId === 'ielts_stt' ? 'gemini' : 'groq';
+  const orderedCandidates = [...candidates].sort((left, right) => {
+    const leftRank = providerFamily(left.config) === preferredFamily ? 0 : 1;
+    const rightRank = providerFamily(right.config) === preferredFamily ? 0 : 1;
+    return leftRank - rightRank;
+  });
   const preferred = orderedCandidates[0];
   let usedSlotId: 'ielts_stt' | 'pronunciation_scoring' = preferred?.slotId ?? requestedSlotId;
   let usedProviderId = preferred?.config.providerId ?? configs[requestedSlotId].providerId;
