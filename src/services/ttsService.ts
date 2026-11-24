@@ -307,19 +307,20 @@ async function synthesizeOnlineNeuralAudioUnshared(
   }
 
   if (slotCfg.providerId === 'openai_tts' || slotCfg.providerId === 'custom_openai_tts' || slotCfg.providerId === 'groq_tts') {
-    const isGroqOrpheus = slotCfg.providerId === 'groq_tts' || /api\\.groq\\.com/i.test(baseUrl);
+    const isGroqOrpheus = slotCfg.providerId === 'groq_tts' || /api\.groq\.com/i.test(baseUrl);
     let model = isGroqOrpheus ? 'canopylabs/orpheus-v1-english' : 'tts-1';
     let voice = slotCfg.customTtsVoice?.trim() || (isGroqOrpheus ? 'troy' : 'alloy');
 
     if (slotCfg.modelOrVoice.includes(':')) {
       const [modelPart, voicePart] = slotCfg.modelOrVoice.split(':');
-      model = modelPart?.trim() || 'tts-1';
-      voice = slotCfg.customTtsVoice?.trim() || voicePart?.trim() || 'alloy';
+      model = modelPart?.trim() || (isGroqOrpheus ? 'canopylabs/orpheus-v1-english' : 'tts-1');
+      voice = slotCfg.customTtsVoice?.trim() || voicePart?.trim() || (isGroqOrpheus ? 'troy' : 'alloy');
     } else if (slotCfg.modelOrVoice.trim()) {
       model = slotCfg.modelOrVoice.trim();
     }
 
     if (isGroqOrpheus) {
+      if (!model.startsWith('canopylabs/orpheus-')) model = 'canopylabs/orpheus-v1-english';
       if (text.length > 200) {
         throw new Error('Groq Orpheus accepts up to 200 characters per request. Use another TTS provider for longer text.');
       }
