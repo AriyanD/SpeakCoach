@@ -333,7 +333,7 @@ export async function renderSettingsView(
               </button>
               <div class="provider-picker-options" id="provider-options-${slotId}" hidden>
                 <details class="settings-info-help"><summary aria-label="Provider setup information">i</summary><p>After selecting a provider and adding its API key, tap <strong>Test API 1</strong> below. Wait for a successful result before using online features. Test API 2 separately for a secondary provider.</p></details>
-                ${def.providers.map((p) => `<button type="button" class="provider-picker-option ${p.id === preset.id ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
+                ${def.providers.filter((p) => slotId !== 'voice_tts' || (p.id !== 'android_native_tts' && p.id !== 'groq_tts')).map((p) => `<button type="button" class="provider-picker-option ${p.id === preset.id ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
               </div>
             </div>
           </div>
