@@ -138,6 +138,37 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     expect(result.dataUrl).toBe('data:audio/wav;base64,UklGRg==');
   });
 
+  it('downloads FreeTTS audio from the returned audio_url and rejects non-audio responses', async () => {
+    const requests: any[] = [];
+    const mp3 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA';
+    const result = await synthesizeOnlineNeuralAudio('FreeTTS playback check.', {
+      slotId: 'voice_tts', providerId: 'freetts_tts',
+      baseUrl: 'https://freetts.org/api', modelOrVoice: '',
+      customTtsVoice: 'en-US-JennyNeural'
+    }, 'freetts-key', 1, async (options: any) => {
+      requests.push(options);
+      if (options.method === 'POST') {
+        return { url: options.url, status: 200, headers: {}, data: {
+          file_id: 'file-123', audio_url: 'https://freetts.org/api/audio/file-123'
+        } };
+      }
+      return { url: options.url, status: 200, headers: { 'content-type': 'audio/mpeg' }, data: mp3 };
+    }, 'en-US', false, undefined, true);
+
+    expect(requests[0].url).toBe('https://freetts.org/api/v1/tts');
+    expect(requests[0].headers['x-api-key']).toBe('freetts-key');
+    expect(requests[1].url).toBe('https://freetts.org/api/audio/file-123');
+    expect(result.dataUrl).toBe(`data:audio/mpeg;base64,${mp3}`);
+
+    await expect(synthesizeOnlineNeuralAudio('Bad FreeTTS response.', {
+      slotId: 'voice_tts', providerId: 'freetts_tts',
+      baseUrl: 'https://freetts.org', modelOrVoice: ''
+    }, 'freetts-key', 1, async options => ({
+      url: options.url, status: 200, headers: {},
+      data: options.method === 'POST' ? { file_id: 'bad-file' } : 'eyJlcnJvciI6Im5vdCBhdWRpbyJ9'
+    }), 'en-US', false, undefined, true)).rejects.toThrow('playable MP3');
+  });
+
   it('uses the selected custom voice in the request and keeps different voices out of the same cache entry', async () => {
     const requests: any[] = [];
     const transport = async (opts: any) => {
