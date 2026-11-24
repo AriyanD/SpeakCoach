@@ -733,7 +733,7 @@ export async function speakSentenceWithTierFallback(
       if (options?.shadowingSetAudio) {
         const activeSet = await getActiveShadowingAudioSet();
         if (activeSet.setId !== options.shadowingSetAudio.setId || activeSet.generation !== options.shadowingSetAudio.generation) return true;
-        if (persistedToActiveSet === false) storageWarning = 'This generated audio could not be saved for offline replay. Check available device storage and try again.';
+        if (persistedToActiveSet === false) { storageWarning = 'This generated audio could not be saved for offline replay. Check available device storage and try again.'; console.warn('[ttsService] Audio playback succeeded, but durable Shadowing storage was unavailable.', storageWarning); }
       }
       if (activePlaybackGeneration !== playbackGeneration) {
         // Playback was cancelled while network request was pending

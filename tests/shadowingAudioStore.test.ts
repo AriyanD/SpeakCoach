@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { Preferences } from '@capacitor/preferences';
 import { clearMemoryAudioCache, getCachedTtsAudio, setCachedTtsAudio } from '../src/services/audioCache';
 import {
   activateShadowingAudioSet,
@@ -32,7 +33,7 @@ describe('durable active-set AI audio store', () => {
     await expect(readActiveShadowingAudio('sentence-hash')).resolves.toBe('data:audio/wav;base64,QUJD');
   });
 
-  it('deletes the previous set on a real set switch, but preserves a same-set re-entry', async () => {
+  it('retains audio when switching sets and restores it on history re-entry', async () => {
     const firstGeneration = await activateShadowingAudioSet('en:easy:set-a');
     await setCachedTtsAudio('a', 'audio-a');
     await persistActiveShadowingAudio({
@@ -46,10 +47,10 @@ describe('durable active-set AI audio store', () => {
     const nextGeneration = await activateShadowingAudioSet('en:easy:set-b');
     expect(nextGeneration).toBeGreaterThan(firstGeneration);
     await expect(readActiveShadowingAudio('a')).resolves.toBeNull();
-    await expect(getCachedTtsAudio('a')).resolves.toBeNull();
-    await expect(getActiveShadowingAudioSet()).resolves.toEqual({
-      setId: 'en:easy:set-b', generation: nextGeneration
-    });
+    await expect(getCachedTtsAudio('a')).resolves.toBe('audio-a');
+    await expect(getActiveShadowingAudioSet()).resolves.toEqual({ setId: 'en:easy:set-b', generation: nextGeneration });
+    await activateShadowingAudioSet('en:easy:set-a');
+    await expect(readActiveShadowingAudio('a')).resolves.toBe('audio-a');
   });
 
   it('discards a stale synthesis result that finishes after the active set changed', async () => {
@@ -85,16 +86,16 @@ describe('durable active-set AI audio store', () => {
   });
 
 
-  it('defers deletion of an old set until its generated audio finishes playing', async () => {
+  it('defers eviction of a retained set until its generated audio finishes playing', async () => {
     const setId = 'en:easy:playing-set';
-    const generation = await activateShadowingAudioSet(setId);
-    await persistActiveShadowingAudio({
-      setId, generation, hash: 'currently-playing',
-      dataUrl: 'playing-audio', kind: 'sentence'
-    });
+    const generation = await activateShadowingAudioSet(setId, { createdAt: 1 });
+    await persistActiveShadowingAudio({ setId, generation, hash: 'currently-playing', dataUrl: 'playing-audio', kind: 'sentence' });
     const pathKey = 'speakcoach.shadowing.audio.SpeakCoach/shadowing-audio/en_easy_playing-set/currently-playing.txt';
     markActiveSetAudioPlaying(setId, 'currently-playing');
-    await activateShadowingAudioSet('en:easy:next-set');
+    for (const [id, createdAt] of [['set-b',2],['set-c',3],['set-d',4]] as const) {
+      const nextGeneration = await activateShadowingAudioSet(id, { createdAt });
+      await persistActiveShadowingAudio({ setId: id, generation: nextGeneration, hash: id, dataUrl: 'audio-'+id, kind: 'sentence' });
+    }
     expect(localStorage.getItem(pathKey)).toBe('playing-audio');
     await releaseActiveSetAudioPlaying(setId, 'currently-playing');
     expect(localStorage.getItem(pathKey)).toBeNull();
@@ -112,11 +113,17 @@ describe('durable active-set AI audio store', () => {
   });
 
 
-  it('removes orphan set files during startup reconciliation when there is no active set', async () => {
+  it('removes orphan directories but retains every indexed set during startup reconciliation', async () => {
+    const keptId = 'en:easy:retained';
+    const gen = await activateShadowingAudioSet(keptId);
+    await persistActiveShadowingAudio({ setId: keptId, generation: gen, hash: 'kept', dataUrl: 'kept-audio', kind: 'sentence' });
     const orphanKey = 'speakcoach.shadowing.audio.SpeakCoach/shadowing-audio/orphan-set/orphan.txt';
     localStorage.setItem(orphanKey, 'orphan-audio');
+    resetShadowingAudioStoreForTests();
     await initializeShadowingAudioStore();
     expect(localStorage.getItem(orphanKey)).toBeNull();
+    await activateShadowingAudioSet(keptId);
+    await expect(readActiveShadowingAudio('kept')).resolves.toBe('kept-audio');
   });
 
 
@@ -135,6 +142,49 @@ describe('durable active-set AI audio store', () => {
     });
     await releaseActiveSetAudioPlaying(setId, 'same-hash');
     await expect(readActiveShadowingAudio('same-hash', setId)).resolves.toBe('replacement-audio');
+  });
+
+
+  it('migrates the v1 single-set index to v2 without moving audio files', async () => {
+    const setId = 'en:easy:legacy';
+    const file = 'SpeakCoach/shadowing-audio/en_easy_legacy/legacy-hash.txt';
+    localStorage.setItem('speakcoach.shadowing.audio.SpeakCoach/shadowing-audio/en_easy_legacy/legacy-hash.txt', 'legacy-audio');
+    await Preferences.set({ key: 'speakcoach.shadowing.audio-set-index.v1', value: JSON.stringify({
+      setId, entries: [{ hash: 'legacy-hash', file, size: 12, createdAt: 1, kind: 'sentence' }]
+    }) });
+    await Preferences.set({ key: 'speakcoach.shadowing.audio-active-set.v1', value: setId });
+    await initializeShadowingAudioStore();
+    await expect(readActiveShadowingAudio('legacy-hash')).resolves.toBe('legacy-audio');
+    await expect(Preferences.get({ key: 'speakcoach.shadowing.audio-set-index.v1' })).resolves.toEqual({ value: null });
+    await expect(Preferences.get({ key: 'speakcoach.shadowing.audio-set-index.v2' })).resolves.toMatchObject({ value: expect.stringContaining('"version":2') });
+  });
+
+  it('evicts the oldest non-active audio set when a fourth set receives audio', async () => {
+    const sets = ['set-1','set-2','set-3','set-4'];
+    for (let i=0;i<sets.length;i++) {
+      const id = sets[i], generation = await activateShadowingAudioSet(id, { createdAt: i + 1 });
+      await persistActiveShadowingAudio({ setId:id, generation, hash:'h'+i, dataUrl:'audio-'+i, kind:'sentence' });
+    }
+    await activateShadowingAudioSet('set-1');
+    await expect(readActiveShadowingAudio('h0')).resolves.toBeNull();
+    await activateShadowingAudioSet('set-2');
+    await expect(readActiveShadowingAudio('h1')).resolves.toBe('audio-1');
+    await activateShadowingAudioSet('set-3');
+    await expect(readActiveShadowingAudio('h2')).resolves.toBe('audio-2');
+    await activateShadowingAudioSet('set-4');
+    await expect(readActiveShadowingAudio('h3')).resolves.toBe('audio-3');
+  });
+
+  it('migrates legacy sets and clears all retained sets together', async () => {
+    const a = await activateShadowingAudioSet('lang-a');
+    await persistActiveShadowingAudio({ setId:'lang-a', generation:a, hash:'a', dataUrl:'audio-a', kind:'sentence' });
+    const b = await activateShadowingAudioSet('lang-b');
+    await persistActiveShadowingAudio({ setId:'lang-b', generation:b, hash:'b', dataUrl:'audio-b', kind:'sentence' });
+    await clearActiveShadowingAudioStore();
+    await activateShadowingAudioSet('lang-a');
+    await expect(readActiveShadowingAudio('a')).resolves.toBeNull();
+    await activateShadowingAudioSet('lang-b');
+    await expect(readActiveShadowingAudio('b')).resolves.toBeNull();
   });
 
 });

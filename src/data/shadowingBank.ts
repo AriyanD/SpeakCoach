@@ -217,9 +217,15 @@ export const BUILTIN_SHADOWING_SENTENCES: ShadowingSentence[] = [
 ];
 
 export function normalizeWord(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, '')
+  return raw.normalize('NFKC')
+    .replace(/[’‘ʼ´`]/gu, "'")
+    .replace(/[‐‑‒–—―−]/gu, '-')
+    .replace(/[٠-٩۰-۹]/gu, digit => {
+      const arabic = '٠١٢٣٤٥٦٧٨٩'.indexOf(digit);
+      return String(arabic >= 0 ? arabic : '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit));
+    })
+    .toLocaleLowerCase()
+    .replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '')
     .trim();
 }
 

@@ -21,6 +21,7 @@ import { loadAppSettings } from '../storage/appSettings';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
 import { activateShadowingAudioSet } from '../services/shadowingAudioStore';
+import type { WordMatchStatus } from '../services/wordAlignment';
 import { translateShadowingText } from '../services/translationService';
 import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavVadAnalyzer';
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
@@ -39,6 +40,8 @@ interface ShadowingState {
   aiGenerationError: string | null;
   index: number;
   customDrillText: string | null;
+  drillWords: string[];
+  drillPreviousStatuses: Record<string, { status: WordMatchStatus; accuracyScore: number }>;
   recognizedTranscript: string;
   recognizedConfidence: number;
   recognizedAlternatives: RecognizerAlternative[];
@@ -47,7 +50,9 @@ interface ShadowingState {
   lastRecording: RecordedUtterance | null;
   lastReport: ShadowingScoreReport | null;
   statusMessage: string;
+  navigationNotice: string | null;
   activeModelPlayback: 'normal' | 'slow' | null;
+  audioActivity: 'idle' | 'playingModel(normal)' | 'playingModel(slow)' | 'playingWord' | 'playingMine(normal)' | 'playingMine(slow)' | 'recording' | 'stopping/scoring';
   translationText: string;
   translationSourceText: string | null;
   translationTargetLanguage: string;
@@ -68,6 +73,8 @@ const state: ShadowingState = {
   aiGenerationError: null,
   index: 0,
   customDrillText: null,
+  drillWords: [],
+  drillPreviousStatuses: {},
   recognizedTranscript: '',
   recognizedConfidence: 0,
   recognizedAlternatives: [],
@@ -76,7 +83,9 @@ const state: ShadowingState = {
   lastRecording: null,
   lastReport: null,
   statusMessage: 'Tap "Play Model 1.0x" to listen, then "Record Repetition" to repeat aloud.',
+  navigationNotice: null,
   activeModelPlayback: null,
+  audioActivity: 'idle',
   translationText: '',
   translationSourceText: null,
   translationTargetLanguage: 'fa',
@@ -160,8 +169,23 @@ function clearShadowingRecordingTimer(): void {
   shadowingRecordingTimeout = null;
 }
 
+function isAudioCaptureBusy(): boolean {
+  return audioRecorder.isRecording() || shadowingIsStopping || state.audioActivity === 'recording' || state.audioActivity === 'stopping/scoring';
+}
+function isAudioPlaybackActive(): boolean {
+  return state.audioActivity.startsWith('playing');
+}
+function setShadowingCaptureControlsDisabled(container: HTMLElement, disabled: boolean): void {
+  container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button, select').forEach(control => {
+    if (control.id === 'sh-stop-score-btn') return;
+    control.disabled = disabled;
+    control.setAttribute('aria-disabled', String(disabled));
+  });
+}
+
 function clearAttemptState(): void {
   clearShadowingRecordingTimer();
+  state.navigationNotice = null;
   state.recognizedTranscript = '';
   state.recognizedConfidence = 0;
   state.recognizedAlternatives = [];
@@ -224,7 +248,7 @@ function renderVadWaveformSection(vad?: WavVadAnalysisResult): string {
   `;
 }
 
-function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): string {
+function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, drillMode = false, previousStatuses: Record<string, { status: WordMatchStatus; accuracyScore: number }> = {}, audioBusy = false, playbackActive = false, wordPlayback = false): string {
   const isOfflineMode = report.activeTier.tier === 3 || report.activeTier.label === 'Basic offline';
 
   const chipsHtml = report.words
@@ -233,10 +257,15 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
         w.status === 'extra' ? `+${w.spokenWord}` : w.referenceWord ?? w.spokenWord ?? '';
       const statusMark = w.status === 'match' ? '✓' : w.status === 'mispronounced' ? '!' : w.status === 'missing' ? '−' : '+';
       const speedBadge =
-        !isOfflineMode && w.speedLabel
+        !drillMode && !isOfflineMode && w.speedLabel
           ? `<span class="speed-tag ${w.speedLabel.replace(' ', '-')}">${w.speedLabel}</span>`
           : '';
-      const durationText = !isOfflineMode && w.spokenDurationMs ? ` · ${w.spokenDurationMs}ms` : '';
+      const durationText = !drillMode && !isOfflineMode && w.spokenDurationMs ? ` · ${w.spokenDurationMs}ms` : '';
+      const previous = w.referenceWord ? previousStatuses[w.referenceWord] : undefined;
+      const rank: Record<WordMatchStatus, number> = { missing: 0, mispronounced: 1, match: 2, extra: -1 };
+      const currentQuality = rank[w.status] * 100 + w.accuracyScore;
+      const previousQuality = previous ? rank[previous.status] * 100 + previous.accuracyScore : 0;
+      const progress = drillMode && previous ? (currentQuality > previousQuality + 5 ? 'Improved' : currentQuality < previousQuality - 5 ? 'Needs work' : 'No change') : '';
       const meta =
         w.status === 'missing'
           ? 'missing'
@@ -245,11 +274,11 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
             : `${w.accuracyScore}%${durationText}`;
       const replayText = (w.referenceWord ?? w.spokenWord ?? '').trim();
       return `
-        <button type="button" class="word-chip ${w.status}" data-word-status="${w.status}" data-word-replay="${escapeHtml(replayText)}" aria-label="Play pronunciation of ${escapeHtml(replayText)}" ${replayText ? '' : 'disabled'}>
+        <button type="button" class="word-chip ${w.status}" data-word-status="${w.status}" data-word-replay="${escapeHtml(replayText)}" aria-label="Play pronunciation of ${escapeHtml(replayText)}" ${replayText && !audioBusy && (!playbackActive || wordPlayback) ? '' : 'disabled'}>
           <span class="word-chip-status" aria-hidden="true">${statusMark}</span>
           <span>${escapeHtml(text)}</span>
           ${speedBadge}
-          <span class="word-chip-meta">${meta}</span>
+          <span class="word-chip-meta">${meta}</span>${progress ? `<span class="drill-word-progress">${progress}</span>` : ""}
         </button>
       `;
     })
@@ -293,18 +322,11 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
            .join('')}
        </div>`;
 
-  const weakDrillBtn =
-    report.weakWords.length > 0
-      ? `<button type="button" class="btn btn-primary" id="sh-retry-weak-btn">
-           <svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg> Retry Weak Words (${report.weakWords.length})
-         </button>`
-      : '';
-
   const replayRecBtn = hasRecording
-    ? `<button type="button" class="btn btn-secondary" id="sh-replay-my-audio-btn">
+    ? `<button type="button" class="btn btn-secondary" id="sh-replay-my-audio-btn" ${audioBusy || (playbackActive && state.audioActivity !== 'playingMine(normal)') ? 'disabled' : ''}>
          <svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg> Replay My Recording
        </button>
-       <button type="button" class="btn btn-secondary" id="sh-replay-my-slow-btn">
+       <button type="button" class="btn btn-secondary" id="sh-replay-my-slow-btn" ${audioBusy || (playbackActive && state.audioActivity !== 'playingMine(slow)') ? 'disabled' : ''}>
          <svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> My Recording Slow (0.75x)
        </button>`
     : `<button type="button" class="btn btn-secondary" id="sh-replay-my-audio-btn" disabled title="No audio kept in System SpeechRecognizer mode">
@@ -312,8 +334,8 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
        </button>`;
 
   return `
-    <section class="card" id="sh-score-card">
-      <div class="card-header">
+    <div id="sh-score-card" class="sh-score-card">
+      <div class="sh-score-heading section-heading">
         <div>
           <h2 class="card-title">Shadowing Score Report</h2>
           <p class="card-subtitle">
@@ -334,30 +356,20 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
           : ''
       }
 
-      <div class="score-metrics-grid">
-        <div class="metric-tile metric-tile-overall">
-          <div class="metric-value" id="sh-overall-score">${report.overallScore}</div>
-          <div class="metric-label">Overall score</div>
-        </div>
-        <div class="metric-tile">
-          <div class="metric-value" id="sh-pron-score">${report.pronunciationScore}</div>
-          <div class="metric-label">${report.activeTier.tier >= 2 ? 'Word match' : 'Pronunciation assessment'}</div>
-        </div>
-        <div class="metric-tile">
-          <div class="metric-value" id="sh-fluency-score">${report.fluencyScore}</div>
-          <div class="metric-label">Fluency</div>
-        </div>
-        <div class="metric-tile">
-          <div class="metric-value" id="sh-pace-score">${report.paceScore}</div>
-          <div class="metric-label">Pace (${report.overallPaceLabel})</div>
-        </div>
-        <div class="metric-tile">
-          <div class="metric-value" id="sh-complete-score">${report.completenessScore}%</div>
-          <div class="metric-label">Completeness</div>
-        </div>
+      <div class="score-metrics-grid ${drillMode ? 'sh-drill-metrics' : ''}">
+        ${drillMode ? `
+          <div class="metric-tile metric-tile-overall">
+            <div class="metric-value" id="sh-pron-score">${report.pronunciationScore}</div>
+            <div class="metric-label">Word match</div>
+          </div>
+        ` : `
+          <div class="metric-tile metric-tile-overall"><div class="metric-value" id="sh-overall-score">${report.overallScore}</div><div class="metric-label">Overall score</div></div>
+          <div class="metric-tile"><div class="metric-value" id="sh-pron-score">${report.pronunciationScore}</div><div class="metric-label">${report.activeTier.tier >= 2 ? 'Word match' : 'Pronunciation assessment'}</div></div>
+          <div class="metric-tile"><div class="metric-value" id="sh-fluency-score">${report.fluencyScore}</div><div class="metric-label">Fluency</div></div>
+          <div class="metric-tile"><div class="metric-value" id="sh-pace-score">${report.paceScore}</div><div class="metric-label">Pace (${report.overallPaceLabel})</div></div>
+          <div class="metric-tile"><div class="metric-value" id="sh-complete-score">${report.completenessScore}%</div><div class="metric-label">Completeness</div></div>
+        `}
       </div>
-
-      ${weakDrillBtn ? `<div class="sh-weak-drill">${weakDrillBtn}</div>` : ''}
 
       <p class="word-replay-help" id="sh-word-replay-help">Tap any word below to hear its pronunciation separately.</p>
       <div class="word-tokens-wrap" id="sh-word-chips">
@@ -368,14 +380,14 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean): 
         ${replayRecBtn}
       </div>
 
-      ${isOfflineMode
+      ${drillMode ? '' : isOfflineMode
         ? `${renderVadWaveformSection(report.vadAnalysis)}${timingSectionHtml}`
         : `<details class="sh-timing-details">
             <summary>Timing &amp; voice activity details</summary>
             ${renderVadWaveformSection(report.vadAnalysis)}
             ${timingSectionHtml}
           </details>`}
-    </section>
+    </div>
   `;
 }
 
@@ -385,14 +397,14 @@ export function renderShadowingView(
 ): () => void {
   const viewGeneration = ++shadowingViewGeneration;
   if (!sentenceSetHistory) {
-    container.innerHTML = '<section class="card shadowing-main-card"><p class="card-subtitle" role="status">Preparing your offline sentence library…</p></section>';
+    container.innerHTML = '<div class="shadowing-page shadowing-main-card"><p class="card-subtitle" role="status">Preparing your offline sentence library…</p></div>';
     void ensureSentenceSetHistory().then(history => {
       sentenceSetHistory = history;
       if (viewGeneration === shadowingViewGeneration) renderShadowingView(container, summary);
     }).catch(error => {
       if (viewGeneration !== shadowingViewGeneration) return;
       sentenceSetHistoryPromise = null;
-      container.innerHTML = '<section class="card shadowing-main-card"><div class="status-box fail" role="alert">Could not load the sentence library. Please restart the app and try again.</div></section>';
+      container.innerHTML = '<div class="shadowing-page shadowing-main-card"><div class="status-box fail" role="alert">Could not load the sentence library. Please restart the app and try again.</div></div>';
       console.error('[SpeakCoach] Shadowing history initialization failed.', error);
     });
     return () => { shadowingViewGeneration++; stopAllTts(); shadowingPrefetchWindowKey = ''; shadowingPrefetchScheduler.reset(); };
@@ -418,7 +430,7 @@ export function renderShadowingView(
   const selectedLanguage = getShadowingLanguage(state.languageCode);
   const activeAudioSetId = activeSet ? `${state.languageCode}:${state.difficulty}:${activeSet.id}` : null;
   const audioSetContextPromise = activeAudioSetId
-    ? activateShadowingAudioSet(activeAudioSetId).then(generation => ({ setId: activeAudioSetId, generation }))
+    ? activateShadowingAudioSet(activeAudioSetId, { createdAt: activeSet?.createdAt }).then(generation => ({ setId: activeAudioSetId, generation }))
     : Promise.resolve(null);
   // Stable identity is the persisted sentence-set ID, not view lifecycle or the first sentence.
   const prefetchWindowKey = `${activeAudioSetId ?? 'none'}:${state.customDrillText ?? ''}`;
@@ -481,6 +493,9 @@ export function renderShadowingView(
 
   const isRec = audioRecorder.isRecording();
   const isStopping = shadowingIsStopping;
+  const isCaptureBusy = isAudioCaptureBusy();
+  const isPlaybackActive = isAudioPlaybackActive();
+  const isWordPlayback = state.audioActivity === 'playingWord';
   const scoringTier = summary.slots.pronunciation_scoring;
   const ttsTier = summary.slots.voice_tts;
   const hasLanguageSentenceSet = activeHistory.sets.length > 0;
@@ -496,69 +511,80 @@ export function renderShadowingView(
           )}%)`
         : 'None yet (starts empty on every attempt)';
 
+  const drillMode = Boolean(state.customDrillText);
+  const drillWords = state.lastReport?.words.filter(word => word.referenceWord) ?? [];
+  const drillCorrect = drillWords.filter(word => word.status === 'match').length;
+  const weakReferenceWords = [...new Set(state.lastReport?.words.filter(word => word.referenceWord && word.status !== 'match').map(word => word.referenceWord!) ?? [])];
+  const remainingDrillWords = [...new Set(drillWords.filter(word => word.status !== 'match').map(word => word.referenceWord!).filter(Boolean))];
+  const weakActionHtml = state.lastReport ? (drillMode
+    ? remainingDrillWords.length
+      ? `<div class="sh-retry-weak-actions"><button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}><span>Retry remaining weak words</span> (<span>${remainingDrillWords.length}</span>)</button></div>`
+      : '<p class="sh-drill-success" role="status">All target words matched.</p>'
+    : weakReferenceWords.length
+      ? `<div class="sh-retry-weak-actions"><button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}><span>${weakReferenceWords.length === 1 ? 'Practice weak word' : 'Retry weak words'}</span> ${weakReferenceWords.length === 1 ? '' : `(<span>${weakReferenceWords.length}</span>)`}</button></div>`
+      : '') : '';
+  const resultStripHtml = state.lastReport ? `
+    <div class="sh-result-strip" role="group" aria-label="Latest recording result">
+      <div class="sh-result-strip-score" role="status" aria-live="polite">
+        ${drillMode ? `<strong>Correct words</strong><span id="sh-drill-correct-count">${drillCorrect} / ${drillWords.length}</span>` : `<strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace</span>`}
+      </div>
+      <div class="sh-result-strip-words">${state.lastReport.words.map(word => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); const mark = word.status === 'match' ? '✓' : word.status === 'mispronounced' ? '!' : word.status === 'missing' ? '−' : '+'; return `<button type="button" class="sh-result-chip ${word.status}" data-word-replay="${escapeHtml(replayWord)}" aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord && !isCaptureBusy && (!isPlaybackActive || isWordPlayback) ? '' : 'disabled'}>${drillMode ? mark + ' ' : ''}${escapeHtml(replayWord)}</button>`; }).join('')}</div>
+      ${weakActionHtml}
+      <p class="sh-result-replay-help">${drillMode ? 'Each chip shows the latest result for that target word.' : 'Tap a word to hear it. For more details and practice with difficult words, see Shadowing Score Report below.'}</p>
+    </div>` : '';
   container.innerHTML = `
-    <section class="card shadowing-main-card">
-      <div class="card-header shadowing-main-header">
-        <div>
+    <div class="shadowing-page shadowing-main-card">
+      <div class="page-heading shadowing-main-header">
+        <div class="page-heading-title">
           <h1 class="card-title shadowing-page-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v3m-4 0h8"/></svg>Shadowing Trainer</h1>
-          <p class="card-subtitle">
-            Voice: <strong>${ttsTier.label}</strong> · Practise pronunciation at your own pace${ttsTier.reason ? `<span class="sh-provider-notice" role="status">${escapeHtml(ttsTier.reason)}</span>` : ''}
-          </p>
         </div>
         <span class="tier-badge ${scoringTier.label === 'Online AI' ? 'online' : 'offline'}">
           <span class="tier-dot"></span>
           ${scoringTier.label}
         </span>
       </div>
+      ${ttsTier.reason ? `<p class="sh-provider-notice" role="status">Voice: <strong>${escapeHtml(ttsTier.label)}</strong> · ${escapeHtml(ttsTier.reason)}</p>` : ''}
       <div class="sh-language-picker-field">
         <label class="sh-language-picker-label" for="sh-language-select">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
           <span>Practice language</span>
         </label>
-        <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language" ${isRec || state.isGeneratingAi ? "disabled" : ""}>
+        <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language" ${isCaptureBusy || state.isGeneratingAi ? "disabled" : ""}>
           ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
         </select>
       </div>
       <section class="sh-sentence-set-details" aria-labelledby="sh-sentence-set-title">
-        <div class="sh-sentence-set-heading"><h2 id="sh-sentence-set-title">Sentence set</h2><span class="sh-sentence-set-summary">${state.difficulty[0].toUpperCase()+state.difficulty.slice(1)} · Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id)+1 : 0} of ${activeHistory.sets.length} · Change${state.isGeneratingAi ? " · Generating…" : state.aiGenerationError ? " · Error" : ""}</span></div>
+        <div class="sh-sentence-set-heading section-heading"><h2 id="sh-sentence-set-title">Sentence set</h2><span class="sh-sentence-set-summary">${state.difficulty[0].toUpperCase()+state.difficulty.slice(1)} · Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id)+1 : 0} of ${activeHistory.sets.length} · Change${state.isGeneratingAi ? " · Generating…" : state.aiGenerationError ? " · Error" : ""}</span></div>
+      <p class="sh-set-guidance">AI-generated sets contain 20 sentences; offline starter sets may contain one.</p>
       <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
-        <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy">Easy</button>
-        <button type="button" class="pill-btn ${state.difficulty === 'medium' ? 'active' : ''}" data-diff="medium">Medium</button>
-        <button type="button" class="pill-btn ${state.difficulty === 'hard' ? 'active' : ''}" data-diff="hard">Hard</button>
+        <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy" aria-pressed="${state.difficulty === 'easy'}" ${isRec || isStopping ? 'disabled' : ''}>Easy</button>
+        <button type="button" class="pill-btn ${state.difficulty === 'medium' ? 'active' : ''}" data-diff="medium" aria-pressed="${state.difficulty === 'medium'}" ${isRec || isStopping ? 'disabled' : ''}>Medium</button>
+        <button type="button" class="pill-btn ${state.difficulty === 'hard' ? 'active' : ''}" data-diff="hard" aria-pressed="${state.difficulty === 'hard'}" ${isRec || isStopping ? 'disabled' : ''}>Hard</button>
       </div>
 
-      <div class="ai-sentence-panel">
-        <div class="ai-sentence-panel-copy">
-          <strong>Get a new sentence set</strong>
-          <span>AI-generated sets contain 20 sentences; offline starter sets may contain one.</span>
-        </div>
+      <div class="sh-sentence-set-controls">
         <div class="form-field sh-topic-field">
           <label class="form-label" for="sh-topic-input">Optional topic</label>
           <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
         </div>
         <div class="btn-row sh-generate-actions">
-          <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi ? 'disabled' : ''}>
+          <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''}>
             ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
           </button>
         </div>
         <div class="sh-history-controls" aria-label="Sentence set history">
           <span class="sh-history-caption">From history</span>
-          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
           <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1 : 0} of ${activeHistory.sets.length}</span>
-          <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
+          <div class="sh-history-arrows">
+            <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
+            <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
+          </div>
         </div>
         
         ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
       </div>
       </section>
-      <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
-      <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
-        <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
-        <strong>Important: speech APIs have separate capabilities</strong>
-        <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
-        <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
-        <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
-      </details>
+
       
       ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate. <button type="button" class="btn btn-primary" id="sh-empty-generate-btn">Generate now</button></div>` : ''}
 
@@ -568,7 +594,8 @@ export function renderShadowingView(
       </details>` : ''}
 
 
-      <p class="card-subtitle sh-ai-sentence-count shadowing-topic-label">${state.customDrillText ? 'Weak-word drill' : `${hasLanguageSentenceSet ? `Sentence ${state.index + 1} of ${activeSet?.sentences.length ?? 0}` : 'No sentence set yet'} · Topic: ${escapeHtml(sentence?.topic ?? 'Offline practice')}`}</p>
+      <div class="sh-sentence-set-heading section-heading sh-exercise-heading"><h2 id="sh-exercise-title">Exercise</h2></div>
+      <p class="card-subtitle sh-ai-sentence-count shadowing-topic-label">${state.customDrillText ? 'Weak-word drill' : `<span class="sh-topic-caption" dir="auto">Topic: ${escapeHtml(sentence?.topic ?? 'Offline practice')}</span><span class="sh-sentence-count">${hasLanguageSentenceSet ? `Sentence ${state.index + 1} of ${activeSet?.sentences.length ?? 0}` : 'No sentence set yet'}</span>`}</p>
       <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div>
       <p class="card-subtitle sh-focus-copy">
         ${
@@ -579,23 +606,19 @@ export function renderShadowingView(
       </p>
 
       <div class="btn-row sh-player-controls" aria-label="Sentence playback controls">
-        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-prev-btn" aria-label="Previous sentence" title="Previous sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 9 12l10 7z"/></svg></button>
-        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence ? '' : 'disabled'} aria-label="${state.activeModelPlayback ? 'Stop model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback ? 'Stop playback' : 'Play model at normal speed'}" aria-busy="${Boolean(state.activeModelPlayback)}">
+        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-prev-btn" aria-label="Previous sentence" ${isCaptureBusy ? 'disabled' : ''} title="Previous sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 9 12l10 7z"/></svg></button>
+        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && (!isCaptureBusy || state.activeModelPlayback !== null) && (!isPlaybackActive || state.activeModelPlayback !== null) ? '' : 'disabled'} aria-label="${state.activeModelPlayback ? 'Stop model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback ? 'Stop playback' : 'Play model at normal speed'}" aria-busy="${Boolean(state.activeModelPlayback)}">
           ${state.activeModelPlayback ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
         </button>
-        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
-        <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && !state.activeModelPlayback ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
+        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" ${isCaptureBusy ? 'disabled' : ''} title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
+        <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'slow') && !isCaptureBusy && (!isPlaybackActive || state.audioActivity === 'playingModel(slow)') ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
           ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
         </button>
-        ${
-          state.customDrillText
-            ? `<button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button>`
-            : ''
-        }
       </div>
+      ${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
 
       <div class="btn-row sh-record-controls">
-        <button type="button" class="btn btn-record sh-record-action ${isRec ? 'is-recording' : ''} ${isStopping ? 'is-stopping' : ''}" id="sh-record-btn" ${hasSentence && !isStopping ? '' : 'disabled'} aria-label="${isStopping ? 'Finishing recording' : isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
+        <button type="button" class="btn btn-record sh-record-action ${isRec ? 'is-recording' : ''} ${isStopping ? 'is-stopping' : ''}" id="sh-record-btn" ${hasSentence && !isStopping && !isPlaybackActive ? '' : 'disabled'} aria-label="${isStopping ? 'Finishing recording' : isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
           ${isStopping ? 'Wait…' : isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : 'Record Repetition'}
         </button>
         <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
@@ -608,13 +631,12 @@ export function renderShadowingView(
           ? `<div class="status-box fail" id="sh-empty-error" role="alert">${escapeHtml(
               state.emptyAttemptError
             )} (Score: 0)</div>`
-          : `<div class="status-box info" id="sh-status-msg" role="status" aria-live="polite">${escapeHtml(state.statusMessage)}</div>`
+          : `${state.navigationNotice ? '<div class="status-box fail" role="alert">' + escapeHtml(state.navigationNotice) + '</div>' : '<div class="status-box info" id="sh-status-msg" role="status" aria-live="polite">' + escapeHtml(state.statusMessage) + '</div>'}`
       }
 
-      ${state.lastReport ? `<div class="sh-result-strip" role="group" aria-label="Latest recording result"><div class="sh-result-strip-score" role="status" aria-live="polite"><strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace</span></div><div class="sh-result-strip-words">${state.lastReport.words.map(word => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); return `<button type="button" class="sh-result-chip ${word.status}" data-word-replay="${escapeHtml(replayWord)}" aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord ? '' : 'disabled'}>${escapeHtml(replayWord)}</button>`; }).join('')}</div><p class="sh-result-replay-help">Tap a word to hear it. For more details and practice with difficult words, see Score &amp; recognition details below.</p></div>` : ''}
-    <section class="sh-result-details" aria-labelledby="sh-result-details-title">
-      <h2 id="sh-result-details-title">Score &amp; recognition details</h2>
-      ${state.lastReport ? renderReportHtml(state.lastReport, Boolean(state.lastRecording?.wavBase64)) : ''}
+      ${resultStripHtml}
+    <section class="sh-result-details">
+      ${state.lastReport ? renderReportHtml(state.lastReport, Boolean(state.lastRecording?.wavBase64), drillMode, state.drillPreviousStatuses, isCaptureBusy, isPlaybackActive, isWordPlayback) : ''}
       <details class="sh-transcript-details" ${state.recognizerError ? 'open' : ''}>
         <summary>Transcript &amp; recognition details</summary>
         <div class="form-field sh-transcript-field">
@@ -634,7 +656,7 @@ export function renderShadowingView(
         </div>
       </details>
     </section>
-    </section>
+    </div>
 
     <section class="card sh-translation-card" id="sh-translation-card">
       <div class="card-header">
@@ -661,7 +683,23 @@ export function renderShadowingView(
       ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, '<br>')}</div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
+      <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
+        <summary><strong>Speech API compatibility &amp; troubleshooting</strong></summary>
+        <strong>Important: speech APIs have separate capabilities</strong>
+        <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
+        <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
+        <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
+      </details>
+      <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
   `;
+
+  if (isCaptureBusy) {
+    container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button, select').forEach(control => {
+      if (control.id === 'sh-stop-score-btn' || (control.id === 'sh-record-btn' && isRec && !isStopping)) return;
+      control.disabled = true;
+      control.setAttribute('aria-disabled', 'true');
+    });
+  }
 
   if (isSpeechApiNoticeDismissed()) {
     const notice = container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
@@ -684,7 +722,7 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLSelectElement>('#sh-language-select')?.addEventListener('change', async event => {
-    if (audioRecorder.isRecording() || state.isGeneratingAi) return;
+    if (isAudioCaptureBusy() || isAudioPlaybackActive() || state.isGeneratingAi) return;
     const nextCode = (event.target as HTMLSelectElement).value as ShadowingLanguageCode;
     if (!SHADOWING_LANGUAGES.some(language => language.code === nextCode) || nextCode === state.languageCode) return;
     await persistCurrentShadowingHistory();
@@ -758,14 +796,20 @@ export function renderShadowingView(
   container.querySelectorAll<HTMLButtonElement>('[data-word-replay]').forEach(button => {
     button.addEventListener('click', async () => {
       const word = button.dataset.wordReplay?.trim();
-      if (!word || button.disabled) return;
+      if (!word) return;
+      state.navigationNotice = null;
+      if (state.audioActivity === 'playingWord') { shadowingModelPlaybackToken++; stopAllTts(); state.audioActivity = 'idle'; state.statusMessage = 'Word playback stopped.'; renderShadowingView(container, summary); return; }
+      if (isAudioCaptureBusy() || isAudioPlaybackActive() || button.disabled) return;
       button.disabled = true;
       button.setAttribute('aria-busy', 'true');
-      shadowingModelPlaybackToken++;
+      const wordPlaybackToken = ++shadowingModelPlaybackToken;
       state.activeModelPlayback = null;
       stopAllTts();
+      state.audioActivity = 'playingWord';
+      renderShadowingView(container, summary);
       try {
         const audioContext = await audioSetContextPromise;
+        if (wordPlaybackToken !== shadowingModelPlaybackToken || state.audioActivity !== 'playingWord') return;
         const result = await speakSentenceWithTierFallback(word, {
           locale: selectedLanguage.locale,
           shadowingSetAudio: audioContext ? { ...audioContext, kind: 'extra' } : undefined
@@ -775,13 +819,17 @@ export function renderShadowingView(
         reopenSpeechApiNoticeForError(error);
         state.statusMessage = `Could not play “${word}”: ${error instanceof Error ? error.message : String(error)}`;
       } finally {
-        renderShadowingView(container, summary);
+        if (wordPlaybackToken === shadowingModelPlaybackToken && state.audioActivity === 'playingWord') {
+          state.audioActivity = 'idle';
+          renderShadowingView(container, summary);
+        }
       }
     });
   });
 
     container.querySelectorAll<HTMLButtonElement>('[data-diff]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
       state.difficulty = (btn.dataset.diff as ShadowingDifficulty) || 'easy';
       state.index = sentenceSetHistory?.[state.difficulty].activeSentenceIndex ?? 0;
       state.customDrillText = null;
@@ -796,7 +844,7 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-generate-ai-btn')?.addEventListener('click', async () => {
-    if (state.isGeneratingAi) return;
+    if (state.isGeneratingAi || isAudioCaptureBusy() || isAudioPlaybackActive()) return;
     state.isGeneratingAi = true;
     state.aiGenerationError = null;
     state.statusMessage = 'Generating 20 new practice sentences...';
@@ -820,7 +868,8 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-history-prev-btn')?.addEventListener('click', async () => {
-    if (!sentenceSetHistory) return;
+    if (!sentenceSetHistory || isAudioCaptureBusy() || isAudioPlaybackActive()) return;
+    state.navigationNotice = null;
     sentenceSetHistory = moveShadowingSet(sentenceSetHistory, state.difficulty, -1);
     state.index = 0;
     state.customDrillText = null;
@@ -831,7 +880,8 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-history-next-btn')?.addEventListener('click', async () => {
-    if (!sentenceSetHistory) return;
+    if (!sentenceSetHistory || isAudioCaptureBusy() || isAudioPlaybackActive()) return;
+    state.navigationNotice = null;
     sentenceSetHistory = moveShadowingSet(sentenceSetHistory, state.difficulty, 1);
     state.index = 0;
     state.customDrillText = null;
@@ -842,44 +892,64 @@ export function renderShadowingView(
   });
 
   container.querySelector<HTMLButtonElement>('#sh-prev-btn')?.addEventListener('click', async () => {
+    if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
+    state.navigationNotice = null;
     state.index = Math.max(0, state.index - 1);
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
       await persistCurrentShadowingHistory();
     }
     state.customDrillText = null;
+    state.drillWords = [];
+    state.drillPreviousStatuses = {};
     clearAttemptState();
     renderShadowingView(container, summary);
   });
 
   container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', async () => {
+    if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
+    if (!state.customDrillText && state.index >= (activeSet?.sentences.length ?? 0) - 1) {
+      state.navigationNotice = "You've reached the end of this sentence set. Generate a new set, or go back through your history to practice a previous one.";
+      renderShadowingView(container, summary);
+      return;
+    }
+    state.navigationNotice = null;
+    state.navigationNotice = null;
     state.index = Math.min(Math.max(0, (activeSet?.sentences.length ?? 1) - 1), state.index + 1);
     if (sentenceSetHistory) {
       sentenceSetHistory = selectShadowingSentence(sentenceSetHistory, state.difficulty, state.index);
       await persistCurrentShadowingHistory();
     }
     state.customDrillText = null;
+    state.drillWords = [];
+    state.drillPreviousStatuses = {};
     clearAttemptState();
     startShadowingPrefetch();
     renderShadowingView(container, summary);
   });
 
   container.querySelector<HTMLButtonElement>('#sh-exit-drill-btn')?.addEventListener('click', () => {
+    if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
     state.customDrillText = null;
+    state.drillWords = [];
+    state.drillPreviousStatuses = {};
     clearAttemptState();
     startShadowingPrefetch();
     renderShadowingView(container, summary);
   });
 
   const playModelAudio = async (mode: 'normal' | 'slow'): Promise<void> => {
-    if (state.activeModelPlayback) return;
+    if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
+    state.navigationNotice = null;
     const playbackToken = ++shadowingModelPlaybackToken;
     state.activeModelPlayback = mode;
+    state.audioActivity = mode === 'normal' ? 'playingModel(normal)' : 'playingModel(slow)';
     state.statusMessage = 'Generating audio…';
     renderShadowingView(container, summary);
     try {
       const rate = mode === 'normal' ? 1.0 : 0.72;
       const audioContext = await audioSetContextPromise;
+      if (playbackToken !== shadowingModelPlaybackToken) return;
       const res = await speakSentenceWithTierFallback(targetText, {
         rate,
         locale: selectedLanguage.locale,
@@ -899,10 +969,10 @@ export function renderShadowingView(
         : res.activeTier.reason ? ` Notice: ${res.activeTier.reason}` : '';
       if (res.activeTier.tier >= 3) shadowingTier3FallbackNoticeShown = true;
       const playbackTierLabel = res.activeTier.tier >= 3 ? 'Basic offline' : res.activeTier.detailLabel;
-      const storageWarningNote = res.storageWarning ? ` Warning: ${res.storageWarning}` : '';
+      if (res.storageWarning) console.warn('[Shadowing] Audio played but could not be retained for offline replay.', res.storageWarning);
       state.statusMessage = mode === 'normal'
-        ? `Played model audio via ${playbackTierLabel}${res.fromCache ? ' [Cached]' : ''}.${offlineVoiceNote}${storageWarningNote}`
-        : `Played slow model audio (0.72x) via ${playbackTierLabel}.${offlineVoiceNote}${storageWarningNote}`;
+        ? `Played model audio via ${playbackTierLabel}${res.fromCache ? ' [Cached]' : ''}.${offlineVoiceNote}`
+        : `Played slow model audio (0.72x) via ${playbackTierLabel}.${offlineVoiceNote}`;
     } catch (error) {
       if (playbackToken !== shadowingModelPlaybackToken) return;
       reopenSpeechApiNoticeForError(error);
@@ -910,6 +980,7 @@ export function renderShadowingView(
     } finally {
       if (playbackToken === shadowingModelPlaybackToken) {
         state.activeModelPlayback = null;
+        state.audioActivity = 'idle';
         startShadowingPrefetch(); // Retry any batch deferred by user-initiated synthesis.
         renderShadowingView(container, summary);
       }
@@ -921,14 +992,27 @@ export function renderShadowingView(
       shadowingModelPlaybackToken++;
       stopAllTts();
       state.activeModelPlayback = null;
+      state.audioActivity = 'idle';
       state.statusMessage = 'Model playback stopped.';
       renderShadowingView(container, summary);
       return;
     }
+    if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
     void playModelAudio('normal');
   });
 
   container.querySelector<HTMLButtonElement>('#sh-play-slow-btn')?.addEventListener('click', () => {
+    state.navigationNotice = null;
+    if (state.activeModelPlayback === 'slow') {
+      shadowingModelPlaybackToken++;
+      stopAllTts();
+      state.activeModelPlayback = null;
+      state.audioActivity = 'idle';
+      state.statusMessage = 'Model playback stopped.';
+      renderShadowingView(container, summary);
+      return;
+    }
+    if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
     void playModelAudio('slow');
   });
 
@@ -942,12 +1026,14 @@ export function renderShadowingView(
       container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.click();
       return;
     }
+    if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
     const recordButton = container.querySelector<HTMLButtonElement>('#sh-record-btn');
     if (recordButton) recordButton.disabled = true;
     // User has begun a practice attempt; opportunistic audio prefetch may start now.
     startShadowingPrefetch();
     // Always reset transcript & previous report to EMPTY on every new recording attempt
     clearAttemptState();
+    state.audioActivity = 'recording';
     const sttSlotId = resolveShadowingSttSlotId();
     const sttTier = summary.slots[sttSlotId];
     const isOnlineStt = sttTier.tier <= 2 && sttTier.label === 'Online AI';
@@ -956,6 +1042,7 @@ export function renderShadowingView(
       await audioRecorder.start(selectedLanguage.locale, { useOfflineRecognizer: !isOnlineStt, preferOffline: !isOnlineStt });
       if (viewGeneration !== shadowingViewGeneration) {
         if (audioRecorder.isRecording()) await audioRecorder.stop();
+        state.audioActivity = 'idle';
         return;
       }
       clearShadowingRecordingTimer();
@@ -969,6 +1056,7 @@ export function renderShadowingView(
         ? 'Recording 16 kHz WAV (Online STT mode)... Speak clearly, then tap "Stop & Score". Recording stops automatically after 30 seconds.'
         : 'Listening via device/browser speech recognition. The browser may use its own network speech service; SpeakCoach does not upload raw audio in this mode. Recording stops automatically after 30 seconds.';
     } catch (err) {
+      state.audioActivity = 'idle';
       if (viewGeneration !== shadowingViewGeneration) return;
       state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
     }
@@ -979,6 +1067,8 @@ export function renderShadowingView(
   container.querySelector<HTMLButtonElement>('#sh-stop-score-btn')?.addEventListener('click', async () => {
     if (shadowingIsStopping) return;
     shadowingIsStopping = true;
+    state.audioActivity = 'stopping/scoring';
+    setShadowingCaptureControlsDisabled(container, true);
     clearShadowingRecordingTimer();
     const visibleStopButton = container.querySelector<HTMLButtonElement>('#sh-record-btn');
     if (visibleStopButton) {
@@ -990,13 +1080,18 @@ export function renderShadowingView(
     const rec = await audioRecorder.stop().catch((error) => {
       if (viewGeneration === shadowingViewGeneration) {
         shadowingIsStopping = false;
+        state.audioActivity = 'idle';
         state.statusMessage = `Could not stop recording: ${error instanceof Error ? error.message : String(error)}`;
         renderShadowingView(container, summary);
       }
       return null;
     });
-    shadowingIsStopping = false;
-    if (!rec || viewGeneration !== shadowingViewGeneration) return;
+    if (!rec || viewGeneration !== shadowingViewGeneration) {
+      shadowingIsStopping = false;
+      state.audioActivity = 'idle';
+      if (viewGeneration === shadowingViewGeneration) renderShadowingView(container, summary);
+      return;
+    }
     state.lastRecording = rec;
 
     // Resolve the configured online speech provider (Azure, Whisper or Gemini), with API 2 and offline fallbacks.
@@ -1014,11 +1109,15 @@ export function renderShadowingView(
     }).catch((error) => {
       if (viewGeneration === shadowingViewGeneration) {
         state.statusMessage = `Speech transcription failed: ${error instanceof Error ? error.message : String(error)}`;
-        renderShadowingView(container, summary);
       }
       return null;
     });
-    if (!sttOutcome || viewGeneration !== shadowingViewGeneration) return;
+    if (!sttOutcome || viewGeneration !== shadowingViewGeneration) {
+      shadowingIsStopping = false;
+      state.audioActivity = 'idle';
+      if (viewGeneration === shadowingViewGeneration) renderShadowingView(container, summary);
+      return;
+    }
 
     const rawRecognized = sttOutcome.transcript.trim();
 
@@ -1033,7 +1132,9 @@ export function renderShadowingView(
     // Never fall back to reference text! If recognizer returned empty/null/error, DO NOT score.
     if (!rawRecognized) {
       state.lastReport = null;
-      state.emptyAttemptError = sttOutcome.error
+      state.emptyAttemptError = state.customDrillText
+        ? 'No words were recognized for this weak-word drill. Your previous results are kept; retry when ready.'
+        : sttOutcome.error
         ? `${sttOutcome.error} Retry the recording or use the device recognizer.`
         : rec.recognizerError
           ? `Nothing was recognized, try again (${rec.recognizerError}).`
@@ -1050,6 +1151,8 @@ export function renderShadowingView(
         report: null
       });
       clearDiagnosticsCache();
+      shadowingIsStopping = false;
+      state.audioActivity = 'idle';
       renderShadowingView(container, summary);
       return;
     }
@@ -1100,29 +1203,47 @@ export function renderShadowingView(
     clearDiagnosticsCache();
 
     state.statusMessage = `${sttOutcome.error ? `${sttOutcome.error} ` : ''}Scored recognizer output ("${rawRecognized}") against reference.`;
+    shadowingIsStopping = false;
+    state.audioActivity = 'idle';
     startShadowingPrefetch();
     renderShadowingView(container, summary);
   });
 
-  container.querySelector<HTMLButtonElement>('#sh-replay-my-audio-btn')?.addEventListener('click', async () => {
-    if (state.lastRecording) {
-      await playAudioDataUrl(state.lastRecording.wavDataUrl, 1.0);
+  const playMyRecording = async (mode: 'normal' | 'slow'): Promise<void> => {
+    const activity = mode === 'normal' ? 'playingMine(normal)' : 'playingMine(slow)';
+    state.navigationNotice = null;
+    if (state.audioActivity === activity) {
+      stopAllTts();
+      state.audioActivity = 'idle';
+      state.statusMessage = 'Recording playback stopped.';
+      renderShadowingView(container, summary);
+      return;
     }
-  });
-
-  container.querySelector<HTMLButtonElement>('#sh-replay-my-slow-btn')?.addEventListener('click', async () => {
-    if (state.lastRecording) {
-      await playAudioDataUrl(state.lastRecording.wavDataUrl, 0.75);
+    if (!state.lastRecording || isAudioCaptureBusy() || isAudioPlaybackActive()) return;
+    state.audioActivity = activity;
+    renderShadowingView(container, summary);
+    try {
+      await playAudioDataUrl(state.lastRecording.wavDataUrl, mode === 'normal' ? 1.0 : 0.75);
+    } finally {
+      if (state.audioActivity === activity) {
+        state.audioActivity = 'idle';
+        renderShadowingView(container, summary);
+      }
     }
-  });
+  };
+  container.querySelector<HTMLButtonElement>('#sh-replay-my-audio-btn')?.addEventListener('click', () => { void playMyRecording('normal'); });
+  container.querySelector<HTMLButtonElement>('#sh-replay-my-slow-btn')?.addEventListener('click', () => { void playMyRecording('slow'); });
 
   container.querySelector<HTMLButtonElement>('#sh-retry-weak-btn')?.addEventListener('click', () => {
-    if (state.lastReport && state.lastReport.weakWords.length > 0) {
-      state.customDrillText = state.lastReport.weakWords.join(' ');
-      clearAttemptState();
-      state.statusMessage = 'Focused Weak-Word Drill ready! Listen and repeat only your weak words.';
-      renderShadowingView(container, summary);
-    }
+    if (!state.lastReport || isAudioCaptureBusy() || isAudioPlaybackActive()) return;
+    const words = [...new Set(state.lastReport.words.filter(word => word.referenceWord && word.status !== 'match').map(word => word.referenceWord!))];
+    if (!words.length) return;
+    state.drillPreviousStatuses = Object.fromEntries(state.lastReport.words.filter(word => word.referenceWord).map(word => [word.referenceWord!, { status: word.status, accuracyScore: word.accuracyScore }]));
+    state.drillWords = words;
+    state.customDrillText = words.join(' ');
+    clearAttemptState();
+    state.statusMessage = 'Focused Weak-Word Drill ready! Listen and repeat only your weak words.';
+    renderShadowingView(container, summary);
   });
 
   // Release any position window reached from a saved starting position or a re-render.
@@ -1136,6 +1257,7 @@ export function renderShadowingView(
     clearShadowingRecordingTimer();
     shadowingModelPlaybackToken++;
     state.activeModelPlayback = null;
+    state.audioActivity = 'idle';
     stopAllTts();
     shadowingPrefetchEpoch++;
     shadowingPrefetchWindowKey = '';
@@ -1151,17 +1273,21 @@ export function renderShadowingView(
 
 export async function pauseShadowingRecordingForBackground(): Promise<void> {
   clearShadowingRecordingTimer();
-  shadowingIsStopping = false;
+  const wasScoring = state.audioActivity === 'stopping/scoring';
+  if (!wasScoring) shadowingIsStopping = false;
   shadowingModelPlaybackToken++;
-  const wasPlayingModelAudio = state.activeModelPlayback !== null;
+  const wasPlayingAudio = isAudioPlaybackActive();
   state.activeModelPlayback = null;
+  if (!wasScoring) state.audioActivity = 'idle';
   const wasRecording = audioRecorder.isRecording();
-  if (!wasRecording && !wasPlayingModelAudio) return;
+  if (wasScoring) return;
+  if (!wasRecording && !wasPlayingAudio) return;
+  stopAllTts();
 
   try {
     if (wasRecording) await audioRecorder.stop();
-    state.statusMessage = wasPlayingModelAudio
-      ? 'Model audio playback stopped because SpeakCoach moved to the background. Play it again when you return.'
+    state.statusMessage = wasPlayingAudio
+      ? 'Audio playback stopped because SpeakCoach moved to the background. Play it again when you return.'
       : 'Recording stopped because SpeakCoach moved to the background. Start a new recording when you return.';
   } catch (error) {
     state.statusMessage = `Audio was interrupted in the background. Please try again. ${error instanceof Error ? error.message : ''}`.trim();
@@ -1170,6 +1296,11 @@ export async function pauseShadowingRecordingForBackground(): Promise<void> {
 
 export function resetShadowingViewState(): void {
   state.forceSpeechApiNotice = false;
+  shadowingModelPlaybackToken++;
+  stopAllTts();
+  state.activeModelPlayback = null;
+  state.audioActivity = 'idle';
+  shadowingIsStopping = false;
   state.difficulty = 'easy';
   state.isGeneratingAi = false;
   state.aiGenerationError = null;
@@ -1177,6 +1308,8 @@ export function resetShadowingViewState(): void {
   state.index = sentenceSetHistory?.[state.difficulty].activeSentenceIndex ?? 0;
   state.topicInput = '';
   state.customDrillText = null;
+  state.drillWords = [];
+  state.drillPreviousStatuses = {};
   state.translationSourceText = null;
   state.translationText = '';
   state.translationResult = '';

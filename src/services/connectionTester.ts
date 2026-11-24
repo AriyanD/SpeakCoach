@@ -946,14 +946,14 @@ export async function testSlotAccountsSequentially(
 }
 
 
-/** Atomic per-slot policy: only a complete set of successful configured probes may be saved. */
+/** A slot can stay online when at least one configured account has a successful online verification. */
 export function shouldPersistSlotVerification(
   results: Array<{ result: ConnectionTestResult }>,
   expectedAccountCount: number
 ): boolean {
   return expectedAccountCount > 0 &&
     results.length === expectedAccountCount &&
-    results.every(item => item.result.ok && item.result.tier !== 3);
+    results.some(item => item.result.ok && item.result.tier !== 3);
 }
 
 

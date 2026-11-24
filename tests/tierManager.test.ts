@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearAllProviderAccountHealth, markProviderAccountFailure } from '../src/services/providerHealth';
+import { clearAllProviderAccountHealth, createProviderVerificationFingerprint, markProviderAccountFailure } from '../src/services/providerHealth';
 import { createDefaultSlotConfig, getPreset } from '../src/config/providers';
 import { nativeHttpRequest, SpeakCoachHttpError } from '../src/services/httpClient';
 import { networkMonitor } from '../src/services/networkMonitor';
@@ -14,7 +14,7 @@ import {
 } from '../src/services/tierManager';
 import { testSlotConnection } from '../src/services/connectionTester';
 import { saveApiKey } from '../src/storage/keyStore';
-import { loadAllSlotsConfig, saveSlotConfig, saveSlotConnectionTestResult } from '../src/storage/localStore';
+import { loadAllSlotsConfig, saveSecondarySlotConfig, saveSlotConfig, saveSlotConnectionTestResult } from '../src/storage/localStore';
 
 async function markSlotVerified(slotId: 'voice_tts' | 'llm_evaluator' | 'llm_generator', providerId: string, tier: 1 | 2 = 1): Promise<void> {
   const current = await loadAllSlotsConfig();
@@ -354,6 +354,65 @@ describe('IELTS STT online tier detection', () => {
     const modelChanged = await resolveSlotTier(changedModel, { isOnline: true });
     expect(modelChanged.tier).toBe(3);
     expect(modelChanged.reason).toMatch(/verification expired or no longer matches/i);
+  });
+
+  it('keeps the slot online through the healthy alternate account when either API fails', async () => {
+    for (const failedAccount of ['primary', 'secondary'] as const) {
+      localStorage.clear();
+      await clearAllProviderAccountHealth();
+      clearAllRuntimeFailures();
+
+      const primary = {
+        ...createDefaultSlotConfig('voice_tts'),
+        providerId: 'openai_tts',
+        baseUrl: 'https://api.openai.com/v1',
+        modelOrVoice: 'tts-1:alloy',
+        secondary: {
+          providerId: 'elevenlabs_tts',
+          baseUrl: 'https://api.elevenlabs.io/v1',
+          modelOrVoice: 'voice-id',
+          verified: false
+        }
+      };
+      const primaryKey = 'primary-independent-key';
+      const secondaryKey = 'secondary-independent-key';
+      await saveSlotConfig(primary);
+      await saveApiKey('voice_tts', 'openai_tts', primaryKey);
+      await saveApiKey('voice_tts', 'elevenlabs_tts', secondaryKey, 'secondary');
+
+      const primaryFingerprint = await createProviderVerificationFingerprint(primary, primaryKey);
+      await saveSlotConnectionTestResult('voice_tts', {
+        ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+        label: 'Online AI', latencyMs: 1, message: 'PASS — API 1',
+        verificationFingerprint: primaryFingerprint ?? undefined
+      });
+
+      const secondary = {
+        providerId: 'elevenlabs_tts',
+        baseUrl: 'https://api.elevenlabs.io/v1',
+        modelOrVoice: 'voice-id',
+        verified: true,
+        testResult: {
+          ok: true, latencyMs: 1, message: 'PASS — API 2', testedAt: Date.now(),
+          verificationFingerprint: await createProviderVerificationFingerprint(
+            { slotId: 'voice_tts', providerId: 'elevenlabs_tts', baseUrl: 'https://api.elevenlabs.io/v1', modelOrVoice: 'voice-id' },
+            secondaryKey
+          ) ?? undefined
+        }
+      };
+      await saveSecondarySlotConfig('voice_tts', secondary);
+      await markProviderAccountFailure(
+        'voice_tts', failedAccount,
+        Object.assign(new Error('HTTP 401 invalid API key'), { status: 401 })
+      );
+
+      const resolved = await resolveSlotTier({ ...primary, secondary }, { isOnline: true });
+      expect(resolved.tier).toBe(1);
+      expect(resolved.label).toBe('Online AI');
+      expect(resolved.isFallback).toBe(false);
+      expect(resolved.reason).toContain(failedAccount === 'primary' ? 'API 1' : 'API 2');
+      expect(resolved.reason).toContain('alternate account is available');
+    }
   });
 
   it.each([400, 401, 404])('moves a verified TTS account to Needs re-test after HTTP %i', async status => {
