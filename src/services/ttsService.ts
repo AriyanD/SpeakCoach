@@ -307,8 +307,9 @@ async function synthesizeOnlineNeuralAudioUnshared(
   }
 
   if (slotCfg.providerId === 'openai_tts' || slotCfg.providerId === 'custom_openai_tts' || slotCfg.providerId === 'groq_tts') {
-    let model = 'tts-1';
-    let voice = slotCfg.customTtsVoice?.trim() || (slotCfg.providerId === 'groq_tts' ? 'troy' : 'alloy');
+    const isGroqOrpheus = slotCfg.providerId === 'groq_tts' || /api\\.groq\\.com/i.test(baseUrl);
+    let model = isGroqOrpheus ? 'canopylabs/orpheus-v1-english' : 'tts-1';
+    let voice = slotCfg.customTtsVoice?.trim() || (isGroqOrpheus ? 'troy' : 'alloy');
 
     if (slotCfg.modelOrVoice.includes(':')) {
       const [modelPart, voicePart] = slotCfg.modelOrVoice.split(':');
@@ -318,7 +319,7 @@ async function synthesizeOnlineNeuralAudioUnshared(
       model = slotCfg.modelOrVoice.trim();
     }
 
-    if (slotCfg.providerId === 'groq_tts') {
+    if (isGroqOrpheus) {
       if (text.length > 200) {
         throw new Error('Groq Orpheus accepts up to 200 characters per request. Use another TTS provider for longer text.');
       }
@@ -344,16 +345,16 @@ async function synthesizeOnlineNeuralAudioUnshared(
           model,
           voice,
           input: text,
-          ...(slotCfg.providerId === 'groq_tts' ? {} : { speed: rate }),
-          response_format: slotCfg.providerId === 'groq_tts' ? 'wav' : 'mp3'
+          ...(isGroqOrpheus ? {} : { speed: rate }),
+          response_format: isGroqOrpheus ? 'wav' : 'mp3'
         },
         responseType: 'blob',
         timeoutMs: 15000
       },
       transport
     );
-    const dataUrl = normalizeAudioDataUrl(res.data, slotCfg.providerId === 'groq_tts' ? 'audio/wav' : 'audio/mpeg');
-    if (!dataUrl) throw new Error(`Empty audio payload from ${slotCfg.providerId === 'groq_tts' ? 'Groq' : slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
+    const dataUrl = normalizeAudioDataUrl(res.data, isGroqOrpheus ? 'audio/wav' : 'audio/mpeg');
+    if (!dataUrl) throw new Error(`Empty audio payload from ${isGroqOrpheus ? 'Groq Orpheus' : slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
     const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
     return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
   }
