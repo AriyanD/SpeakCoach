@@ -18,7 +18,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     providers: [
       {
         id: 'openai_tts',
-        name: 'OpenAI Neural TTS (Tier 1)',
+        name: 'OpenAI-compatible TTS (OpenAI / Groq)',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -31,15 +31,15 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'custom_openai_tts',
-        name: 'Custom (OpenAI-compatible) TTS (Tier 1)',
+        name: 'OpenAI-Compatible TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
-        defaultBaseUrl: 'https://api.openai.com/v1',
-        defaultModelOrVoice: 'tts-1:alloy',
-        modelSuggestions: ['tts-1:alloy', 'tts-1:echo', 'tts-1:fable', 'tts-1:onyx', 'tts-1:nova', 'tts-1:shimmer'],
-        modelFieldLabel: 'Model:Voice or Model Name',
-        baseUrlPlaceholder: 'https://your-custom-tts-gateway.com/v1',
+        defaultBaseUrl: 'https://api.groq.com/openai/v1',
+        defaultModelOrVoice: 'canopylabs/orpheus-v1-english',
+        modelSuggestions: ['canopylabs/orpheus-v1-english', 'canopylabs/orpheus-arabic-saudi'],
+        modelFieldLabel: 'Model name',
+        baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
         description: 'Custom OpenAI-compatible /audio/speech endpoint with free-text model, voice, and selectable auth.'
       },
       {
@@ -56,8 +56,21 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         description: 'Groq Orpheus speech endpoint. Requests WAV output; English and Saudi Arabic model variants are available.'
       },
       {
+        id: 'speechify_tts',
+        name: 'JSON / Base64 Audio TTS',
+        slotId: 'voice_tts',
+        tier: 1,
+        requiresKey: true,
+        defaultBaseUrl: 'https://api.speechify.ai/v1',
+        defaultModelOrVoice: 'simba-3.5',
+        modelSuggestions: ['simba-3.5', 'simba-3.2', 'simba-3.0'],
+        modelFieldLabel: 'Model name (e.g. simba-3.5)',
+        baseUrlPlaceholder: 'https://api.speechify.ai/v1',
+        description: 'JSON request with Base64 audio response and voice catalogue. Speechify is prefilled as the default endpoint; compatible services can use their own Base URL, model and voice.'
+      },
+      {
         id: 'freetts_tts',
-        name: 'FreeTTS REST API (MP3)',
+        name: 'Custom Job & Download TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -70,7 +83,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'azure_tts',
-        name: 'Azure Neural TTS (Tier 1)',
+        name: 'Azure Neural TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -83,7 +96,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'elevenlabs_tts',
-        name: 'ElevenLabs TTS (Tier 1)',
+        name: 'ElevenLabs TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -96,7 +109,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'gemini_tts',
-        name: 'Google Gemini TTS (Tier 1)',
+        name: 'Google Gemini TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -109,7 +122,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'android_native_tts',
-        name: 'Android Native TextToSpeech (Tier 3 Offline)',
+        name: 'Android Native Text-to-Speech (automatic fallback)',
         slotId: 'voice_tts',
         tier: 3,
         requiresKey: false,
@@ -130,7 +143,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     providers: [
       {
         id: 'azure_pronunciation',
-        name: 'Azure Pronunciation Assessment REST (Tier 1)',
+        name: 'Azure Pronunciation Assessment REST',
         slotId: 'pronunciation_scoring',
         tier: 1,
         requiresKey: true,
@@ -143,7 +156,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'whisper_alignment',
-        name: 'Whisper STT + Word Alignment (Tier 2)',
+        name: 'Whisper STT + Word Alignment',
         slotId: 'pronunciation_scoring',
         tier: 2,
         requiresKey: true,
@@ -156,7 +169,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'gemini_pronunciation',
-        name: 'Google Gemini Audio Recognition (Tier 2)',
+        name: 'Google Gemini Audio Recognition',
         slotId: 'pronunciation_scoring',
         tier: 2,
         requiresKey: true,
@@ -169,7 +182,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'custom_openai_pronunciation',
-        name: 'Custom (OpenAI-compatible) STT Alignment (Tier 2)',
+        name: 'Custom (OpenAI-compatible) STT Alignment',
         slotId: 'pronunciation_scoring',
         tier: 2,
         requiresKey: true,
@@ -182,7 +195,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'offline_pronunciation',
-        name: 'On-Device Offline Recognizer + Alignment (Tier 3)',
+        name: 'On-Device Offline Recognizer + Alignment',
         slotId: 'pronunciation_scoring',
         tier: 3,
         requiresKey: false,
@@ -203,7 +216,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     providers: [
       {
         id: 'whisper_stt',
-        name: 'Whisper-Compatible STT (Tier 2)',
+        name: 'Whisper-Compatible STT',
         slotId: 'ielts_stt',
         tier: 2,
         requiresKey: true,
@@ -216,7 +229,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'gemini_stt',
-        name: 'Google Gemini Speech-to-Text (Tier 2)',
+        name: 'Google Gemini Speech-to-Text',
         slotId: 'ielts_stt',
         tier: 2,
         requiresKey: true,
@@ -229,7 +242,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'custom_openai_stt',
-        name: 'Custom (OpenAI-compatible) STT (Tier 2)',
+        name: 'Custom (OpenAI-compatible) STT',
         slotId: 'ielts_stt',
         tier: 2,
         requiresKey: true,
@@ -242,7 +255,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'offline_stt',
-        name: 'On-Device Offline Recognizer (Tier 3)',
+        name: 'On-Device Offline Recognizer',
         slotId: 'ielts_stt',
         tier: 3,
         requiresKey: false,
@@ -263,7 +276,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     providers: [
       {
         id: 'openai_compat_eval',
-        name: 'OpenAI-Compatible LLM (Tier 1)',
+        name: 'OpenAI-Compatible LLM',
         slotId: 'llm_evaluator',
         tier: 1,
         requiresKey: true,
@@ -276,7 +289,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'custom_openai_eval',
-        name: 'Custom (OpenAI-compatible) LLM Evaluator (Tier 1)',
+        name: 'Custom (OpenAI-compatible) LLM Evaluator',
         slotId: 'llm_evaluator',
         tier: 1,
         requiresKey: true,
@@ -289,7 +302,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'gemini_eval',
-        name: 'Google Gemini API (Tier 1)',
+        name: 'Google Gemini API',
         slotId: 'llm_evaluator',
         tier: 1,
         requiresKey: true,
@@ -323,7 +336,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     providers: [
       {
         id: 'openai_compat_gen',
-        name: 'OpenAI-Compatible Generator (Tier 1)',
+        name: 'OpenAI-Compatible Generator',
         slotId: 'llm_generator',
         tier: 1,
         requiresKey: true,
@@ -336,7 +349,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'custom_openai_gen',
-        name: 'Custom (OpenAI-compatible) Generator (Tier 1)',
+        name: 'Custom (OpenAI-compatible) Generator',
         slotId: 'llm_generator',
         tier: 1,
         requiresKey: true,
@@ -349,7 +362,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'gemini_gen',
-        name: 'Google Gemini Generator (Tier 1)',
+        name: 'Google Gemini Generator',
         slotId: 'llm_generator',
         tier: 1,
         requiresKey: true,
@@ -362,7 +375,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'offline_bank_gen',
-        name: 'Offline Shadowing Sentence Library (Tier 3)',
+        name: 'Offline Shadowing Sentence Library',
         slotId: 'llm_generator',
         tier: 3,
         requiresKey: false,
@@ -383,7 +396,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     providers: [
       {
         id: 'openai_compat_translation',
-        name: 'OpenAI-Compatible Translator (Tier 1)',
+        name: 'OpenAI-Compatible Translator',
         slotId: 'llm_translation',
         tier: 1,
         requiresKey: true,
@@ -396,7 +409,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'custom_openai_translation',
-        name: 'Custom (OpenAI-compatible) Translator (Tier 1)',
+        name: 'Custom (OpenAI-compatible) Translator',
         slotId: 'llm_translation',
         tier: 1,
         requiresKey: true,
@@ -409,7 +422,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'gemini_translation',
-        name: 'Google Gemini Translator (Tier 1)',
+        name: 'Google Gemini Translator',
         slotId: 'llm_translation',
         tier: 1,
         requiresKey: true,
@@ -422,7 +435,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'offline_translation',
-        name: 'Translation unavailable offline (Tier 3)',
+        name: 'Translation unavailable offline',
         slotId: 'llm_translation',
         tier: 3,
         requiresKey: false,
@@ -456,7 +469,9 @@ export function getOfflinePreset(slotId: SlotId): ProviderPreset {
 }
 
 export function createDefaultSlotConfig(slotId: SlotId): SlotConfig {
-  const defaultPreset = SLOT_DEFINITIONS[slotId].providers[0];
+  const defaultPreset = slotId === 'voice_tts'
+    ? getPreset('voice_tts', 'gemini_tts')
+    : SLOT_DEFINITIONS[slotId].providers[0];
   return {
     slotId,
     providerId: defaultPreset.id,

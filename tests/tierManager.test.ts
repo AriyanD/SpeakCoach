@@ -57,8 +57,8 @@ describe('HTTP Client & 3-Tier Auto-Fallback Framework', () => {
 
   it('upgrades to "Online AI" when a valid key is saved and network is online', async () => {
     await saveApiKey('voice_tts', 'openai_tts', 'sk-live-key');
-    const slotConfig = createDefaultSlotConfig('voice_tts');
     await markSlotVerified('voice_tts', 'openai_tts');
+    const slotConfig = await loadAllSlotsConfig().then(configs => configs.voice_tts);
 
     const resolved = await resolveSlotTier(slotConfig, { isOnline: true });
     expect(resolved.tier).toBe(1);
@@ -226,7 +226,9 @@ describe('HTTP Client & 3-Tier Auto-Fallback Framework', () => {
     // Missing baseUrl
     const noBaseUrlCfg = {
       ...createDefaultSlotConfig('voice_tts'),
-      baseUrl: ''
+      providerId: 'openai_tts',
+      baseUrl: '',
+      modelOrVoice: 'tts-1:alloy'
     };
     const resolvedNoBaseUrl = await resolveSlotTier(noBaseUrlCfg, { isOnline: true });
     expect(resolvedNoBaseUrl.tier).toBe(3);
@@ -236,6 +238,8 @@ describe('HTTP Client & 3-Tier Auto-Fallback Framework', () => {
     // Missing model
     const noModelCfg = {
       ...createDefaultSlotConfig('voice_tts'),
+      providerId: 'openai_tts',
+      baseUrl: 'https://api.openai.com/v1',
       modelOrVoice: '   '
     };
     const resolvedNoModel = await resolveSlotTier(noModelCfg, { isOnline: true });

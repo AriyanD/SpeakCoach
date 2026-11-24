@@ -26,6 +26,19 @@ describe('Provider Slots Configuration & Storage', () => {
     }
   });
 
+  it('uses Gemini as the default TTS provider while keeping Android Native hidden as a fallback preset', () => {
+    const defaults = createDefaultAllSlotsConfig();
+    expect(defaults.voice_tts.providerId).toBe('gemini_tts');
+    expect(getPreset('voice_tts', 'android_native_tts').tier).toBe(3);
+    expect(getPreset('voice_tts', 'gemini_tts').tier).toBe(1);
+  });
+
+  it('prefills the Speechify endpoint for JSON / Base64 TTS while allowing custom endpoints', () => {
+    const speechify = getPreset('voice_tts', 'speechify_tts');
+    expect(speechify.defaultBaseUrl).toBe('https://api.speechify.ai/v1');
+    expect(speechify.baseUrlPlaceholder).toBe('https://api.speechify.ai/v1');
+  });
+
   it('offers Groq WAV TTS and FreeTTS REST TTS without a model selector', () => {
     const groq = getPreset('voice_tts', 'groq_tts');
     const free = getPreset('voice_tts', 'freetts_tts');

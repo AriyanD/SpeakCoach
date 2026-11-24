@@ -273,10 +273,32 @@ async function synthesizeOnlineNeuralAudioUnshared(
     ? normalizedBaseUrl.replace(/\/api(?:\/v1)?$/i, '')
     : normalizedBaseUrl;
 
+  if (slotCfg.providerId === 'speechify_tts') {
+    const model = slotCfg.modelOrVoice.trim() || 'simba-3.5';
+    const voiceId = slotCfg.customTtsVoice?.trim() || 'sabrina';
+    const response = await nativeHttpRequest<{ audio_data?: string; audio_format?: string } | string>(
+      {
+        url: `${baseUrl}/audio/speech`,
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey.trim()}`, 'Content-Type': 'application/json' },
+        data: { input: text, model, voice_id: voiceId, audio_format: 'mp3', language: locale },
+        responseType: 'json',
+        timeoutMs: requestTimeoutMs
+      },
+      transport
+    );
+    const payload = typeof response.data === 'string' ? JSON.parse(response.data) as { audio_data?: string; audio_format?: string } : response.data;
+    if (!payload?.audio_data) throw new Error('The JSON/Base64 TTS provider returned no audio_data. Check the API key, voice ID and model.');
+    const mime = payload.audio_format === 'wav' ? 'audio/wav' : payload.audio_format === 'ogg' ? 'audio/ogg' : payload.audio_format === 'aac' ? 'audio/aac' : 'audio/mpeg';
+    const dataUrl = normalizeAudioDataUrl(payload.audio_data, mime);
+    const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
+    return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
+  }
+
   if (slotCfg.providerId === 'freetts_tts') {
     const voice = slotCfg.customTtsVoice?.trim() || 'en-US-JennyNeural';
     const ratePercent = Math.max(-50, Math.min(100, Math.round((rate - 1) * 100)));
-    const create = await nativeHttpRequest<{ file_id?: string } | string>(
+    const create = await nativeHttpRequest<{ file_id?: string; audio_url?: string } | string>(
       {
         url: `${baseUrl}/api/v1/tts`,
         method: 'POST',
@@ -287,12 +309,19 @@ async function synthesizeOnlineNeuralAudioUnshared(
       },
       transport
     );
-    const payload = typeof create.data === 'string' ? JSON.parse(create.data) as { file_id?: string } : create.data;
+    const payload = typeof create.data === 'string' ? JSON.parse(create.data) as { file_id?: string; audio_url?: string } : create.data;
     const fileId = typeof payload?.file_id === 'string' ? payload.file_id.trim() : '';
-    if (!fileId) throw new Error('FreeTTS did not return a file_id. Check the API key and REST response.');
+    const suppliedAudioUrl = typeof payload?.audio_url === 'string' ? payload.audio_url.trim() : '';
+    if (!fileId && !suppliedAudioUrl) throw new Error('FreeTTS returned neither file_id nor audio_url. Check the API key and REST response.');
+    const downloadUrl = suppliedAudioUrl
+      ? new URL(suppliedAudioUrl, baseUrl).toString()
+      : `${baseUrl}/api/audio/${encodeURIComponent(fileId)}`;
+    if (new URL(downloadUrl).origin !== new URL(baseUrl).origin) {
+      throw new Error('FreeTTS returned an audio URL on a different host. The download was blocked for security.');
+    }
     const audio = await nativeHttpRequest<string>(
       {
-        url: `${baseUrl}/api/audio/${encodeURIComponent(fileId)}`,
+        url: downloadUrl,
         method: 'GET',
         headers: { Accept: 'audio/mpeg' },
         responseType: 'blob',
@@ -301,24 +330,37 @@ async function synthesizeOnlineNeuralAudioUnshared(
       transport
     );
     const dataUrl = normalizeAudioDataUrl(audio.data, 'audio/mpeg');
-    if (!dataUrl) throw new Error('FreeTTS returned an empty MP3 download.');
+    const encodedAudio = dataUrl.split(',')[1] ?? '';
+    let mp3Header = '';
+    try { mp3Header = typeof atob === 'function' ? atob(encodedAudio).slice(0, 3) : ''; } catch { mp3Header = ''; }
+    const isMp3 = mp3Header === 'ID3' || (() => {
+      try {
+        const bytes = atob(encodedAudio);
+        return bytes.length > 2 && bytes.charCodeAt(0) === 0xff && (bytes.charCodeAt(1) & 0xe0) === 0xe0;
+      } catch { return false; }
+    })();
+    if (!dataUrl || encodedAudio.length < 160 || !isMp3) {
+      throw new Error('FreeTTS did not return a playable MP3 file. The API may have returned an error page or a non-audio response.');
+    }
     const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
     return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
   }
 
   if (slotCfg.providerId === 'openai_tts' || slotCfg.providerId === 'custom_openai_tts' || slotCfg.providerId === 'groq_tts') {
-    let model = 'tts-1';
-    let voice = slotCfg.customTtsVoice?.trim() || (slotCfg.providerId === 'groq_tts' ? 'troy' : 'alloy');
+    const isGroqOrpheus = slotCfg.providerId === 'groq_tts' || /api\.groq\.com/i.test(baseUrl);
+    let model = isGroqOrpheus ? 'canopylabs/orpheus-v1-english' : 'tts-1';
+    let voice = slotCfg.customTtsVoice?.trim() || (isGroqOrpheus ? 'troy' : 'alloy');
 
     if (slotCfg.modelOrVoice.includes(':')) {
       const [modelPart, voicePart] = slotCfg.modelOrVoice.split(':');
-      model = modelPart?.trim() || 'tts-1';
-      voice = slotCfg.customTtsVoice?.trim() || voicePart?.trim() || 'alloy';
+      model = modelPart?.trim() || (isGroqOrpheus ? 'canopylabs/orpheus-v1-english' : 'tts-1');
+      voice = slotCfg.customTtsVoice?.trim() || voicePart?.trim() || (isGroqOrpheus ? 'troy' : 'alloy');
     } else if (slotCfg.modelOrVoice.trim()) {
       model = slotCfg.modelOrVoice.trim();
     }
 
-    if (slotCfg.providerId === 'groq_tts') {
+    if (isGroqOrpheus) {
+      if (!model.startsWith('canopylabs/orpheus-')) model = 'canopylabs/orpheus-v1-english';
       if (text.length > 200) {
         throw new Error('Groq Orpheus accepts up to 200 characters per request. Use another TTS provider for longer text.');
       }
@@ -344,16 +386,16 @@ async function synthesizeOnlineNeuralAudioUnshared(
           model,
           voice,
           input: text,
-          ...(slotCfg.providerId === 'groq_tts' ? {} : { speed: rate }),
-          response_format: slotCfg.providerId === 'groq_tts' ? 'wav' : 'mp3'
+          ...(isGroqOrpheus ? {} : { speed: rate }),
+          response_format: isGroqOrpheus ? 'wav' : 'mp3'
         },
         responseType: 'blob',
         timeoutMs: 15000
       },
       transport
     );
-    const dataUrl = normalizeAudioDataUrl(res.data, slotCfg.providerId === 'groq_tts' ? 'audio/wav' : 'audio/mpeg');
-    if (!dataUrl) throw new Error(`Empty audio payload from ${slotCfg.providerId === 'groq_tts' ? 'Groq' : slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
+    const dataUrl = normalizeAudioDataUrl(res.data, isGroqOrpheus ? 'audio/wav' : 'audio/mpeg');
+    if (!dataUrl) throw new Error(`Empty audio payload from ${isGroqOrpheus ? 'Groq Orpheus' : slotCfg.providerId === 'custom_openai_tts' ? 'Custom OpenAI' : 'OpenAI'} TTS`);
     const persistedToActiveSet = await storeGeneratedAudio(hash, dataUrl, memoryOnly, cacheGeneration, cacheEnabled, setAudio);
     return { dataUrl, fromCache: false, cacheHash: hash, persistedToActiveSet: setAudio ? persistedToActiveSet : undefined };
   }

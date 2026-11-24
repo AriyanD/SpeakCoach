@@ -554,6 +554,6 @@ describe('Gemini TTS Adapter & PCM-to-WAV Conversion (Task F6)', () => {
     );
 
     expect(testRes.ok).toBe(true);
-    expect(testRes.message).toMatch(/^PASS — Google Gemini TTS \(Tier 1\) test passed \(/);
+    expect(testRes.message).toMatch(/^PASS — Google Gemini TTS test passed \(/);
   });
 });

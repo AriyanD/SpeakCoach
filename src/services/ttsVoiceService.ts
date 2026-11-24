@@ -49,6 +49,7 @@ function parseJsonPayload(payload: unknown): any {
 
 export function getBuiltInTtsVoices(providerId: string): TtsVoiceOption[] {
   if (providerId === 'gemini_tts') return asOptions(GEMINI_PREBUILT_VOICES);
+  if (providerId === 'speechify_tts') return asOptions([]);
   if (providerId === 'openai_tts') return asOptions(OPENAI_PREBUILT_VOICES);
   if (providerId === 'custom_openai_tts') return asOptions(OPENAI_PREBUILT_VOICES);
   if (providerId === 'azure_tts') return asOptions(AZURE_COMMON_VOICES);
@@ -66,7 +67,7 @@ export async function fetchAvailableTtsVoices(
 
   // Gemini and OpenAI expose fixed prebuilt voice sets rather than a voice-list
   // endpoint. Keep these catalogues local and do not make a paid API call.
-  if (providerId === 'gemini_tts' || providerId === 'openai_tts' || providerId === 'custom_openai_tts') {
+  if (providerId === 'gemini_tts' || (providerId === 'openai_tts' && !/api\.groq\.com/i.test(normalizeBaseUrl(config.baseUrl))) || (providerId === 'custom_openai_tts' && !/api\.groq\.com/i.test(normalizeBaseUrl(config.baseUrl)))) {
     const voices = getBuiltInTtsVoices(providerId);
     const isCustom = providerId === 'custom_openai_tts' && normalizeBaseUrl(config.baseUrl) !== 'https://api.openai.com/v1';
     return {
@@ -78,11 +79,11 @@ export async function fetchAvailableTtsVoices(
     };
   }
 
-  if (providerId === 'groq_tts') {
-    return { voices: getBuiltInTtsVoices(providerId), source: 'built-in', message: 'Groq Orpheus voice catalogue loaded.' };
+  if (providerId === 'groq_tts' || ((providerId === 'openai_tts' || providerId === 'custom_openai_tts') && /api\.groq\.com/i.test(normalizeBaseUrl(config.baseUrl)))) {
+    return { voices: getBuiltInTtsVoices('groq_tts'), source: 'built-in', message: 'Groq Orpheus voice catalogue loaded.' };
   }
 
-  if (providerId !== 'azure_tts' && providerId !== 'elevenlabs_tts' && providerId !== 'freetts_tts') {
+  if (providerId !== 'azure_tts' && providerId !== 'elevenlabs_tts' && providerId !== 'freetts_tts' && providerId !== 'speechify_tts') {
     return {
       voices: getBuiltInTtsVoices(providerId),
       source: 'built-in',
@@ -92,6 +93,7 @@ export async function fetchAvailableTtsVoices(
 
   const isAzure = providerId === 'azure_tts';
   const isFreeTts = providerId === 'freetts_tts';
+  const isSpeechify = providerId === 'speechify_tts';
   const configuredBaseUrl = normalizeBaseUrl(config.baseUrl);
   const baseUrl = isFreeTts ? configuredBaseUrl.replace(/\/api(?:\/v1)?$/i, '') : configuredBaseUrl;
   if (!/^https?:\/\//i.test(baseUrl)) throw new Error('Base URL must start with http:// or https://.');
@@ -102,7 +104,7 @@ export async function fetchAvailableTtsVoices(
     : isFreeTts ? `${baseUrl}/api/voices` : `${baseUrl}/voices`;
   const headers: Record<string, string> = isAzure
     ? { 'Ocp-Apim-Subscription-Key': apiKey.trim() }
-    : isFreeTts ? {} : { 'xi-api-key': apiKey.trim() };
+    : isFreeTts ? {} : isSpeechify ? { Authorization: `Bearer ${apiKey.trim()}` } : { 'xi-api-key': apiKey.trim() };
 
   const response = await nativeHttpRequest<unknown>({
     url,
@@ -121,6 +123,10 @@ export async function fetchAvailableTtsVoices(
         value: voice.ShortName.trim(),
         label: [voice.DisplayName, voice.Locale, voice.Gender].filter(Boolean).join(' · ') || voice.ShortName.trim()
       }));
+  } else if (isSpeechify && Array.isArray(payload?.voices)) {
+    voices = payload.voices
+      .filter((voice: any) => typeof (voice?.id ?? voice?.voice_id) === 'string' && String(voice.id ?? voice.voice_id).trim())
+      .map((voice: any) => ({ value: String(voice.id ?? voice.voice_id).trim(), label: [voice.display_name ?? voice.name, voice.locale].filter(Boolean).join(' · ') || String(voice.id ?? voice.voice_id).trim() }));
   } else if (isFreeTts && (Array.isArray(payload) || Array.isArray(payload?.voices))) {
     const entries = Array.isArray(payload) ? payload : payload.voices;
     voices = entries
