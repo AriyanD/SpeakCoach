@@ -224,7 +224,10 @@ export async function renderSettingsView(
     const mismatchInfo = detectProviderUrlMismatch(slotCfg);
     const secondaryMismatchInfo = secondaryPreset ? detectProviderUrlMismatch({ slotId, providerId: secondaryPreset.id, baseUrl: slotCfg.secondary?.baseUrl || secondaryPreset.defaultBaseUrl, endpointPathOverride: slotCfg.secondary?.endpointPathOverride }) : { mismatch: false, reason: undefined as string | undefined };
 
-    const optionsHtml = def.providers
+    const visibleProviders = slotId === 'voice_tts'
+      ? def.providers.filter((provider) => provider.id !== 'android_native_tts' && provider.id !== 'groq_tts')
+      : def.providers;
+    const optionsHtml = visibleProviders
       .map(
         (p) =>
           `<option value="${escapeHtml(p.id)}" ${p.id === preset.id ? 'selected' : ''} ${(slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3 ? 'disabled' : ''}>${escapeHtml(
@@ -2177,9 +2180,19 @@ export async function renderSettingsView(
     // configuration remains unchanged until Save Slot is pressed.
     [baseUrlInput, keyInput, modelInput, customHeaderInput, customQueryInput, endpointPathInput, customVoiceInput].forEach((field) => {
       field?.addEventListener('input', () => {
+        if (field === baseUrlInput || field === modelInput) {
+          if (voicesList) { voicesList.innerHTML = ''; voicesList.hidden = true; }
+          if (fetchVoicesMsg) { fetchVoicesMsg.hidden = true; fetchVoicesMsg.textContent = 'Provider/model changed. Load voices again.'; }
+          if (customVoiceInput) customVoiceInput.value = '';
+        }
         markSlotNotVerified('Unsaved changes. Save this slot, then pass the connection test to activate Online AI.');
       });
     });
+    [secondaryBaseUrlInput, secondaryModelInput].forEach((field) => field?.addEventListener('input', () => {
+      if (secondaryVoicesList) { secondaryVoicesList.innerHTML = ''; secondaryVoicesList.hidden = true; }
+      if (fetchSecondaryVoicesMsg) { fetchSecondaryVoicesMsg.hidden = true; fetchSecondaryVoicesMsg.textContent = 'Provider/model changed. Load voices again.'; }
+      if (secondaryCustomVoiceInput) secondaryCustomVoiceInput.value = '';
+    }));
     const secondaryCustomHeaderContainer = container.querySelector<HTMLElement>(`#secondary-custom-header-container-${slotId}`);
     const secondaryCustomQueryContainer = container.querySelector<HTMLElement>(`#secondary-custom-query-container-${slotId}`);
     secondaryAuthSelect?.addEventListener('change', () => {
@@ -2572,6 +2585,9 @@ export async function renderSettingsView(
       if (advancedAuthDetails) advancedAuthDetails.style.display = isCustomNext ? '' : 'none';
       if (customEndpointContainer) customEndpointContainer.style.display = isCustomNext ? '' : 'none';
       if (customVoiceContainer) customVoiceContainer.style.display = showVoiceForNext ? '' : 'none';
+      if (voicesList) { voicesList.innerHTML = ''; voicesList.hidden = true; }
+      if (fetchVoicesMsg) { fetchVoicesMsg.hidden = true; fetchVoicesMsg.textContent = ''; }
+      if (customVoiceInput) customVoiceInput.value = '';
 
       // Update datalist suggestions
       const nextSuggestions = nextPreset.modelSuggestions || [nextPreset.defaultModelOrVoice];
@@ -2580,6 +2596,9 @@ export async function renderSettingsView(
       if (baseUrlInput) baseUrlInput.value = nextPreset.defaultBaseUrl;
       updateBaseUrlPreview(nextPreset.defaultBaseUrl);
       if (modelInput) modelInput.value = nextPreset.defaultModelOrVoice;
+      if (voicesList) { voicesList.innerHTML = ''; voicesList.hidden = true; }
+      if (fetchVoicesMsg) { fetchVoicesMsg.hidden = true; fetchVoicesMsg.textContent = ''; }
+      if (customVoiceInput) customVoiceInput.value = '';
       if (keyInput) {
         const storedKey = await readKeyForSettings(slotId, nextPreset.id);
         keyInput.value = '';
