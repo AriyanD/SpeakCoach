@@ -78,7 +78,7 @@ export async function fetchAvailableTtsVoices(
     };
   }
 
-  if (providerId === 'groq_tts' || (providerId === 'openai_tts' && /api\\.groq\\.com/i.test(normalizeBaseUrl(config.baseUrl)))) {
+  if (providerId === 'groq_tts' || (providerId === 'openai_tts' && /api\.groq\.com/i.test(normalizeBaseUrl(config.baseUrl)))) {
     return { voices: getBuiltInTtsVoices('groq_tts'), source: 'built-in', message: 'Groq Orpheus voice catalogue loaded.' };
   }
 
