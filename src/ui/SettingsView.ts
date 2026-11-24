@@ -1811,6 +1811,10 @@ export async function renderSettingsView(
       if (voiceContainer) voiceContainer.style.display = selected.id === 'android_native_tts' ? 'none' : '';
       const fetchVoices = container.querySelector<HTMLButtonElement>(`#fetch-voices-btn-${slotId}`);
       if (fetchVoices) fetchVoices.style.display = '';
+      const voiceList = container.querySelector<HTMLElement>(`#voices-list-${slotId}`);
+      const voiceMessage = container.querySelector<HTMLElement>(`#fetch-voices-msg-${slotId}`);
+      if (voiceList) { voiceList.innerHTML = ''; voiceList.hidden = true; }
+      if (voiceMessage) { voiceMessage.hidden = true; voiceMessage.textContent = 'Provider changed. Load voices again.'; }
       const voiceInput = container.querySelector<HTMLInputElement>(`#custom-voice-${slotId}`);
       if (voiceInput) {
         voiceInput.value = '';
@@ -2042,7 +2046,14 @@ export async function renderSettingsView(
         message.className = 'settings-fetch-models-message';
         message.textContent = 'Loading voices…';
         try {
-          const result = await fetchAvailableTtsVoices(buildConfig(), await getKey());
+          const requestedConfig = buildConfig();
+          const requestedKey = await getKey();
+          const result = await fetchAvailableTtsVoices(requestedConfig, requestedKey);
+          const currentConfig = buildConfig();
+          const requestStillMatches = requestedConfig.providerId === currentConfig.providerId &&
+            requestedConfig.baseUrl === currentConfig.baseUrl &&
+            requestedConfig.modelOrVoice === currentConfig.modelOrVoice;
+          if (!requestStillMatches) return;
           list.innerHTML = result.voices.map((voice) =>
             `<button type="button" class="model-option" data-tts-voice="${escapeHtml(voice.value)}">${escapeHtml(voice.label)}</button>`
           ).join('');
