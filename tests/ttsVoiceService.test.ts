@@ -37,7 +37,7 @@ describe('TTS voice discovery', () => {
   it('loads Speechify voice IDs from GET /v1/voices using Bearer auth', async () => {
     const transport = vi.fn(async (options: any) => ({
       url: options.url, status: 200, headers: {},
-      data: { voices: [{ id: 'geffen_32', name: 'Geffen', locale: 'en-US' }] }
+      data: { voices: [{ id: 'geffen_32', display_name: 'Geffen', locale: 'en-US' }] }
     }));
     const result = await fetchAvailableTtsVoices({
       slotId: 'voice_tts', providerId: 'speechify_tts',
