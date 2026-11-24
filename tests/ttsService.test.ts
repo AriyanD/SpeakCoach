@@ -148,7 +148,7 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     }, 'freetts-key', 1, async (options: any) => {
       requests.push(options);
       if (options.method === 'POST') {
-        return { url: options.url, status: 200, headers: {}, data: {
+        return { url: options.url, status: 200, headers: { 'content-type': 'application/json' }, data: {
           file_id: 'file-123', audio_url: 'https://freetts.org/api/audio/file-123'
         } };
       }
