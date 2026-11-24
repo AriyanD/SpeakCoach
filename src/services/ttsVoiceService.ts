@@ -67,7 +67,7 @@ export async function fetchAvailableTtsVoices(
 
   // Gemini and OpenAI expose fixed prebuilt voice sets rather than a voice-list
   // endpoint. Keep these catalogues local and do not make a paid API call.
-  if (providerId === 'gemini_tts' || (providerId === 'openai_tts' && !/api\.groq\.com/i.test(normalizeBaseUrl(config.baseUrl))) || providerId === 'custom_openai_tts') {
+  if (providerId === 'gemini_tts' || (providerId === 'openai_tts' && !/api\.groq\.com/i.test(normalizeBaseUrl(config.baseUrl))) || (providerId === 'custom_openai_tts' && !/api\.groq\.com/i.test(normalizeBaseUrl(config.baseUrl)))) {
     const voices = getBuiltInTtsVoices(providerId);
     const isCustom = providerId === 'custom_openai_tts' && normalizeBaseUrl(config.baseUrl) !== 'https://api.openai.com/v1';
     return {
@@ -79,7 +79,7 @@ export async function fetchAvailableTtsVoices(
     };
   }
 
-  if (providerId === 'groq_tts' || (providerId === 'openai_tts' && /api\.groq\.com/i.test(normalizeBaseUrl(config.baseUrl)))) {
+  if (providerId === 'groq_tts' || ((providerId === 'openai_tts' || providerId === 'custom_openai_tts') && /api\.groq\.com/i.test(normalizeBaseUrl(config.baseUrl)))) {
     return { voices: getBuiltInTtsVoices('groq_tts'), source: 'built-in', message: 'Groq Orpheus voice catalogue loaded.' };
   }
 
