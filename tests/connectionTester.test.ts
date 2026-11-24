@@ -697,6 +697,30 @@ describe('Functional Deep Connection Tester', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('tests OpenAI-compatible API 1 configured with Groq using the playback WAV format', async () => {
+    const result = await testSlotConnection({
+      slotId: 'voice_tts',
+      providerId: 'custom_openai_tts',
+      baseUrl: 'https://api.groq.com/openai/v1',
+      modelOrVoice: 'canopylabs/orpheus-v1-english',
+      customTtsVoice: 'hannah'
+    }, {
+      apiKeyOverride: 'groq-custom-tts-key',
+      transport: async opts => {
+        expect(opts.url).toBe('https://api.groq.com/openai/v1/audio/speech');
+        expect(opts.headers?.Authorization).toBe('Bearer groq-custom-tts-key');
+        expect(opts.data).toMatchObject({
+          model: 'canopylabs/orpheus-v1-english',
+          voice: 'hannah',
+          input: 'Hello from SpeakCoach.',
+          response_format: 'wav'
+        });
+        return { url: opts.url, status: 200, headers: {}, data: 'UklGRiQAAABX' };
+      }
+    });
+    expect(result.ok).toBe(true);
+  });
+
   it('tests FreeTTS through its create-and-download API flow', async () => {
     let calls = 0;
     const result = await testSlotConnection({
