@@ -2358,12 +2358,35 @@ export async function renderSettingsView(
       }
     };
 
+    const clearVoiceSelectionForEndpointChange = (
+      input: HTMLInputElement | null,
+      list: HTMLElement | null,
+      message: HTMLElement | null,
+      voiceInput: HTMLInputElement | null,
+      label: string
+    ): void => {
+      if (list) { list.innerHTML = ''; list.hidden = true; }
+      if (voiceInput) voiceInput.value = '';
+      if (message) {
+        message.hidden = false;
+        message.className = 'settings-fetch-models-message';
+        message.textContent = `${label} changed. Previous voice selection was cleared; load voices again.`;
+      }
+    };
     baseUrlInput?.addEventListener('input', () => {
       updateBaseUrlPreview(baseUrlInput.value.trim() || getPreset(slotId, providerSelect?.value ?? configs[slotId].providerId).defaultBaseUrl);
       updateMismatchWarning();
+      if (slotId === 'voice_tts') clearVoiceSelectionForEndpointChange(
+        baseUrlInput, voicesList, fetchVoicesMsg, customVoiceInput, 'Base URL'
+      );
     });
     endpointPathInput?.addEventListener('input', updateMismatchWarning);
-    secondaryBaseUrlInput?.addEventListener('input', updateSecondaryMismatchWarning);
+    secondaryBaseUrlInput?.addEventListener('input', () => {
+      updateSecondaryMismatchWarning();
+      if (slotId === 'voice_tts') clearVoiceSelectionForEndpointChange(
+        secondaryBaseUrlInput, secondaryVoicesList, fetchSecondaryVoicesMsg, secondaryCustomVoiceInput, 'API 2 Base URL'
+      );
+    });
     secondaryEndpointInput?.addEventListener('input', updateSecondaryMismatchWarning);
 
     // One-click "Switch to Custom (OpenAI-compatible)" preserving current Base URL, model, and API key
