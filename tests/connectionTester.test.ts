@@ -716,7 +716,7 @@ describe('Functional Deep Connection Tester', () => {
         }
         expect(opts.url).toBe('https://freetts.org/api/audio/file-123');
         expect(opts.method).toBe('GET');
-        return { url: opts.url, status: 200, headers: {}, data: 'SUQzBAAAAAAA' };
+        return { url: opts.url, status: 200, headers: {}, data: 'SUQz' + 'A'.repeat(200) };
       }
     });
     expect(calls).toBe(2);
