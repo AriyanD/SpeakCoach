@@ -122,6 +122,22 @@ describe('Voice TTS Service (Online Neural Caching + Offline Native Fallback)', 
     }
   });
 
+  it('synthesizes Speechify JSON/Base64 audio with its native request schema', async () => {
+    let request: any;
+    const result = await synthesizeOnlineNeuralAudio('Hello from SpeakCoach.', {
+      slotId: 'voice_tts', providerId: 'speechify_tts',
+      baseUrl: 'https://api.speechify.ai/v1', modelOrVoice: 'simba-3.5',
+      customTtsVoice: 'geffen_32'
+    }, 'speechify-key', 1, async (options: any) => {
+      request = options;
+      return { url: options.url, status: 200, headers: {}, data: { audio_data: 'UklGRg==', audio_format: 'wav' } };
+    });
+    expect(request.url).toBe('https://api.speechify.ai/v1/audio/speech');
+    expect(request.headers.Authorization).toBe('Bearer speechify-key');
+    expect(request.data).toEqual({ input: 'Hello from SpeakCoach.', model: 'simba-3.5', voice_id: 'geffen_32', audio_format: 'mp3', language: 'en-US' });
+    expect(result.dataUrl).toBe('data:audio/wav;base64,UklGRg==');
+  });
+
   it('uses the selected custom voice in the request and keeps different voices out of the same cache entry', async () => {
     const requests: any[] = [];
     const transport = async (opts: any) => {
