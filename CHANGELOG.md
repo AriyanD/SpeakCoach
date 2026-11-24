@@ -38,6 +38,11 @@ Notable user-facing changes are recorded here. Release tags and version numbers 
 - README and technical notes describe multilingual Shadowing and the bilingual English/Persian interface accurately.
 - Release/version history wording distinguishes the initial 1.0.0 release from the later 1.0.x releases.
 
+## 1.1.4 — 2026-11-24
+
+### Fixed
+- Fixed Groq OpenAI-compatible TTS connection tests to use the WAV response format required by Orpheus, matching playback behavior.
+
 ## Unreleased
 
 _Nothing yet._
