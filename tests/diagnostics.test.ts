@@ -20,9 +20,9 @@ describe('Diagnostics Service & UI', () => {
   });
 
   it('produces a full diagnostics report with active tier per slot and app version', async () => {
-    await saveApiKey('voice_tts', 'openai_tts', 'sk-diag-test');
+    await saveApiKey('voice_tts', 'gemini_tts', 'gemini-diag-test');
     await saveSlotConnectionTestResult('voice_tts', {
-      ok: true, slotId: 'voice_tts', providerId: 'openai_tts', tier: 1,
+      ok: true, slotId: 'voice_tts', providerId: 'gemini_tts', tier: 1,
       label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
     });
     const report = await runFullDiagnostics({ appVersion: '0.2.0-stage1' });
