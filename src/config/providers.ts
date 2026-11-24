@@ -64,7 +64,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         defaultBaseUrl: 'https://api.speechify.ai/v1',
         defaultModelOrVoice: 'simba-3.5',
         modelSuggestions: ['simba-3.5', 'simba-3.2', 'simba-3.0'],
-        modelFieldLabel: 'Speechify model',
+        modelFieldLabel: 'Model name (e.g. simba-3.5)',
         baseUrlPlaceholder: 'https://api.speechify.ai/v1',
         description: 'JSON request with Base64 audio response and voice catalogue. Suggested endpoint is an example; compatible services can use their own Base URL, model and voice.'
       },
