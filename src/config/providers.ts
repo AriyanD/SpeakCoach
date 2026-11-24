@@ -18,7 +18,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     providers: [
       {
         id: 'openai_tts',
-        name: 'OpenAI Neural TTS (Tier 1)',
+        name: 'OpenAI-compatible TTS (OpenAI / Groq)',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -31,7 +31,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'custom_openai_tts',
-        name: 'Custom (OpenAI-compatible) TTS (Tier 1)',
+        name: 'Custom OpenAI-compatible TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -57,7 +57,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'freetts_tts',
-        name: 'FreeTTS REST API (MP3)',
+        name: 'Custom Job & Download TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -70,7 +70,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'azure_tts',
-        name: 'Azure Neural TTS (Tier 1)',
+        name: 'Azure Neural TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -83,7 +83,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'elevenlabs_tts',
-        name: 'ElevenLabs TTS (Tier 1)',
+        name: 'ElevenLabs TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
@@ -96,7 +96,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
       },
       {
         id: 'gemini_tts',
-        name: 'Google Gemini TTS (Tier 1)',
+        name: 'Google Gemini TTS',
         slotId: 'voice_tts',
         tier: 1,
         requiresKey: true,
