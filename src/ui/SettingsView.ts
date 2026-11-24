@@ -524,7 +524,9 @@ export async function renderSettingsView(
                 <button type="button" class="btn btn-secondary settings-switch-custom-btn" id="secondary-switch-custom-btn-${slotId}">Switch to Custom (OpenAI-compatible)</button>
               </div></div>
             <div class="form-field"><label class="form-label" for="secondary-key-${slotId}">API Key (${secondaryPreset?.requiresKey === false ? 'Offline — no key needed' : keyStorageLabel})</label>
-              <input type="password" class="form-input" id="secondary-key-${slotId}" value="" autocomplete="off" placeholder="${secondaryPreset?.requiresKey === false ? 'No API key needed' : secondaryKeysBySlot[slotId] ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.' : 'Enter second API key'}" ${secondaryPreset?.requiresKey === false ? 'disabled' : ''} /></div>
+              <input type="password" class="form-input" id="secondary-key-${slotId}" value="" autocomplete="off" placeholder="${secondaryPreset?.requiresKey === false ? 'No API key needed' : secondaryKeysBySlot[slotId] ? 'API 2 key is stored securely. Leave blank to keep it, or type a replacement.' : 'Enter second API key'}" ${secondaryPreset?.requiresKey === false ? 'disabled' : ''} />
+              ${secondaryPreset?.requiresKey !== false && secondaryCopyKeyOptionsHtml ? copyBlock : ''}
+            </div>
             <div class="form-field" id="secondary-model-field-${slotId}" style="${secondaryPreset?.id === 'freetts_tts' ? 'display:none;' : ''}">
               <div class="settings-field-heading">
                 <label class="form-label" for="secondary-model-${slotId}">${escapeHtml(secondaryPreset?.modelFieldLabel ?? "Model / voice")}</label>
@@ -546,14 +548,7 @@ export async function renderSettingsView(
               </div>
             </div>` : ''}
 
-            ${secondaryCopyKeyOptionsHtml ? `
-            <div class="settings-copy-key-field">
-              <select class="form-select provider-native-select" id="secondary-copy-key-source-${slotId}" aria-hidden="true" tabindex="-1">${secondaryCopyKeyOptionsHtml}</select>
-              <div class="provider-picker copy-key-provider-picker" id="secondary-copy-key-picker-${slotId}">
-                <button type="button" class="provider-picker-trigger" id="secondary-copy-key-trigger-${slotId}" aria-expanded="false"><span>Or copy API key from another slot…</span><span class="provider-picker-chevron">⌄</span></button>
-                <div class="provider-picker-options" id="secondary-copy-key-options-${slotId}" hidden>${secondaryCopyKeyPickerOptionsHtml}</div>
-              </div>
-            </div>` : ''}
+
             <details class="advanced-provider-settings" id="secondary-custom-auth-container-${slotId}" style="${secondaryIsCustom ? '' : 'display:none;'}">
               <summary>Advanced authentication & endpoint</summary>
               <div class="advanced-provider-fields">
