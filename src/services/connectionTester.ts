@@ -571,7 +571,7 @@ export async function testSlotConnection(
 
       if (preset.id === 'groq_tts' || preset.id === 'freetts_tts' || preset.id === 'speechify_tts' || preset.id === 'gemini_tts' || (preset.id === 'openai_tts' && /api\.groq\.com/i.test(baseUrl))) {
         // Provider-specific adapters are shared with Preview/playback:
-        // Groq requires WAV; FreeTTS uses job/download; Speechify returns JSON/Base64.
+        // Groq requires WAV; FreeTTS uses job/download; JSON/Base64 mode returns encoded audio.
         const synthRes = await synthesizeOnlineNeuralAudio(
           testPhrase,
           slotConfig,
