@@ -126,7 +126,7 @@ export async function fetchAvailableTtsVoices(
   } else if (isSpeechify && Array.isArray(payload?.voices)) {
     voices = payload.voices
       .filter((voice: any) => typeof (voice?.id ?? voice?.voice_id) === 'string' && String(voice.id ?? voice.voice_id).trim())
-      .map((voice: any) => ({ value: String(voice.id ?? voice.voice_id).trim(), label: [voice.name, voice.locale].filter(Boolean).join(' · ') || String(voice.id ?? voice.voice_id).trim() }));
+      .map((voice: any) => ({ value: String(voice.id ?? voice.voice_id).trim(), label: [voice.display_name ?? voice.name, voice.locale].filter(Boolean).join(' · ') || String(voice.id ?? voice.voice_id).trim() }));
   } else if (isFreeTts && (Array.isArray(payload) || Array.isArray(payload?.voices))) {
     const entries = Array.isArray(payload) ? payload : payload.voices;
     voices = entries
