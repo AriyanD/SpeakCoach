@@ -54,6 +54,22 @@ export async function getSlotAccountReadiness(
   return { usable: true, reason: '', config };
 }
 
+type ProviderFamily = 'groq' | 'gemini' | 'other';
+
+function getProviderFamily(config: SlotConfig): ProviderFamily {
+  const id = config.providerId.toLowerCase();
+  const baseUrl = config.baseUrl.toLowerCase();
+  if (id.includes('groq') || baseUrl.includes('api.groq.com')) return 'groq';
+  if (id.includes('gemini') || baseUrl.includes('generativelanguage.googleapis.com')) return 'gemini';
+  return 'other';
+}
+
+function preferredProviderFamily(slotId: SlotId): ProviderFamily | null {
+  if (slotId === 'voice_tts' || slotId === 'pronunciation_scoring' || slotId === 'llm_evaluator') return 'groq';
+  if (slotId === 'ielts_stt' || slotId === 'llm_generator' || slotId === 'llm_translation') return 'gemini';
+  return null;
+}
+
 export interface ApiAttemptResult<T> {
   result: T;
   config: SlotConfig;
@@ -115,9 +131,17 @@ export async function runWithSlotApiFallback<T>(
   }
 
   const preferredAccount = options?.preferredAccount ?? 'auto';
-  const selectedAttempts = preferredAccount === 'auto'
+  const eligibleAttempts = preferredAccount === 'auto'
     ? attempts
     : attempts.filter((attempt) => attempt.account === preferredAccount);
+  const preferredFamily = preferredProviderFamily(slotId);
+  const selectedAttempts = preferredAccount !== 'auto' || !preferredFamily
+    ? eligibleAttempts
+    : [...eligibleAttempts].sort((left, right) => {
+        const leftPreferred = getProviderFamily(left.config) === preferredFamily ? 0 : 1;
+        const rightPreferred = getProviderFamily(right.config) === preferredFamily ? 0 : 1;
+        return leftPreferred - rightPreferred;
+      });
 
   const errors: string[] = [];
   if (primaryHealth) errors.push(primaryHealth.state === 'needs-retest' ? 'API 1 needs a successful connection re-test.' : 'API 1 is cooling down after a temporary provider failure.');
@@ -146,8 +170,10 @@ export async function runWithSlotApiFallback<T>(
       await markProviderAccountFailure(slotId, attempt.account, error);
       const accountLabel = attempt.account === 'primary' ? 'API 1 (primary)' : 'API 2 (secondary)';
       errors.push(`${accountLabel} (${preset.name}): ${error instanceof Error ? error.message : String(error)}`);
-      if (attempt.account === 'primary' && attempts.length > 1) continue;
-      if (attempt.account === 'primary' && secondarySkipReason) {
+      const hasAnotherAttempt = selectedAttempts.some((candidate) => candidate !== attempt &&
+        !errors.some((message) => message.startsWith(candidate.account === 'primary' ? 'API 1 (primary)' : 'API 2 (secondary)')));
+      if (hasAnotherAttempt) continue;
+      if (secondarySkipReason && !selectedAttempts.some((candidate) => candidate.account === 'secondary')) {
         errors.push(`API 2 (secondary) skipped: ${secondarySkipReason}`);
       }
       throw new Error(errors.join(' | '));
