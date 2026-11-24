@@ -2274,7 +2274,7 @@ export async function renderSettingsView(
       if (secondaryTestBtn) secondaryTestBtn.hidden = false;
       if (secondaryStatus) secondaryStatus.hidden = false;
       if (secondaryProviderSelect && !secondaryProviderSelect.value) {
-        const candidates = SLOT_DEFINITIONS[slotId].providers.filter((provider) => provider.tier !== 3);
+        const candidates = visibleProviders.filter((provider) => provider.tier !== 3);
         const next = candidates.find((provider) => provider.id !== providerSelect?.value) ?? candidates[0];
         if (next) {
           secondaryProviderSelect.value = next.id;
