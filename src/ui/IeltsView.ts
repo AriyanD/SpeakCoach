@@ -212,7 +212,7 @@ export function renderIeltsView(
       container.querySelector<HTMLButtonElement>('#ielts-cancel-test-btn')?.addEventListener('click', () => {
         void confirmInApp({
           title: 'Cancel this test?',
-          message: 'Your answers saved so far will remain available in your session history.',
+          message: 'No answers have been recorded yet. You can return to the question library.',
           confirmLabel: 'Cancel test',
           cancelLabel: 'Keep practising',
           tone: 'danger'

@@ -17,7 +17,7 @@ import {
   type ShadowingScoreReport
 } from '../services/shadowingScorer';
 import { recordLastShadowingAttempt } from '../services/shadowingTelemetry';
-import { loadAppSettings } from '../storage/appSettings';
+import { loadAppSettings, saveAppSettings } from '../storage/appSettings';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
 import { activateShadowingAudioSet } from '../services/shadowingAudioStore';
@@ -82,7 +82,7 @@ const state: ShadowingState = {
   emptyAttemptError: null,
   lastRecording: null,
   lastReport: null,
-  statusMessage: 'Tap "Play Model 1.0x" to listen, then "Record Repetition" to repeat aloud.',
+  statusMessage: 'Play the model audio, then record your repetition.',
   navigationNotice: null,
   activeModelPlayback: null,
   audioActivity: 'idle',
@@ -144,6 +144,9 @@ async function persistCurrentShadowingHistory(): Promise<void> {
 function ensureSentenceSetHistory(): Promise<ShadowingSetHistory> {
   if (!sentenceSetHistoryPromise) sentenceSetHistoryPromise = (async () => {
     sentenceLanguageHistories = await loadShadowingLanguageHistories();
+    const appSettings = await loadAppSettings();
+    state.difficulty = appSettings.shadowingDifficulty;
+    state.translationTargetLanguage = appSettings.translationTargetLanguage;
     state.languageCode = await loadSelectedShadowingLanguage();
     const existing = getShadowingHistoryForLanguage(sentenceLanguageHistories, state.languageCode);
     sentenceSetHistory = existing ?? createShadowingHistoryForLanguage(state.languageCode);
@@ -630,8 +633,8 @@ export function renderShadowingView(
         state.emptyAttemptError
           ? `<div class="status-box fail" id="sh-empty-error" role="alert">${escapeHtml(
               state.emptyAttemptError
-            )} (Score: 0)</div>`
-          : `${state.navigationNotice ? '<div class="status-box fail" role="alert">' + escapeHtml(state.navigationNotice) + '</div>' : '<div class="status-box info" id="sh-status-msg" role="status" aria-live="polite">' + escapeHtml(state.statusMessage) + '</div>'}`
+            )}</div>`
+          : `${state.navigationNotice ? '<div class="status-box info" role="status" aria-live="polite">' + escapeHtml(state.navigationNotice) + '</div>' : '<div class="status-box info" id="sh-status-msg" role="status" aria-live="polite">' + escapeHtml(state.statusMessage) + '</div>'}`
       }
 
       ${resultStripHtml}
@@ -749,6 +752,9 @@ export function renderShadowingView(
   });
   container.querySelector<HTMLSelectElement>('#sh-translation-language')?.addEventListener('change', event => {
     state.translationTargetLanguage = (event.target as HTMLSelectElement).value;
+    void saveAppSettings({ translationTargetLanguage: state.translationTargetLanguage }).catch(error => {
+      console.warn('[SpeakCoach] Could not save translation language preference.', error);
+    });
     state.translationResult = '';
     state.translationStatus = null;
     container.querySelector('#sh-translation-result')?.remove();
@@ -831,6 +837,9 @@ export function renderShadowingView(
     btn.addEventListener('click', () => {
       if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
       state.difficulty = (btn.dataset.diff as ShadowingDifficulty) || 'easy';
+      void saveAppSettings({ shadowingDifficulty: state.difficulty }).catch(error => {
+        console.warn('[SpeakCoach] Could not save Shadowing difficulty preference.', error);
+      });
       state.index = sentenceSetHistory?.[state.difficulty].activeSentenceIndex ?? 0;
       state.customDrillText = null;
       state.aiGenerationError = null;
@@ -913,7 +922,6 @@ export function renderShadowingView(
       renderShadowingView(container, summary);
       return;
     }
-    state.navigationNotice = null;
     state.navigationNotice = null;
     state.index = Math.min(Math.max(0, (activeSet?.sentences.length ?? 1) - 1), state.index + 1);
     if (sentenceSetHistory) {
@@ -1301,7 +1309,6 @@ export function resetShadowingViewState(): void {
   state.activeModelPlayback = null;
   state.audioActivity = 'idle';
   shadowingIsStopping = false;
-  state.difficulty = 'easy';
   state.isGeneratingAi = false;
   state.aiGenerationError = null;
   clearShadowingRecordingTimer();

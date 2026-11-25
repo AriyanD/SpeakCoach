@@ -47,7 +47,7 @@
 - Changes to storage schemas must be additive and backward-compatible where possible. Do not rename existing API-key storage identifiers without a tested migration.
 
 ## 8. Android Release & Distribution
-- The Android application ID is `com.ariyand.speakcoach`. The initial public release was `1.0.0` (`versionCode` 1); the current published release is `1.0.14` (`versionCode` 14).
+- The Android application ID is `com.ariyand.speakcoach`. The initial public release was `1.0.0` (`versionCode` 1); the current published release is `1.1.4` (`versionCode` 19).
 - A stable Release APK requires a persistent signing keystore. The current development workflow may build Debug and unsigned Release artifacts until the user chooses to configure release signing.
 - Keep the same package ID and signing certificate for every future update. GitHub Releases are the update source; the in-app updater compares semantic versions and only offers signed APK assets attached to published full releases.
 - Capacitor/Target SDK upgrades are scheduled for the point when distribution requirements make them necessary; they should be done in an isolated branch with device verification.

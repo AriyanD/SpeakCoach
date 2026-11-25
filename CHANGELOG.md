@@ -45,4 +45,11 @@ Notable user-facing changes are recorded here. Release tags and version numbers 
 
 ## Unreleased
 
-_Nothing yet._
+### Fixed
+- Runtime speech and AI requests now follow the saved API 1 → API 2 order; provider family no longer silently changes the user's priority.
+- Speech transcription avoids spending API quota on recordings that contain only near-digital silence.
+
+### Improved
+- Shadowing remembers the selected difficulty and translation target language across app restarts.
+- Shadowing end-of-set notices use an informational style, and empty-attempt messages no longer imply that a score of zero was calculated.
+- IELTS cancellation during preparation now correctly explains that no answers have been recorded yet.
