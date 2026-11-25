@@ -9,6 +9,7 @@ import { clearProviderAccountHealth, createProviderVerificationFingerprint, getP
 import { buildSpokenTokensFromTranscript, type SpokenWordToken } from './wordAlignment';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest, resolveWireFormat } from './customEndpointHelper';
 import { getShadowingLanguage } from '../data/shadowingLanguages';
+import { isWavEffectivelySilent } from './wavVadAnalyzer';
 import { isAzurePronunciationLocaleSupported, toWhisperLanguageCode } from './shadowingSpeechLanguage';
 
 /**
@@ -635,31 +636,25 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     secondaryVerificationNotice = `API 2 (${getPreset(requestedSlotId, secondary.providerId).name}) needs a successful connection test before it can be used.`;
   }
 
-  // Keep the user's saved API 1/API 2 configurations intact, but choose
-  // the preferred provider family first for this feature at request time.
-  const providerFamily = (config: SlotConfig): 'groq' | 'gemini' | 'other' => {
-    const id = config.providerId.toLowerCase();
-    const baseUrl = config.baseUrl.toLowerCase();
-    if (id.includes('groq') || baseUrl.includes('api.groq.com')) return 'groq';
-    if (id.includes('gemini') || baseUrl.includes('generativelanguage.googleapis.com')) return 'gemini';
-    return 'other';
-  };
-  const preferredFamily = requestedSlotId === 'ielts_stt' ? 'gemini' : 'groq';
-  const orderedCandidates = [...candidates].sort((left, right) => {
-    const leftRank = providerFamily(left.config) === preferredFamily ? 0 : 1;
-    const rightRank = providerFamily(right.config) === preferredFamily ? 0 : 1;
-    return leftRank - rightRank;
-  });
+  // Candidate collection preserves the saved order: API 1, then API 2.
+  // Provider family must never override the user's explicit configuration.
+  const orderedCandidates = candidates;
   const preferred = orderedCandidates[0];
   let usedSlotId: 'ielts_stt' | 'pronunciation_scoring' = preferred?.slotId ?? requestedSlotId;
   let usedProviderId = preferred?.config.providerId ?? configs[requestedSlotId].providerId;
   let usedAccount: 'primary' | 'secondary' = preferred?.account ?? 'primary';
   let rawResponse: WhisperVerboseResponse | undefined;
   let providerFailureMessage = '';
+  let primaryAttemptFailed = false;
 
   const outcome = await executeWithTierFallback<{ transcript: string; words: SpokenWordToken[]; error?: string }>(
     requestedSlotId,
     async () => {
+      // Block only near-digital-silence. The low threshold avoids rejecting quiet speech.
+      if (isWavEffectivelySilent(params.wavBase64)) {
+        providerFailureMessage = 'The recording contains no usable audio. Please record your answer again.';
+        throw new Error(providerFailureMessage);
+      }
       if (orderedCandidates.length === 0) {
         providerFailureMessage = [...verificationNotices, secondaryVerificationNotice].filter(Boolean).join(' ')
           || 'No verified speech API is configured for this feature.';
@@ -701,6 +696,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   transport: params.transport
                 });
           if (!res.transcript.trim()) {
+            if (candidate.account === 'primary') primaryAttemptFailed = true;
             errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): the provider returned an empty transcription.`);
             continue;
           }
@@ -714,6 +710,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
             : undefined;
           return { transcript: res.transcript, words: res.words, error: fallbackNotice };
         } catch (error) {
+          if (candidate.account === 'primary') primaryAttemptFailed = true;
           await markProviderAccountFailure(candidateSlotId, candidate.account, error);
           errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -746,7 +743,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
         tier: usedPreset.tier,
         label: (usedPreset.tier === 3 ? 'Basic offline' : 'Online AI') as TierLabel,
         detailLabel: `Online AI (API ${usedAccount === 'secondary' ? '2' : '1'} · Tier ${usedPreset.tier} · ${usedPreset.name})`,
-        isFallback: usedAccount === 'secondary'
+        isFallback: usedAccount === 'secondary' && primaryAttemptFailed
       }
     : outcome.activeTier;
 

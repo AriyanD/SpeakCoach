@@ -246,3 +246,33 @@ export function analyzeWavBase64Vad(
   const { samples, sampleRate } = decodeWav16kMonoToFloat32(bytes);
   return analyzePcmSamplesVad(samples, { sampleRate, expectedDurationMs });
 }
+
+
+/**
+ * Detect only near-digital-silence in standard PCM16 WAV recordings.
+ * Unknown WAV encodings are treated as non-silent to avoid false rejection.
+ */
+export function isWavEffectivelySilent(base64: string, peakThreshold = 0.001): boolean {
+  const bytes = base64ToUint8Array(base64);
+  if (bytes.byteLength < 44) return false;
+  const tag = (offset: number) => String.fromCharCode(...bytes.slice(offset, offset + 4));
+  if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE' || tag(36) !== 'data') return false;
+
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const format = view.getUint16(20, true);
+  const channels = view.getUint16(22, true);
+  const bitsPerSample = view.getUint16(34, true);
+  const dataBytes = Math.min(view.getUint32(40, true), bytes.byteLength - 44);
+  if (format !== 1 || channels < 1 || bitsPerSample !== 16 || dataBytes < 2) return false;
+
+  const sampleCount = Math.floor(dataBytes / 2);
+  let peak = 0;
+  for (let i = 0; i < sampleCount; i++) {
+    const amplitude = Math.abs(view.getInt16(44 + i * 2, true) / 32768);
+    if (amplitude > peak) {
+      peak = amplitude;
+      if (peak > peakThreshold) return false;
+    }
+  }
+  return true;
+}

@@ -54,22 +54,6 @@ export async function getSlotAccountReadiness(
   return { usable: true, reason: '', config };
 }
 
-type ProviderFamily = 'groq' | 'gemini' | 'other';
-
-function getProviderFamily(config: SlotConfig): ProviderFamily {
-  const id = config.providerId.toLowerCase();
-  const baseUrl = config.baseUrl.toLowerCase();
-  if (id.includes('groq') || baseUrl.includes('api.groq.com')) return 'groq';
-  if (id.includes('gemini') || baseUrl.includes('generativelanguage.googleapis.com')) return 'gemini';
-  return 'other';
-}
-
-function preferredProviderFamily(slotId: SlotId): ProviderFamily | null {
-  if (slotId === 'voice_tts' || slotId === 'pronunciation_scoring' || slotId === 'llm_evaluator') return 'groq';
-  if (slotId === 'ielts_stt' || slotId === 'llm_generator' || slotId === 'llm_translation') return 'gemini';
-  return null;
-}
-
 export interface ApiAttemptResult<T> {
   result: T;
   config: SlotConfig;
@@ -134,14 +118,9 @@ export async function runWithSlotApiFallback<T>(
   const eligibleAttempts = preferredAccount === 'auto'
     ? attempts
     : attempts.filter((attempt) => attempt.account === preferredAccount);
-  const preferredFamily = preferredProviderFamily(slotId);
-  const selectedAttempts = preferredAccount !== 'auto' || !preferredFamily
-    ? eligibleAttempts
-    : [...eligibleAttempts].sort((left, right) => {
-        const leftPreferred = getProviderFamily(left.config) === preferredFamily ? 0 : 1;
-        const rightPreferred = getProviderFamily(right.config) === preferredFamily ? 0 : 1;
-        return leftPreferred - rightPreferred;
-      });
+  // Attempts are appended in the user's saved order: API 1, then API 2.
+  // Provider family never overrides the explicit slot configuration.
+  const selectedAttempts = eligibleAttempts;
 
   const errors: string[] = [];
   if (primaryHealth) errors.push(primaryHealth.state === 'needs-retest' ? 'API 1 needs a successful connection re-test.' : 'API 1 is cooling down after a temporary provider failure.');

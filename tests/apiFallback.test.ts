@@ -175,13 +175,15 @@ describe('Per-slot secondary API fallback', () => {
     };
     await saveSlotConfig(primaryConfig);
     await saveApiKey(slotId, primaryProviderId, 'primary-speech-key');
+    const primaryFingerprint = await createProviderVerificationFingerprint(primaryConfig, 'primary-speech-key');
     const secondaryFingerprint = await createProviderVerificationFingerprint({
       slotId, providerId: secondaryPreset.id, baseUrl: secondaryPreset.defaultBaseUrl,
       modelOrVoice: secondaryPreset.defaultModelOrVoice
     }, 'secondary-speech-key');
     await saveSlotConnectionTestResult(slotId, {
       ok: true, slotId, providerId: primaryProviderId, tier: primaryPreset.tier,
-      label: 'Online AI', latencyMs: 10, message: 'PASS — primary verified'
+      label: 'Online AI', latencyMs: 10, message: 'PASS — primary verified',
+      verificationFingerprint: primaryFingerprint ?? undefined
     });
     await saveSecondarySlotConfig(slotId, {
       providerId: secondaryPreset.id,
@@ -210,16 +212,11 @@ describe('Per-slot secondary API fallback', () => {
       }
     });
 
-    expect(requestedUrls.some(url => url.includes(':generateContent'))).toBe(true);
-    if (slotId === 'ielts_stt') {
-      // IELTS STT prefers Gemini even when it is saved as API 2.
-      expect(requestedUrls.some(url => url.includes('/audio/transcriptions'))).toBe(false);
-      expect(outcome.activeTier.providerId).toBe(secondaryProviderId);
-    } else {
-      // Shadowing pronunciation prefers Groq/Whisper and falls back to Gemini.
-      expect(requestedUrls.some(url => url.includes('/audio/transcriptions'))).toBe(true);
-      expect(outcome.activeTier.providerId).toBe(secondaryProviderId);
-    }
+    expect(requestedUrls).toHaveLength(2);
+    expect(requestedUrls[0]).toContain('/audio/transcriptions'); // API 1 always runs first.
+    expect(requestedUrls[1]).toContain(':generateContent'); // API 2 runs only after API 1 fails.
+    expect(outcome.activeTier.providerId).toBe(secondaryProviderId);
+    expect(outcome.activeTier.isFallback).toBe(true);
     expect(outcome.transcript).toContain('hello from the secondary');
   });
 
