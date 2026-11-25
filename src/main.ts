@@ -228,6 +228,8 @@ export async function bootstrapApp(
     void refreshUI().then(() => scrollAppToTop(viewContainer));
   };
 
+  window.addEventListener('speakcoach:open-settings', () => navigateTo('settings'));
+
   const resetSectionToRoot = (section: NavigationSection): void => {
     resetSectionStack(sectionStacks, section);
     currentTab = getSectionRoot(section);

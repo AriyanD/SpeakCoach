@@ -107,7 +107,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-score-card')).toBeNull();
     const errBox = root.querySelector('#sh-empty-error');
     expect(errBox).not.toBeNull();
-    expect(errBox?.textContent).toContain('Online speech API is not verified');
+    expect(errBox?.textContent).toContain('No speech was recognized');
   });
 
   it('scores ONLY what the recognizer returned, supports Weak-Word Drill, and logs to Diagnostics', async () => {
@@ -228,6 +228,14 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
 
     expect(root.querySelector('#sh-score-card')).not.toBeNull();
     expect(root.querySelector('#sh-pace-score')).not.toBeNull();
+    expect(root.querySelector('#sh-fluency-score')?.parentElement?.querySelector('.metric-label')?.textContent).toBe('Fluency (approx.)');
+    expect(root.querySelector('#sh-pace-score')?.parentElement?.querySelector('.metric-label')?.textContent).toContain('Pace (approx.)');
+    expect(root.querySelector('#sh-api-open-settings-btn')).not.toBeNull();
+    const openSettingsEvent = vi.fn();
+    window.addEventListener('speakcoach:open-settings', openSettingsEvent);
+    root.querySelector<HTMLButtonElement>('#sh-api-open-settings-btn')?.click();
+    expect(openSettingsEvent).toHaveBeenCalledTimes(1);
+    window.removeEventListener('speakcoach:open-settings', openSettingsEvent);
     expect(root.querySelector('#sh-score-card .tier-badge')?.textContent).toContain('Basic offline');
 
     // In offline mode, word timing bars are hidden and replaced by clear notice, and replay button is disabled

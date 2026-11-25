@@ -150,6 +150,18 @@ const fa: Dictionary = {
   'A settings-only backup contains no API keys. Existing keys on this device will remain unchanged.':'نسخهٔ پشتیبانِ فقط تنظیمات، هیچ API Keyای ندارد. کلیدهای موجود در این دستگاه بدون تغییر باقی می‌مانند.',
   'No saved key was found for:':'کلید ذخیره‌شده‌ای برای این مورد پیدا نشد:',
   'Keep this file private and secure':'این فایل را محرمانه و در محل امن نگهداری کنید',
+  'Fluency (approx.)':'روانی گفتار (تخمینی)',
+  'Pace (approx.)':'سرعت گفتار (تخمینی)',
+  'Open API Settings':'باز کردن تنظیمات API',
+  'I understand':'متوجه شدم',
+  'Audio playback failed. Check Voice / TTS settings and open Troubleshooting for help.':'پخش صدا ناموفق بود. تنظیمات Voice / TTS را بررسی کنید و برای راهنمایی، بخش عیب‌یابی را باز کنید.',
+  'Microphone could not start. Check microphone permission and try again.':'میکروفون شروع به کار نکرد. مجوز میکروفون را بررسی کنید و دوباره تلاش کنید.',
+  'Speech could not be transcribed. Check API Settings and try recording again. Technical details are available below.':'گفتار به متن تبدیل نشد. تنظیمات API را بررسی کنید و دوباره ضبط کنید. جزئیات فنی در پایین صفحه موجود است.',
+  'No speech was recognized. Check microphone access and speech API settings, then record again.':'گفتاری تشخیص داده نشد. دسترسی میکروفون و تنظیمات API گفتار را بررسی کنید و دوباره ضبط کنید.',
+  'Recording could not be stopped. Please try again.':'ضبط متوقف نشد. لطفاً دوباره تلاش کنید.',
+  'Could not generate a new sentence set. Check your connection and Question & Sentence Generator API settings, then try again.':'ساخت مجموعهٔ جملهٔ جدید ممکن نشد. اتصال اینترنت و تنظیمات API بخش تولید سؤال و جمله را بررسی کنید و دوباره تلاش کنید.',
+  'Technical details':'جزئیات فنی',
+  '1 Part 2 cue card':'یک کارت موضوع برای بخش ۲',
 
 };
 
@@ -180,6 +192,12 @@ function translateTextNode(node: Text): void {
     if (retryLimit) translated = `هوش مصنوعی پیش از رسیدن به سقف تلاش، ${retryLimit[1]} مجموعه از ${retryLimit[2]} مجموعهٔ درخواستی را تولید کرد. ${retryLimit[3]} مجموعه ذخیره شد و مجموعه‌های قبلی شما حفظ شدند. بعداً برای دریافت بقیه دوباره تلاش کنید.`;
     const readyCount = trimmed.match(/^(\d+) new set\(s\) ready\. Previous unfinished sets were replaced; completed sets remain in history\.$/);
     if (readyCount) translated = `${readyCount[1]} مجموعهٔ سؤال جدید آماده شد. مجموعه‌های ناتمام قبلی جایگزین شدند و مجموعه‌های تکمیل‌شده در تاریخچه باقی ماندند.`;
+    const setMetaFull = trimmed.match(/^(\d+) Part 1 prompts · 1 Part 2 cue card · (\d+) Part 3 prompts$/);
+    const setMetaPart1 = trimmed.match(/^(\d+) Part 1 prompts$/);
+    const setMetaPart3 = trimmed.match(/^(\d+) Part 3 prompts$/);
+    if (setMetaFull) translated = `${setMetaFull[1]} پرسش بخش ۱ · یک کارت موضوع بخش ۲ · ${setMetaFull[2]} پرسش بخش ۳`;
+    else if (setMetaPart1) translated = `${setMetaPart1[1]} پرسش بخش ۱`;
+    else if (setMetaPart3) translated = `${setMetaPart3[1]} پرسش بخش ۳`;
     const restoredSets = trimmed.match(/^Restored (\d+) previous question sets\. The set batch you replaced is now available as the previous generation\.$/);
     if (restoredSets) translated = `مجموعهٔ سؤال قبلی بازیابی شد (تعداد: ${restoredSets[1]}). مجموعهٔ جایگزین‌شده اکنون به‌عنوان نسل قبلی در دسترس است.`;
     const sentenceCount = trimmed.match(/^Sentence (\d+) of (\d+)$/);

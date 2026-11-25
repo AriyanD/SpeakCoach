@@ -368,8 +368,8 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, d
         ` : `
           <div class="metric-tile metric-tile-overall"><div class="metric-value" id="sh-overall-score">${report.overallScore}</div><div class="metric-label">Overall score</div></div>
           <div class="metric-tile"><div class="metric-value" id="sh-pron-score">${report.pronunciationScore}</div><div class="metric-label">${report.activeTier.tier >= 2 ? 'Word match' : 'Pronunciation assessment'}</div></div>
-          <div class="metric-tile"><div class="metric-value" id="sh-fluency-score">${report.fluencyScore}</div><div class="metric-label">Fluency</div></div>
-          <div class="metric-tile"><div class="metric-value" id="sh-pace-score">${report.paceScore}</div><div class="metric-label">Pace (${report.overallPaceLabel})</div></div>
+          <div class="metric-tile"><div class="metric-value" id="sh-fluency-score">${report.fluencyScore}</div><div class="metric-label">Fluency${isOfflineMode ? ' (approx.)' : ''}</div></div>
+          <div class="metric-tile"><div class="metric-value" id="sh-pace-score">${report.paceScore}</div><div class="metric-label">Pace${isOfflineMode ? ' (approx.)' : ''} (${report.overallPaceLabel})</div></div>
           <div class="metric-tile"><div class="metric-value" id="sh-complete-score">${report.completenessScore}%</div><div class="metric-label">Completeness</div></div>
         `}
       </div>
@@ -529,7 +529,7 @@ export function renderShadowingView(
   const resultStripHtml = state.lastReport ? `
     <div class="sh-result-strip" role="group" aria-label="Latest recording result">
       <div class="sh-result-strip-score" role="status" aria-live="polite">
-        ${drillMode ? `<strong>Correct words</strong><span id="sh-drill-correct-count">${drillCorrect} / ${drillWords.length}</span>` : `<strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace</span>`}
+        ${drillMode ? `<strong>Correct words</strong><span id="sh-drill-correct-count">${drillCorrect} / ${drillWords.length}</span>` : `<strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace${state.lastReport.activeTier.tier >= 3 ? ' (approx.)' : ''}</span>`}
       </div>
       <div class="sh-result-strip-words">${state.lastReport.words.map(word => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); const mark = word.status === 'match' ? '✓' : word.status === 'mispronounced' ? '!' : word.status === 'missing' ? '−' : '+'; return `<button type="button" class="sh-result-chip ${word.status}" data-word-replay="${escapeHtml(replayWord)}" aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord && !isCaptureBusy && (!isPlaybackActive || isWordPlayback) ? '' : 'disabled'}>${drillMode ? mark + ' ' : ''}${escapeHtml(replayWord)}</button>`; }).join('')}</div>
       ${weakActionHtml}
@@ -584,7 +584,7 @@ export function renderShadowingView(
           </div>
         </div>
         
-        ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert">${escapeHtml(state.aiGenerationError)}</div>` : ''}
+        ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert"><p>Could not generate a new sentence set. Check your connection and Question &amp; Sentence Generator API settings, then try again.</p><details><summary>Technical details</summary><p>${escapeHtml(state.aiGenerationError)}</p></details></div>` : ''}
       </div>
       </section>
 
@@ -691,7 +691,7 @@ export function renderShadowingView(
         <strong>Important: speech APIs have separate capabilities</strong>
         <p>Text-to-speech (TTS: text → audio) and speech-to-text (STT: audio → text) are independent services. An API configured for one does not automatically provide the other. If your selected API/model does not offer text-to-speech or speech-to-text, that missing capability is a limitation of the selected API—not a Shadowing bug, and SpeakCoach cannot add it. API 2 is only a backup/rotation account; it may use the same provider, model, or endpoint as API 1, so it is not necessarily a different capability or an independent fallback. If playback or transcription fails, check the selected provider, exact model name, endpoint path, and whether that API actually supports the required audio operation. A successful connection test alone may not prove both directions work.</p>
         <p>For custom OpenAI-compatible APIs, enter the exact model name supported by your gateway. The suggested model list is only a convenience, not a restriction. Your gateway must expose the matching <code>/audio/speech</code> or <code>/audio/transcriptions</code> endpoint.</p>
-        <button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button>
+        <div class="btn-row"><button type="button" class="btn btn-primary" id="sh-api-open-settings-btn">Open API Settings</button><button type="button" class="btn btn-secondary sh-api-notice-dismiss" id="sh-api-notice-dismiss-btn">I understand</button></div>
       </details>
       <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
   `;
@@ -704,7 +704,7 @@ export function renderShadowingView(
     });
   }
 
-  if (isSpeechApiNoticeDismissed()) {
+  if (isSpeechApiNoticeDismissed() && !state.forceSpeechApiNotice) {
     const notice = container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
     if (notice) { notice.hidden = true; notice.open = false; }
     container.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.remove();
@@ -717,7 +717,10 @@ export function renderShadowingView(
     const notice = container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice');
     if (notice) { notice.hidden = false; notice.open = !notice.open; }
   });
-    container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice')?.querySelector<HTMLButtonElement>('#sh-api-notice-dismiss-btn')?.addEventListener('click', () => {
+    container.querySelector<HTMLButtonElement>('#sh-api-open-settings-btn')?.addEventListener('click', () => {
+    window.dispatchEvent(new Event('speakcoach:open-settings'));
+  });
+  container.querySelector<HTMLDetailsElement>('.sh-api-capability-notice')?.querySelector<HTMLButtonElement>('#sh-api-notice-dismiss-btn')?.addEventListener('click', () => {
     try { localStorage.setItem(SPEECH_API_NOTICE_DISMISSED_KEY, 'true'); } catch { /* Dismiss for this render even if storage is unavailable. */ }
     state.forceSpeechApiNotice = false;
     container.querySelector('.sh-api-capability-notice')?.setAttribute('hidden', '');
@@ -823,7 +826,8 @@ export function renderShadowingView(
         state.statusMessage = `Played “${word}” via ${result.activeTier.detailLabel}.`;
       } catch (error) {
         reopenSpeechApiNoticeForError(error);
-        state.statusMessage = `Could not play “${word}”: ${error instanceof Error ? error.message : String(error)}`;
+        console.error('[Shadowing] Word playback failed.', error);
+      state.statusMessage = 'Audio playback failed. Check Voice / TTS settings and open Troubleshooting for help.';
       } finally {
         if (wordPlaybackToken === shadowingModelPlaybackToken && state.audioActivity === 'playingWord') {
           state.audioActivity = 'idle';
@@ -869,6 +873,7 @@ export function renderShadowingView(
       state.aiGenerationError = null;
     } catch (error) {
       state.aiGenerationError = `AI sentence set generation failed: ${error instanceof Error ? error.message : String(error)}`;
+      console.error('[Shadowing] AI sentence-set generation failed.', error);
       state.statusMessage = 'The current sentence set was kept. Correct the issue above and try again.';
     } finally {
       state.isGeneratingAi = false;
@@ -984,7 +989,8 @@ export function renderShadowingView(
     } catch (error) {
       if (playbackToken !== shadowingModelPlaybackToken) return;
       reopenSpeechApiNoticeForError(error);
-      state.statusMessage = `Could not play model audio: ${error instanceof Error ? error.message : String(error)}`;
+      console.error('[Shadowing] Model playback failed.', error);
+      state.statusMessage = 'Audio playback failed. Check Voice / TTS settings and open Troubleshooting for help.';
     } finally {
       if (playbackToken === shadowingModelPlaybackToken) {
         state.activeModelPlayback = null;
@@ -1066,7 +1072,8 @@ export function renderShadowingView(
     } catch (err) {
       state.audioActivity = 'idle';
       if (viewGeneration !== shadowingViewGeneration) return;
-      state.statusMessage = `Microphone error: ${err instanceof Error ? err.message : String(err)}`;
+      console.error('[Shadowing] Microphone could not start.', err);
+      state.statusMessage = 'Microphone could not start. Check microphone permission and try again.';
     }
     if (viewGeneration !== shadowingViewGeneration) return;
     renderShadowingView(container, summary);
@@ -1089,7 +1096,8 @@ export function renderShadowingView(
       if (viewGeneration === shadowingViewGeneration) {
         shadowingIsStopping = false;
         state.audioActivity = 'idle';
-        state.statusMessage = `Could not stop recording: ${error instanceof Error ? error.message : String(error)}`;
+        console.error('[Shadowing] Recording could not be stopped.', error);
+        state.statusMessage = 'Recording could not be stopped. Please try again.';
         renderShadowingView(container, summary);
       }
       return null;
@@ -1116,7 +1124,8 @@ export function renderShadowingView(
       languageLocale: selectedLanguage.locale
     }).catch((error) => {
       if (viewGeneration === shadowingViewGeneration) {
-        state.statusMessage = `Speech transcription failed: ${error instanceof Error ? error.message : String(error)}`;
+        console.error('[Shadowing] Speech transcription failed.', error);
+        state.statusMessage = 'Speech could not be transcribed. Check API Settings and try recording again. Technical details are available below.';
       }
       return null;
     });
@@ -1142,11 +1151,7 @@ export function renderShadowingView(
       state.lastReport = null;
       state.emptyAttemptError = state.customDrillText
         ? 'No words were recognized for this weak-word drill. Your previous results are kept; retry when ready.'
-        : sttOutcome.error
-        ? `${sttOutcome.error} Retry the recording or use the device recognizer.`
-        : rec.recognizerError
-          ? `Nothing was recognized, try again (${rec.recognizerError}).`
-          : 'Nothing was recognized, try again.';
+        : 'No speech was recognized. Check microphone access and speech API settings, then record again.';
 
       await recordLastShadowingAttempt({
         referenceText: targetText,
