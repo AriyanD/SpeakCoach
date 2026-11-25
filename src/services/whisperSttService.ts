@@ -636,16 +636,28 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     secondaryVerificationNotice = `API 2 (${getPreset(requestedSlotId, secondary.providerId).name}) needs a successful connection test before it can be used.`;
   }
 
-  // Candidate collection preserves the saved order: API 1, then API 2.
-  // Provider family must never override the user's explicit configuration.
-  const orderedCandidates = candidates;
+  // Rotate only between the primary and secondary APIs of this STT slot.
+  // Each new recording alternates the starting account; if it fails, the
+  // other verified account is tried before executeWithTierFallback uses Android.
+  const rotationKey = `speakcoach.stt.rotation.${requestedSlotId}.v1`;
+  let rotation = 0;
+  try {
+    rotation = Number(localStorage.getItem(rotationKey) ?? '0') || 0;
+  } catch { /* localStorage may be unavailable in native/test contexts */ }
+  const orderedCandidates = candidates.length > 1
+    ? candidates.map((_, index) => candidates[(rotation + index) % candidates.length])
+    : candidates;
+  if (candidates.length > 1) {
+    try { localStorage.setItem(rotationKey, String((rotation + 1) % candidates.length)); }
+    catch { /* rotation remains best-effort when storage is unavailable */ }
+  }
   const preferred = orderedCandidates[0];
   let usedSlotId: 'ielts_stt' | 'pronunciation_scoring' = preferred?.slotId ?? requestedSlotId;
   let usedProviderId = preferred?.config.providerId ?? configs[requestedSlotId].providerId;
   let usedAccount: 'primary' | 'secondary' = preferred?.account ?? 'primary';
   let rawResponse: WhisperVerboseResponse | undefined;
   let providerFailureMessage = '';
-  let primaryAttemptFailed = false;
+  let hadPriorCandidateFailure = false;
 
   const outcome = await executeWithTierFallback<{ transcript: string; words: SpokenWordToken[]; error?: string }>(
     requestedSlotId,
@@ -696,7 +708,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   transport: params.transport
                 });
           if (!res.transcript.trim()) {
-            if (candidate.account === 'primary') primaryAttemptFailed = true;
+            hadPriorCandidateFailure = true;
             errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): the provider returned an empty transcription.`);
             continue;
           }
@@ -710,7 +722,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
             : undefined;
           return { transcript: res.transcript, words: res.words, error: fallbackNotice };
         } catch (error) {
-          if (candidate.account === 'primary') primaryAttemptFailed = true;
+          hadPriorCandidateFailure = true;
           await markProviderAccountFailure(candidateSlotId, candidate.account, error);
           errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -743,7 +755,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
         tier: usedPreset.tier,
         label: (usedPreset.tier === 3 ? 'Basic offline' : 'Online AI') as TierLabel,
         detailLabel: `Online AI (API ${usedAccount === 'secondary' ? '2' : '1'} · Tier ${usedPreset.tier} · ${usedPreset.name})`,
-        isFallback: usedAccount === 'secondary' && primaryAttemptFailed
+        isFallback: hadPriorCandidateFailure
       }
     : outcome.activeTier;
 
