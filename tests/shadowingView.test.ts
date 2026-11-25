@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrapApp } from '../src/main';
 import { audioRecorder } from '../src/services/audioRecorder';
 import { networkMonitor } from '../src/services/networkMonitor';

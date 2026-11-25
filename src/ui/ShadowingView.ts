@@ -1125,7 +1125,7 @@ export function renderShadowingView(
     }).catch((error) => {
       if (viewGeneration === shadowingViewGeneration) {
         console.error('[Shadowing] Speech transcription failed.', error);
-        state.statusMessage = 'Speech could not be transcribed. Check API Settings and try recording again. Technical details are available below.';
+        state.statusMessage = 'Speech could not be transcribed. Check API Settings and try recording again. If the problem continues, open Diagnostics for technical information.';
       }
       return null;
     });

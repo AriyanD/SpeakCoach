@@ -235,6 +235,7 @@ export function renderIeltsView(
             <div class="ielts-set-title">${escapeHtml(set.title)}</div>
             <div class="ielts-set-meta" data-part1-count="${set.plan.part1Questions.length}" data-part3-count="${set.plan.part3Questions.length}">${set.plan.part1Questions.length} Part 1 prompts · 1 Part 2 cue card · ${set.plan.part3Questions.length} Part 3 prompts</div>
           </div>
+          ${set.status === 'completed' ? '<span class="ielts-set-status completed">Completed</span>' : ''}
           <button type="button" class="btn btn-primary ielts-set-start" data-start-set="${escapeHtml(set.id)}">Start practice</button>
         </article>
       `).join('');
