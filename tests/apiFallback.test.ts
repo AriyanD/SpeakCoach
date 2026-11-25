@@ -281,20 +281,24 @@ describe('Per-slot secondary API fallback', () => {
     expect(first.activeTier.providerId).toBe(primaryPreset.id);
     expect(first.activeTier.isFallback).toBe(false);
 
-    // The second recording starts with API 2. If it fails, API 1 is tried
-    // immediately for that same recording and is correctly marked fallback.
-    const second = await transcribe(true);
+    const second = await transcribe();
     expect(requestedUrls[1]).toContain(':generateContent');
-    expect(requestedUrls[2]).toContain('/audio/transcriptions');
-    expect(second.activeTier.providerId).toBe(primaryPreset.id);
-    expect(second.activeTier.isFallback).toBe(true);
-    expect(second.transcript).toContain('transcript from API 1');
+    expect(second.activeTier.providerId).toBe(secondaryPreset.id);
+    expect(second.activeTier.isFallback).toBe(false);
 
-    // Rotation advances per recording, not per provider attempt.
     const third = await transcribe();
-    expect(requestedUrls[3]).toContain('/audio/transcriptions');
+    expect(requestedUrls[2]).toContain('/audio/transcriptions');
     expect(third.activeTier.providerId).toBe(primaryPreset.id);
     expect(third.activeTier.isFallback).toBe(false);
+
+    // The fourth recording starts with API 2. If it fails, API 1 is tried
+    // immediately for that same recording and is correctly marked fallback.
+    const fourth = await transcribe(true);
+    expect(requestedUrls[3]).toContain(':generateContent');
+    expect(requestedUrls[4]).toContain('/audio/transcriptions');
+    expect(fourth.activeTier.providerId).toBe(primaryPreset.id);
+    expect(fourth.activeTier.isFallback).toBe(true);
+    expect(fourth.transcript).toContain('transcript from API 1');
   });
 
   it('labels both failed TTS attempts explicitly as API 1 and API 2', async () => {
