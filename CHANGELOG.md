@@ -69,3 +69,7 @@ Notable user-facing changes are recorded here. Release tags and version numbers 
 - Shadowing remembers the selected difficulty and translation target language across app restarts.
 - Shadowing end-of-set notices use an informational style, and empty-attempt messages no longer imply that a score of zero was calculated.
 - IELTS cancellation during preparation now correctly explains that no answers have been recorded yet.
+
+
+### Fixed
+- Fixed Translation & Grammar card styles being scoped to the wrong parent, replaced the duplicate grammar/chat rules with a single card-scoped theme-aware block, and added independently managed scroll rails to both explanation and follow-up messages.

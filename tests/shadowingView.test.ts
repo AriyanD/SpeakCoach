@@ -48,6 +48,12 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(trainer?.contains(target)).toBe(true);
     expect(trainer?.contains(scoreDetails)).toBe(true);
     expect(trainer?.contains(translation)).toBe(false);
+    const grammarGroup = root.querySelector('.sh-grammar-button-group');
+    const grammarAction = root.querySelector('#sh-grammar-btn');
+    const grammarLanguageToggle = root.querySelector('#sh-grammar-language-toggle');
+    expect(grammarAction?.parentElement).toBe(grammarGroup);
+    expect(grammarLanguageToggle?.parentElement).toBe(grammarGroup);
+    expect(grammarAction?.nextElementSibling).toBe(grammarLanguageToggle);
     expect(transcript).not.toBeNull();
     expect(root.querySelector('#sh-record-btn')?.classList.contains('btn-record')).toBe(true);
     expect(root.querySelector('#sh-translate-btn')?.classList.contains('btn-secondary')).toBe(true);

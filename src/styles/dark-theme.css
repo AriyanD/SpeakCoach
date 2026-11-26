@@ -345,5 +345,5 @@ html[data-theme="dark"] .btn-primary:hover { background:var(--accent-strong); }
 html[data-theme="dark"] .ielts-session-close { background:var(--bg-raised); color:var(--text-primary); }
 
 
-html[data-theme="dark"] .status-box.notice { background:#252a32; color:#e7eaf0; border-color:#66758d; }
+html[data-theme="dark"] .status-box.notice { background:var(--warning-bg); color:var(--text-primary); border-color:color-mix(in srgb,var(--warning) 45%,var(--border)); }
 html[data-theme="dark"] .sh-set-flash { color:#ff8585 !important; outline-color:#ff8585; }
