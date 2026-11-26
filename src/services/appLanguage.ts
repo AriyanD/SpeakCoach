@@ -3,6 +3,12 @@ import { loadAppSettings, type AppLanguage } from '../storage/appSettings';
 type Dictionary = Record<string, string>;
 
 const fa: Dictionary = {
+  'Translation language': 'زبان ترجمه',
+  'Auto-play next sentence': 'پخش خودکار جملهٔ بعدی',
+  'Translate new sentence sets automatically': 'ترجمهٔ خودکار مجموعه‌های جدید جمله',
+  'Explain grammar in my translation language': 'توضیح گرامر به زبان ترجمهٔ من',
+  'IELTS': 'IELTS',
+  "You've reached the end of your generated sets. Generate a new set to continue.": 'به پایان مجموعه‌های ساخته‌شده رسیده‌اید. برای ادامه یک مجموعهٔ جدید بسازید.',
   "Practice weak word": "تمرین واژهٔ دشوار",
   "Retry weak words": "تمرین دوبارهٔ واژه‌های دشوار",
   "Retry remaining weak words": "تمرین دوبارهٔ واژه‌های باقی‌مانده",

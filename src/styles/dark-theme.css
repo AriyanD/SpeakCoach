@@ -343,3 +343,7 @@ html[data-theme="dark"]:has(.shadowing-page) .view-container {
 html[data-theme="dark"] .btn-primary { background:var(--accent); color:var(--on-accent); }
 html[data-theme="dark"] .btn-primary:hover { background:var(--accent-strong); }
 html[data-theme="dark"] .ielts-session-close { background:var(--bg-raised); color:var(--text-primary); }
+
+
+html[data-theme="dark"] .status-box.notice { background:#252a32; color:#e7eaf0; border-color:#66758d; }
+html[data-theme="dark"] .sh-set-flash { color:#ff8585 !important; outline-color:#ff8585; }

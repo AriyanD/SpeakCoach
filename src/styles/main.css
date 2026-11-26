@@ -4439,3 +4439,26 @@ body {
 .settings-info-help > summary::-webkit-details-marker { display:none; }
 .settings-info-help[open] { display:block; }
 .settings-info-help > p { margin:7px 0; color:var(--text-secondary); font-size:.78rem; line-height:1.45; }
+
+
+/* Shadowing controls and informational navigation states. */
+.sh-autoplay-toggle,.sh-translation-toggle { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; }
+.sh-autoplay-toggle.is-on,.sh-translation-toggle.is-on { color:var(--accent); opacity:1; outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent); outline-offset:1px; }
+.sh-autoplay-toggle.is-off,.sh-translation-toggle.is-off { opacity:.48; }
+.sh-player-controls { gap:6px; }
+.sh-player-controls .sh-player-icon-btn { min-width:44px; min-height:44px; padding:7px; }
+.status-box.notice { background:var(--warning-soft, color-mix(in srgb,var(--warning) 12%,var(--bg-secondary))); color:var(--text-primary); border:1px solid color-mix(in srgb,var(--warning) 45%,var(--border)); }
+.sh-attention { outline:3px solid var(--accent) !important; outline-offset:3px; animation:sh-attention-pulse 650ms ease-in-out 3; }
+.sh-set-flash { color:var(--danger) !important; font-weight:800 !important; outline:2px solid var(--danger); outline-offset:2px; }
+@keyframes sh-attention-pulse { 50% { outline-offset:6px; box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent); } }
+.sh-word-pending,.sh-word-playing { font-weight:800; outline:2px solid var(--accent); outline-offset:2px; box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 18%,transparent); }
+.sh-word-pending { animation:sh-word-pulse 900ms ease-in-out infinite; }
+.sh-word-spinner { display:inline-block; width:10px; height:10px; margin-inline-start:5px; border:2px solid currentColor; border-inline-end-color:transparent; border-radius:50%; vertical-align:middle; animation:sh-word-spin 700ms linear infinite; }
+@keyframes sh-word-pulse { 50% { box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 26%,transparent); } }
+@keyframes sh-word-spin { to { transform:rotate(360deg); } }
+.sh-grammar-result [dir="auto"] { max-height:11rem; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:var(--accent) var(--bg-secondary); padding-inline-end:6px; }
+.sh-grammar-result [dir="auto"]::-webkit-scrollbar { width:8px; }
+.sh-grammar-result [dir="auto"]::-webkit-scrollbar-thumb { background:var(--accent); border-radius:8px; }
+.sh-grammar-result [dir="auto"]::-webkit-scrollbar-track { background:var(--bg-secondary); }
+@media (prefers-reduced-motion: reduce) { .sh-attention,.sh-word-pending,.sh-word-spinner { animation:none !important; } }
+@media (max-width:380px) { .sh-player-controls { gap:4px; } .sh-player-controls .sh-player-icon-btn { padding:5px; } .shadowing-difficulty-tabs { gap:4px; flex-wrap:wrap; } }

@@ -45,6 +45,10 @@ Notable user-facing changes are recorded here. Release tags and version numbers 
 
 ## Unreleased
 
+### Added
+- Shadowing now has additive, backward-compatible IELTS sentence-history support and persistent controls for auto-play, set translation and grammar explanation language.
+- The Translation slot can generate a validated one-request translation batch for a saved Shadowing set.
+
 ### Fixed
 - Runtime speech and AI requests now follow the saved API 1 → API 2 order; provider family no longer silently changes the user's priority.
 - Speech transcription avoids spending API quota on recordings that contain only near-digital silence.
