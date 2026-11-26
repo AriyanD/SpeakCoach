@@ -47,7 +47,7 @@ A successful provider connection test confirms the tested endpoint responded. It
 
 ## Application identity
 
-The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The **initial public release** was `1.0.0` (`versionCode` 1); the current published app version is `1.0.14` (`versionCode` 14). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
+The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The **initial public release** was `1.0.0` (`versionCode` 1); the current published app version is `1.1.4` (`versionCode` 19). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
 
 ## In-app updates
 
