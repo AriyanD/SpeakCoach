@@ -994,7 +994,8 @@ export function renderShadowingView(
   };
   grammarScrollBody?.addEventListener('scroll', () => { state.grammarScrollTop = grammarScrollBody.scrollTop; updateGrammarScrollButtons(); });
   updateGrammarScrollButtons();
-  const scrollBehavior: ScrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+  const prefersReducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const scrollBehavior: ScrollBehavior = prefersReducedMotion ? 'auto' : 'smooth';
   container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: -grammarScrollBody.clientHeight * 0.8, behavior: scrollBehavior }));
   container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: grammarScrollBody.clientHeight * 0.8, behavior: scrollBehavior }));
 
