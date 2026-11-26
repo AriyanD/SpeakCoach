@@ -4476,3 +4476,11 @@ body {
 .sh-grammar-chat-compose textarea { flex:1; min-width:0; min-height:44px; max-height:7rem; }
 .sh-grammar-chat-thinking { color:var(--text-secondary); font-size:.85rem; }
 @media (max-width:380px) { .sh-grammar-chat-compose { flex-direction:column; align-items:stretch; } .sh-grammar-chat-compose button { min-height:44px; } }
+
+.sh-grammar-scroll-row { position:relative; }
+.sh-grammar-scroll-row.has-more::after { content:""; position:absolute; inset-inline-start:50px; inset-inline-end:50px; bottom:0; height:18px; pointer-events:none; background:linear-gradient(to bottom,transparent,var(--bg-secondary)); }
+.sh-grammar-scroll-body { scrollbar-width:thin; scrollbar-color:var(--accent) var(--bg-secondary); }
+.sh-grammar-scroll-body::-webkit-scrollbar,.sh-grammar-chat-messages::-webkit-scrollbar { width:8px; }
+.sh-grammar-scroll-body::-webkit-scrollbar-thumb,.sh-grammar-chat-messages::-webkit-scrollbar-thumb { background:var(--accent); border-radius:8px; }
+.sh-grammar-scroll-body::-webkit-scrollbar-track,.sh-grammar-chat-messages::-webkit-scrollbar-track { background:var(--bg-secondary); }
+.sh-grammar-chat-compose button { min-height:44px; }

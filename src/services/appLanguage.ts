@@ -11,6 +11,8 @@ const fa: Dictionary = {
   'Scroll explanation down': 'رفتن به پایین توضیح',
   'Translating this sentence…': 'در حال ترجمهٔ این جمله…',
   'Retry': 'تلاش دوباره',
+  'Translation unavailable. Use Retry to translate this sentence separately.': 'ترجمه در دسترس نیست. برای ترجمهٔ جداگانهٔ این جمله، تلاش دوباره را بزنید.',
+  'Grammar explanation': 'توضیح گرامر',
   'Translation language': 'زبان ترجمه',
   'Auto-play next sentence': 'پخش خودکار جملهٔ بعدی',
   'Translate new sentence sets automatically': 'ترجمهٔ خودکار مجموعه‌های جدید جمله',
@@ -179,7 +181,11 @@ const fa: Dictionary = {
 
 };
 
-const dynamicPrefixes: Array<[string, string]> = [['Version ', 'نسخهٔ '], ['Evaluation could not finish: ', 'ارزیابی کامل نشد: '], ['Using the basic Android voice. Online TTS was unavailable for this question.', 'برای این سؤال از صدای پایهٔ Android استفاده می‌شود؛ سرویس آنلاین تبدیل متن به گفتار در دسترس نبود.'], ['Tested: ', 'زمان آزمایش: '], ['Attempt ', 'تلاش '], ['Saved ', 'ذخیره‌شده '], ['Generating ', 'در حال ساخت '], ['Topic: ', 'موضوع: '], ['WPM:', 'واژه در دقیقه:'], ['Pauses:', 'مکث‌ها:'], ['Fillers:', 'واژه‌های پُرکننده:'], ['Words:', 'واژه‌ها:'], ['Answers:', 'پاسخ‌ها:'], ['Reason: ', 'دلیل: '], ['AI · ', 'هوش مصنوعی · '], ['Microphone error: ', 'خطای میکروفون: '], ['Basic offline (', 'آفلاین پایه ('], ['Provider has not passed a successful test. ', 'Provider هنوز آزمون اتصال موفقی را پشت سر نگذاشته است. '], ['Retry Weak Words (', 'تمرین دوبارهٔ واژه‌های ضعیف ('], ['Mid-Sentence Pauses (', 'مکث‌های میان جمله ('], ['Focus: ', 'تمرکز: '], ['Alternatives / Confidence: ', 'گزینه‌های جایگزین / میزان اطمینان: '], ['Question source: AI', 'منبع سؤال: هوش مصنوعی'], ['Question source: saved offline set', 'منبع سؤال: مجموعهٔ آفلاین ذخیره‌شده'], ['API key was not copied to the custom provider: ', 'API Key به Provider سفارشی کپی نشد: '], ['Save failed — ', 'ذخیره ناموفق بود — '], ['API 2: FAIL — ', 'API 2: ناموفق — '], ['API 1: FAIL — ', 'API 1: ناموفق — '], ['API 2: PASS — ', 'API 2: موفق — '], ['API 1: PASS — ', 'API 1: موفق — '], ['Question source: AI', 'منبع سؤال: هوش مصنوعی']];
+const dynamicPrefixes: Array<[string, string]> = [
+  ['Sentences saved. Translation failed: ', 'جمله‌ها ذخیره شدند، اما ترجمه ناموفق بود: '],
+  ['Translation unavailable: ', 'ترجمه در دسترس نیست: '],
+  ['Could not send the follow-up: ', 'ارسال سؤال تکمیلی ناموفق بود: '],
+  ['Added a new set of 20 sentences by ', 'مجموعهٔ جدیدی شامل ۲۰ جمله توسط '],['Version ', 'نسخهٔ '], ['Evaluation could not finish: ', 'ارزیابی کامل نشد: '], ['Using the basic Android voice. Online TTS was unavailable for this question.', 'برای این سؤال از صدای پایهٔ Android استفاده می‌شود؛ سرویس آنلاین تبدیل متن به گفتار در دسترس نبود.'], ['Tested: ', 'زمان آزمایش: '], ['Attempt ', 'تلاش '], ['Saved ', 'ذخیره‌شده '], ['Generating ', 'در حال ساخت '], ['Topic: ', 'موضوع: '], ['WPM:', 'واژه در دقیقه:'], ['Pauses:', 'مکث‌ها:'], ['Fillers:', 'واژه‌های پُرکننده:'], ['Words:', 'واژه‌ها:'], ['Answers:', 'پاسخ‌ها:'], ['Reason: ', 'دلیل: '], ['AI · ', 'هوش مصنوعی · '], ['Microphone error: ', 'خطای میکروفون: '], ['Basic offline (', 'آفلاین پایه ('], ['Provider has not passed a successful test. ', 'Provider هنوز آزمون اتصال موفقی را پشت سر نگذاشته است. '], ['Retry Weak Words (', 'تمرین دوبارهٔ واژه‌های ضعیف ('], ['Mid-Sentence Pauses (', 'مکث‌های میان جمله ('], ['Focus: ', 'تمرکز: '], ['Alternatives / Confidence: ', 'گزینه‌های جایگزین / میزان اطمینان: '], ['Question source: AI', 'منبع سؤال: هوش مصنوعی'], ['Question source: saved offline set', 'منبع سؤال: مجموعهٔ آفلاین ذخیره‌شده'], ['API key was not copied to the custom provider: ', 'API Key به Provider سفارشی کپی نشد: '], ['Save failed — ', 'ذخیره ناموفق بود — '], ['API 2: FAIL — ', 'API 2: ناموفق — '], ['API 1: FAIL — ', 'API 1: ناموفق — '], ['API 2: PASS — ', 'API 2: موفق — '], ['API 1: PASS — ', 'API 1: موفق — '], ['Question source: AI', 'منبع سؤال: هوش مصنوعی']];
 const attributes = ['placeholder', 'title', 'aria-label'];
 let observer: MutationObserver | null = null;
 let currentLanguage: AppLanguage = 'en';
@@ -196,6 +202,8 @@ function translateTextNode(node: Text): void {
   if (!trimmed) return;
   let translated = fa[trimmed];
   if (!translated) {
+    const movedSet = trimmed.match(/^Moved to Set (\d+) of (\d+)\.$/);
+    if (movedSet) translated = `انتقال به مجموعهٔ ${movedSet[1]} از ${movedSet[2]}.`;
     const historyCount = trimmed.match(/^(\d+) completed (session|sessions) recorded$/);
     if (historyCount) translated = `${historyCount[1]} نشست تکمیل‌شده در تاریخچه ثبت شده`;
     const evaluatorWarning = trimmed.match(/^Evaluator pre-test warning \(([\s\S]*)\)\. Your answers are still saved if evaluation fails\.$/);

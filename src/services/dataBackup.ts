@@ -9,7 +9,7 @@ import {
   saveSlotConnectionTestResult,
   sanitizeSlotConfig
 } from '../storage/localStore';
-import { loadAppSettings, saveAppSettings } from '../storage/appSettings';
+import { loadAppSettings, saveAppSettings, type AppSettings } from '../storage/appSettings';
 import { loadApiKeyStrict, saveApiKey } from '../storage/keyStore';
 import { exportIeltsHistorySnapshot, importIeltsHistorySnapshot } from '../storage/ieltsHistoryStore';
 import { SEEN_LLM_TOPICS_KEY, RECENT_LLM_QUESTIONS_KEY, getSeenQuestions, getRecentLlmQuestions, restoreLlmGenerationMemory, saveSeenQuestions } from './ieltsQuestionTracker';
@@ -143,7 +143,7 @@ function uniqueKeyTargets(configs: AllSlotsConfig): ApiKeySnapshot[] {
 function validateAiSettingsBackup(payload: Record<string, any>): {
   incoming: Partial<AllSlotsConfig>;
   keys?: Record<string, { primary: string; secondary?: string }>;
-  appSettings?: { theme?: 'system' | 'light' | 'dark' };
+  appSettings?: Partial<AppSettings>;
 } {
   const rawIncoming = payload.configs as Partial<AllSlotsConfig> | undefined;
   if (!rawIncoming || typeof rawIncoming !== 'object' || Array.isArray(rawIncoming)) {
@@ -187,18 +187,20 @@ function validateAiSettingsBackup(payload: Record<string, any>): {
     }
   }
 
-  let appSettings: { theme?: 'system' | 'light' | 'dark' } | undefined;
+  let appSettings: Partial<AppSettings> | undefined;
   if (payload.appSettings !== undefined) {
     if (!payload.appSettings || typeof payload.appSettings !== 'object' || Array.isArray(payload.appSettings)) {
       throw new Error('The backup app settings section is invalid. No settings were imported.');
     }
     const raw = payload.appSettings;
-    if (raw.theme !== undefined && !['system', 'light', 'dark'].includes(raw.theme)) {
-      throw new Error('The backup contains an invalid appearance preference. No settings were imported.');
-    }
-    appSettings = {
-      ...(raw.theme !== undefined ? { theme: raw.theme } : {})
-    };
+    const validatedSettings: Partial<AppSettings> = {};
+    if (raw.theme !== undefined) { if (!['system', 'light', 'dark'].includes(raw.theme)) throw new Error('The backup contains an invalid appearance preference. No settings were imported.'); validatedSettings.theme = raw.theme; }
+    const booleanKeys: Array<keyof AppSettings> = ['showTutorialOnStartup','onboardingCompleted','prefetchShadowingAudio','autoPlayNextShadowing','autoTranslateSentenceSets','explainGrammarInTranslationLanguage'];
+    for (const key of booleanKeys) if (raw[key] !== undefined) { if (typeof raw[key] !== 'boolean') throw new Error(`The backup contains an invalid ${String(key)} preference. No settings were imported.`); (validatedSettings as Record<string, unknown>)[key] = raw[key]; }
+    if (raw.language !== undefined) { if (raw.language !== null && raw.language !== 'en' && raw.language !== 'fa') throw new Error('The backup contains an invalid app language. No settings were imported.'); validatedSettings.language = raw.language; }
+    if (raw.shadowingDifficulty !== undefined) { if (!['easy','medium','hard','ielts'].includes(raw.shadowingDifficulty)) throw new Error('The backup contains an invalid Shadowing difficulty. No settings were imported.'); validatedSettings.shadowingDifficulty = raw.shadowingDifficulty; }
+    if (raw.translationTargetLanguage !== undefined) { if (typeof raw.translationTargetLanguage !== 'string' || !['fa','ar','de','es','fr','it','nl','pt','ru','sv','tr','zh','ja','ko'].includes(raw.translationTargetLanguage)) throw new Error('The backup contains an invalid translation language. No settings were imported.'); validatedSettings.translationTargetLanguage = raw.translationTargetLanguage; }
+    appSettings = validatedSettings;
   }
 
   return { incoming, keys, appSettings };
@@ -276,9 +278,7 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
       if (validated.appSettings) {
         await saveAppSettings(validated.appSettings);
         const saved = await loadAppSettings();
-        if (validated.appSettings.theme !== undefined && saved.theme !== validated.appSettings.theme) {
-          throw new Error('The appearance preference could not be verified after import.');
-        }
+        for (const [key, value] of Object.entries(validated.appSettings)) if ((saved as Record<string, unknown>)[key] !== value) throw new Error(`The ${key} preference could not be verified after import.`);
       }
 
       // Imported provider configurations must be tested again; never restore a

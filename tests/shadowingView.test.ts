@@ -24,6 +24,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     await new Promise(resolve => setTimeout(resolve, 30));
     const trainer = root.querySelector('.shadowing-main-card');
     const language = root.querySelector('#sh-language-select');
+    const translationLanguage = root.querySelector('#sh-translation-language-global');
     const sentenceSet = root.querySelector('.sh-sentence-set-details');
     const target = root.querySelector('#sh-target-text');
     const scoreDetails = root.querySelector('.sh-result-details');
@@ -40,7 +41,8 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-api-notice-toggle-btn')?.parentElement?.lastElementChild?.id).toBe('sh-api-notice-toggle-btn');
     expect(root.querySelector('.sh-api-capability-notice')?.nextElementSibling?.id).toBe('sh-api-notice-toggle-btn');
     expect(language && sentenceSet && language.compareDocumentPosition(sentenceSet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(language?.parentElement?.nextElementSibling).toBe(sentenceSet);
+    expect(language?.parentElement?.nextElementSibling).toBe(translationLanguage?.parentElement);
+    expect(translationLanguage?.parentElement?.nextElementSibling).toBe(sentenceSet);
     expect(sentenceSet && target && sentenceSet.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(trainer?.contains(sentenceSet)).toBe(true);
     expect(trainer?.contains(target)).toBe(true);
@@ -54,6 +56,15 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     root.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.click();
     expect(notice?.hidden).toBe(false);
     expect(notice?.open).toBe(true);
+  });
+
+  it('persists the Shadowing auto-play and auto-translation toggles', async () => {
+    const root = document.createElement('div'); document.body.appendChild(root);
+    await bootstrapApp(root, 'shadowing');
+    root.querySelector<HTMLButtonElement>('#sh-autoplay-next-btn')?.click();
+    root.querySelector<HTMLButtonElement>('#sh-auto-translate-toggle')?.click();
+    const { loadAppSettings } = await import('../src/storage/appSettings');
+    await expect(loadAppSettings()).resolves.toMatchObject({ autoPlayNextShadowing: true, autoTranslateSentenceSets: true });
   });
 
   it('starts with offline sentence sets, removes source choice, and reports missing AI configuration', async () => {
@@ -253,7 +264,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     record?.click();
     await new Promise(resolve => setTimeout(resolve, 30));
     expect(audioRecorder.isRecording()).toBe(true);
-    for (const selector of ['#sh-play-normal-btn','#sh-play-slow-btn','#sh-prev-btn','#sh-next-btn','#sh-generate-ai-btn','#sh-history-prev-btn','#sh-history-next-btn','#sh-language-select','#sh-translate-btn','#sh-grammar-btn','#sh-translation-language','[data-diff]']) {
+    for (const selector of ['#sh-play-normal-btn','#sh-play-slow-btn','#sh-prev-btn','#sh-next-btn','#sh-generate-ai-btn','#sh-history-prev-btn','#sh-history-next-btn','#sh-language-select','#sh-translate-btn','#sh-grammar-btn','#sh-translation-language-global','#sh-auto-translate-toggle','#sh-autoplay-next-btn','[data-diff]']) {
       expect(root.querySelector<HTMLElement>(selector)?.hasAttribute('disabled')).toBe(true);
     }
     expect(root.querySelector<HTMLButtonElement>('#sh-record-btn')?.disabled).toBe(false);
