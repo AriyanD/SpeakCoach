@@ -11,11 +11,18 @@ export interface ShadowingTranslationResult {
   modelName: string;
   account: 'primary' | 'secondary';
 }
-export function buildShadowingTranslationPrompt(text: string, targetLanguage: string, mode: 'translate' | 'grammar' | 'batch' = 'translate'): string {
+export function buildShadowingTranslationPrompt(text: string, targetLanguage: string, mode: 'translate' | 'grammar' | 'batch' | 'followup' = 'translate'): string {
   const source = text.trim();
   const language = targetLanguage.trim();
   if (!source) throw new Error('Enter a word or sentence to translate.');
   if (source.length > 4000) throw new Error('Text is too long (maximum 4,000 characters).');
+  if (mode === 'followup') return [
+    `You are a concise language tutor. Answer ONLY in ${language}. The learner asks about the given sentence and its existing grammar explanation. Stay strictly on grammar and usage, and keep the answer short.`,
+    'Use the supplied conversation history only as context; do not repeat the full explanation.',
+    '',
+    'Context and question:',
+    source
+  ].join('\\n');
   if (mode === 'grammar') return [
     `Explain the grammar of the following text entirely in ${language}. Do not translate the sentence itself.`,
     `Give a learner-friendly explanation in ${language}: explain sentence structure, tense and aspect, clauses, word order, and important grammatical patterns, including why they are used. Add short examples in ${language} when useful.`,
@@ -60,7 +67,7 @@ export async function translateShadowingText(
   text: string,
   targetLanguage: string,
   transport?: (opts: any) => Promise<any>,
-  mode: 'translate' | 'grammar' | 'batch' = 'translate'
+  mode: 'translate' | 'grammar' | 'batch' | 'followup' = 'translate'
 ): Promise<ShadowingTranslationResult> {
   const prompt = buildShadowingTranslationPrompt(text, targetLanguage, mode);
   const configs = await loadAllSlotsConfig();
@@ -109,7 +116,9 @@ export async function translateShadowingText(
               ? `You are an expert language tutor. Explain grammar entirely in ${targetLanguage}. Do not translate the source sentence.`
               : mode === 'batch'
                 ? `You are a precise translator. Return only a valid JSON array of translated strings in ${targetLanguage}, preserving item count and order.`
-                : 'You are a precise translator. Return only the translation, without labels or explanations.' },
+                : mode === 'followup'
+                  ? `You are a concise language tutor. Answer only in ${targetLanguage}; stay on grammar and usage and keep the answer short.`
+                  : 'You are a precise translator. Return only the translation, without labels or explanations.' },
             { role: 'user', content: prompt }
           ],
           temperature: 0.2
@@ -157,4 +166,34 @@ export async function translateShadowingSentenceBatch(
     }
   }
   throw lastError instanceof Error ? lastError : new Error('Could not parse the translated sentence set.');
+}
+
+
+export interface GrammarFollowUpInput {
+  sentence: string;
+  practiceLanguage: string;
+  explanationLanguage: string;
+  explanation: string;
+  history: Array<{ role: 'user' | 'assistant'; content: string }>;
+  question: string;
+}
+
+export function buildGrammarFollowUpPrompt(input: GrammarFollowUpInput): string {
+  const turns = input.history.slice(-6).map(turn => ({ role: turn.role, content: turn.content.slice(0, 1200) }));
+  return JSON.stringify({
+    sentence: input.sentence,
+    practiceLanguage: input.practiceLanguage,
+    explanation: input.explanation.slice(0, 3000),
+    recentConversation: turns,
+    question: input.question.trim().slice(0, 500)
+  });
+}
+
+export async function askGrammarFollowUp(
+  input: GrammarFollowUpInput,
+  transport?: (opts: any) => Promise<any>
+): Promise<ShadowingTranslationResult> {
+  if (!input.question.trim()) throw new Error('Enter a follow-up question.');
+  const prompt = buildGrammarFollowUpPrompt(input);
+  return translateShadowingText(prompt, input.explanationLanguage, transport, 'followup');
 }
