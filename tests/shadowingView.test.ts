@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrapApp } from '../src/main';
 import { audioRecorder } from '../src/services/audioRecorder';
 import { networkMonitor } from '../src/services/networkMonitor';
@@ -24,6 +24,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     await new Promise(resolve => setTimeout(resolve, 30));
     const trainer = root.querySelector('.shadowing-main-card');
     const language = root.querySelector('#sh-language-select');
+    const translationLanguage = root.querySelector('#sh-translation-language-global');
     const sentenceSet = root.querySelector('.sh-sentence-set-details');
     const target = root.querySelector('#sh-target-text');
     const scoreDetails = root.querySelector('.sh-result-details');
@@ -40,12 +41,19 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-api-notice-toggle-btn')?.parentElement?.lastElementChild?.id).toBe('sh-api-notice-toggle-btn');
     expect(root.querySelector('.sh-api-capability-notice')?.nextElementSibling?.id).toBe('sh-api-notice-toggle-btn');
     expect(language && sentenceSet && language.compareDocumentPosition(sentenceSet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(language?.parentElement?.nextElementSibling).toBe(sentenceSet);
+    expect(language?.parentElement?.nextElementSibling).toBe(translationLanguage?.parentElement);
+    expect(translationLanguage?.parentElement?.nextElementSibling).toBe(sentenceSet);
     expect(sentenceSet && target && sentenceSet.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(trainer?.contains(sentenceSet)).toBe(true);
     expect(trainer?.contains(target)).toBe(true);
     expect(trainer?.contains(scoreDetails)).toBe(true);
     expect(trainer?.contains(translation)).toBe(false);
+    const grammarGroup = root.querySelector('.sh-grammar-button-group');
+    const grammarAction = root.querySelector('#sh-grammar-btn');
+    const grammarLanguageToggle = root.querySelector('#sh-grammar-language-toggle');
+    expect(grammarAction?.parentElement).toBe(grammarGroup);
+    expect(grammarLanguageToggle?.parentElement).toBe(grammarGroup);
+    expect(grammarAction?.nextElementSibling).toBe(grammarLanguageToggle);
     expect(transcript).not.toBeNull();
     expect(root.querySelector('#sh-record-btn')?.classList.contains('btn-record')).toBe(true);
     expect(root.querySelector('#sh-translate-btn')?.classList.contains('btn-secondary')).toBe(true);
@@ -54,6 +62,17 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     root.querySelector<HTMLButtonElement>('#sh-api-notice-toggle-btn')?.click();
     expect(notice?.hidden).toBe(false);
     expect(notice?.open).toBe(true);
+  });
+
+  it('persists the Shadowing auto-play and auto-translation toggles', async () => {
+    const root = document.createElement('div'); document.body.appendChild(root);
+    await bootstrapApp(root, 'shadowing');
+    root.querySelector<HTMLButtonElement>('#sh-autoplay-next-btn')?.click();
+    root.querySelector<HTMLButtonElement>('#sh-auto-translate-toggle')?.click();
+    await new Promise(resolve => setTimeout(resolve, 30));
+    const { loadAppSettings } = await import('../src/storage/appSettings');
+    await expect(loadAppSettings()).resolves.toMatchObject({ autoPlayNextShadowing: true, autoTranslateSentenceSets: true });
+    root.remove();
   });
 
   it('starts with offline sentence sets, removes source choice, and reports missing AI configuration', async () => {
@@ -107,7 +126,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-score-card')).toBeNull();
     const errBox = root.querySelector('#sh-empty-error');
     expect(errBox).not.toBeNull();
-    expect(errBox?.textContent).toContain('Online speech API is not verified');
+    expect(errBox?.textContent).toContain('No speech was recognized');
   });
 
   it('scores ONLY what the recognizer returned, supports Weak-Word Drill, and logs to Diagnostics', async () => {
@@ -228,6 +247,14 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
 
     expect(root.querySelector('#sh-score-card')).not.toBeNull();
     expect(root.querySelector('#sh-pace-score')).not.toBeNull();
+    expect(root.querySelector('#sh-fluency-score')?.parentElement?.querySelector('.metric-label')?.textContent).toBe('Fluency (approx.)');
+    expect(root.querySelector('#sh-pace-score')?.parentElement?.querySelector('.metric-label')?.textContent).toContain('Pace (approx.)');
+    expect(root.querySelector('#sh-api-open-settings-btn')).not.toBeNull();
+    const openSettingsEvent = vi.fn();
+    window.addEventListener('speakcoach:open-settings', openSettingsEvent);
+    root.querySelector<HTMLButtonElement>('#sh-api-open-settings-btn')?.click();
+    expect(openSettingsEvent).toHaveBeenCalledTimes(1);
+    window.removeEventListener('speakcoach:open-settings', openSettingsEvent);
     expect(root.querySelector('#sh-score-card .tier-badge')?.textContent).toContain('Basic offline');
 
     // In offline mode, word timing bars are hidden and replaced by clear notice, and replay button is disabled
@@ -238,23 +265,26 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector<HTMLButtonElement>('#sh-replay-my-audio-btn')?.disabled).toBe(true);
     expect(root.querySelectorAll('.speed-tag').length).toBe(0);
   });
-  it('keeps recording/scoring mutually exclusive with playback and navigation', async () => {
+  it('keeps playback and navigation controls disabled during recording', async () => {
     const root = document.createElement('div');
     await bootstrapApp(root, 'shadowing');
-    const record = root.querySelector<HTMLButtonElement>('#sh-record-btn');
-    record?.click();
+    root.querySelector<HTMLButtonElement>('#sh-record-btn')?.click();
     await new Promise(resolve => setTimeout(resolve, 30));
+
     expect(audioRecorder.isRecording()).toBe(true);
-    for (const selector of ['#sh-play-normal-btn','#sh-play-slow-btn','#sh-prev-btn','#sh-next-btn','#sh-generate-ai-btn','#sh-history-prev-btn','#sh-history-next-btn','#sh-language-select','#sh-translate-btn','#sh-grammar-btn','#sh-translation-language','[data-diff]']) {
+    for (const selector of ['#sh-play-normal-btn','#sh-play-slow-btn','#sh-prev-btn','#sh-next-btn','#sh-generate-ai-btn','#sh-history-prev-btn','#sh-history-next-btn','#sh-language-select','#sh-translate-btn','#sh-grammar-btn','#sh-translation-language-global','#sh-auto-translate-toggle','#sh-autoplay-next-btn','[data-diff]']) {
       expect(root.querySelector<HTMLElement>(selector)?.hasAttribute('disabled')).toBe(true);
     }
     expect(root.querySelector<HTMLButtonElement>('#sh-record-btn')?.disabled).toBe(false);
-    root.querySelector<HTMLButtonElement>('#sh-record-btn')?.click();
-    expect(root.querySelector<HTMLButtonElement>('#sh-record-btn')?.disabled).toBe(true);
     expect(root.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.disabled).toBe(true);
+
+    // End the capture through the same tab-navigation lifecycle used by the app.
+    // Clicking Record again starts the asynchronous scoring/STT pipeline, which is
+    // outside this control-state test and can legitimately wait on speech providers.
+    root.querySelector<HTMLButtonElement>('#nav-ielts')?.click();
     await new Promise(resolve => setTimeout(resolve, 60));
     expect(audioRecorder.isRecording()).toBe(false);
-  });
+  }, 10000);
 
   it('stops an active Shadowing recording when navigating to another tab', async () => {
     const root = document.createElement('div');

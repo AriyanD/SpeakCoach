@@ -70,8 +70,10 @@ function parseSentence(raw: string, difficulty: ShadowingDifficulty, languageCod
   const topic = String(parsed.topic ?? `General ${language.label}`).trim();
   const phoneticFocus = String(parsed.phoneticFocus ?? parsed.phonetic_focus ?? 'Sentence stress and natural linking').trim();
   const wordCount = countShadowingLanguageUnits(text, language.code);
-  if (wordCount < 8 || wordCount > 28) {
-    throw new Error(`The AI response contained ${wordCount} words; the practice sentence must contain 8–28 words.`);
+  const minimumWords = difficulty === 'ielts' ? 18 : 8;
+  const maximumWords = difficulty === 'ielts' ? 30 : 28;
+  if (wordCount < minimumWords || wordCount > maximumWords) {
+    throw new Error(`The AI response contained ${wordCount} words; the practice sentence must contain ${minimumWords}–${maximumWords} words.`);
   }
   return {
     id: `ai-shadowing-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -119,13 +121,14 @@ Difficulty: ${difficulty}.${topicNote}${memoryNote}${existingNote}${retryNote}
 Requirements:
 - Return exactly ${requestedCount} distinct sentence objects. Count the objects before responding; never add an introduction, notes, markdown, or extra items.
 - Every text value must be ONE complete, speakable sentence in natural, contemporary, idiomatic spoken ${language.promptName}. Write what a real person might actually say aloud, not textbook prose, an essay sentence, a slogan, a list, or an artificial grammar exercise.
-- Keep each sentence between 8 and 28 words (or an equivalent natural length for this language). Prefer a comfortable breath group that can be spoken smoothly in one go; do not pad sentences just to reach the minimum.
+- Keep each sentence between ${difficulty === 'ielts' ? '18 and 30' : '8 and 28'} words (or an equivalent natural length for this language). Prefer a comfortable breath group that can be spoken smoothly in one go; do not pad sentences just to reach the minimum. Keep IELTS sentences short enough to read aloud in about 25 seconds.
 - Make the batch genuinely varied: use different everyday situations, communicative purposes, sentence openings, grammatical patterns, and rhythms. Across the batch, naturally mix forms such as observations, questions, requests, explanations, reactions, plans, comparisons, and conditional thoughts where appropriate. Do not force every category or make the sentences sound like a checklist.
 - Give every item a concise, concrete topic and ONE useful, audible pronunciation focus. The focus should identify a feature actually present in that sentence (for example, sentence stress, weak forms, linking, consonant clusters, rhythm, or intonation); avoid vague labels such as simply “pronunciation” or repeating the same focus for the whole batch.
 - Match the requested difficulty precisely:
   * Easy: familiar everyday situations, common vocabulary, mostly direct sentence patterns, and little embedding; still natural, not childish.
   * Medium: everyday and less predictable situations, more varied vocabulary, natural multi-clause sentences, and useful connectors or phrasal verbs; avoid unnecessarily academic wording.
   * Hard: nuanced or less familiar situations, precise vocabulary, varied complex structures, and natural idiomatic phrasing; challenging but still plausible in spontaneous conversation, never needlessly obscure or literary.
+  * IELTS: 18–30-word first-person spoken-answer sentences suitable for Band 7+ IELTS Speaking Parts 1, 2 and 3. Include natural reasons, brief examples, linking phrases, hedging or concessions, and topic-appropriate collocations or idioms. Vary home, work/study, hobbies, food, travel, technology and social topics. Mix narrative fragments and opinion/analysis statements. These are answer fragments, not questions.
 - Keep the difficulty consistent across the batch. Do not make Hard merely longer, or Easy unnaturally short.
 - Avoid clichés, famous quotations, copied material, repeated ideas, near-paraphrases, awkward collocations, overly formal phrasing, and sentences that require specialist knowledge.
 - Do not put multiple unrelated ideas into one sentence. Avoid dialogue labels, speaker names, stage directions, pronunciation markup, or explanations inside the sentence text.

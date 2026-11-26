@@ -5,7 +5,8 @@ import {
 } from '../src/services/audioRecorder';
 import {
   analyzePcmSamplesVad,
-  analyzeWavBase64Vad
+  analyzeWavBase64Vad,
+  isWavEffectivelySilent
 } from '../src/services/wavVadAnalyzer';
 
 describe('Offline WAV Energy-Based VAD & Waveform Analyzer', () => {
@@ -53,6 +54,17 @@ describe('Offline WAV Energy-Based VAD & Waveform Analyzer', () => {
 
     const pauseBins = result.waveformBins.filter((b) => b.state === 'pause');
     expect(pauseBins.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('detects near-digital-silence without rejecting a quiet recording', () => {
+    const silent = encodeFloat32ToWav16kMonoBytes(new Float32Array(16000), 16000);
+    const quietSamples = new Float32Array(16000);
+    for (let i = 0; i < quietSamples.length; i++) {
+      quietSamples[i] = 0.002 * Math.sin((2 * Math.PI * 220 * i) / 16000);
+    }
+    const quiet = encodeFloat32ToWav16kMonoBytes(quietSamples, 16000);
+    expect(isWavEffectivelySilent(uint8ArrayToBase64(silent))).toBe(true);
+    expect(isWavEffectivelySilent(uint8ArrayToBase64(quiet))).toBe(false);
   });
 
   it('decodes base64 16 kHz mono WAV and handles pure silence gracefully', () => {

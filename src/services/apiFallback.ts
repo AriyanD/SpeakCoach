@@ -115,9 +115,12 @@ export async function runWithSlotApiFallback<T>(
   }
 
   const preferredAccount = options?.preferredAccount ?? 'auto';
-  const selectedAttempts = preferredAccount === 'auto'
+  const eligibleAttempts = preferredAccount === 'auto'
     ? attempts
     : attempts.filter((attempt) => attempt.account === preferredAccount);
+  // Attempts are appended in the user's saved order: API 1, then API 2.
+  // Provider family never overrides the explicit slot configuration.
+  const selectedAttempts = eligibleAttempts;
 
   const errors: string[] = [];
   if (primaryHealth) errors.push(primaryHealth.state === 'needs-retest' ? 'API 1 needs a successful connection re-test.' : 'API 1 is cooling down after a temporary provider failure.');
@@ -146,8 +149,10 @@ export async function runWithSlotApiFallback<T>(
       await markProviderAccountFailure(slotId, attempt.account, error);
       const accountLabel = attempt.account === 'primary' ? 'API 1 (primary)' : 'API 2 (secondary)';
       errors.push(`${accountLabel} (${preset.name}): ${error instanceof Error ? error.message : String(error)}`);
-      if (attempt.account === 'primary' && attempts.length > 1) continue;
-      if (attempt.account === 'primary' && secondarySkipReason) {
+      const hasAnotherAttempt = selectedAttempts.some((candidate) => candidate !== attempt &&
+        !errors.some((message) => message.startsWith(candidate.account === 'primary' ? 'API 1 (primary)' : 'API 2 (secondary)')));
+      if (hasAnotherAttempt) continue;
+      if (secondarySkipReason && !selectedAttempts.some((candidate) => candidate.account === 'secondary')) {
         errors.push(`API 2 (secondary) skipped: ${secondarySkipReason}`);
       }
       throw new Error(errors.join(' | '));

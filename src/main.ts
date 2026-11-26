@@ -196,7 +196,7 @@ export async function bootstrapApp(
     <nav class="bottom-nav" aria-label="Main navigation">
       <button type="button" class="nav-btn" id="nav-shadowing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v3m-4 0h8"/></svg><span>Shadowing</span></button>
       <button type="button" class="nav-btn" id="nav-ielts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Z"/><path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H20M8 7h8M8 10h6"/></svg><span>IELTS Test</span></button>
-      <button type="button" class="nav-btn" id="nav-settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.5.9l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.5-.9l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-1.8l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.5-.9l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.5.9l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1 0 1.8Z" transform="translate(-1 -1)"/></svg><span>Settings</span></button>
+      <button type="button" class="nav-btn" id="nav-settings"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Settings"><path d="M10.14 4.53 L10.71 1.78 L13.29 1.78 L13.86 4.53 L15.97 5.40 L18.31 3.86 L20.14 5.69 L18.60 8.03 L19.47 10.14 L22.22 10.71 L22.22 13.29 L19.47 13.86 L18.60 15.97 L20.14 18.31 L18.31 20.14 L15.97 18.60 L13.86 19.47 L13.29 22.22 L10.71 22.22 L10.14 19.47 L8.03 18.60 L5.69 20.14 L3.86 18.31 L5.40 15.97 L4.53 13.86 L1.78 13.29 L1.78 10.71 L4.53 10.14 L5.40 8.03 L3.86 5.69 L5.69 3.86 L8.03 5.40 Z"/><circle cx="12" cy="12" r="3.2"/></svg><span>Settings</span></button>
     </nav>
   `;
 
@@ -227,6 +227,8 @@ export async function bootstrapApp(
     lastRootBackAt = 0;
     void refreshUI().then(() => scrollAppToTop(viewContainer));
   };
+
+  window.addEventListener('speakcoach:open-settings', () => navigateTo('settings'));
 
   const resetSectionToRoot = (section: NavigationSection): void => {
     resetSectionStack(sectionStacks, section);

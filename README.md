@@ -82,7 +82,7 @@ Supported provider types include OpenAI-compatible endpoints, custom OpenAI-comp
 - API keys are stored with **Android Keystore (AES-GCM)** and are never silently downgraded to plaintext.
 - Android automatic cloud backup is disabled; use the manual backup instead.
 - Microphone and TTS are released when the app goes to the background.
-- Saved AI voice audio is a device-local cache for the active sentence set only (budgeted at roughly 30 MB); it is replaced when you switch sets, is never included in backups, and your own microphone recordings are never stored in it.
+- Saved AI voice audio is a device-local cache for up to three sentence sets, including the active set (budgeted at roughly 30 MB per set); when another set is cached, the oldest inactive set is evicted. The cache is never included in backups, and your own microphone recordings are never stored in it.
 
 ## Honest limitations
 
@@ -124,7 +124,7 @@ npm run cap:sync    # build and sync to Android
 cd android && ./gradlew assembleDebug
 ```
 
-Pushing a `v*` tag runs the GitHub Actions workflow and publishes a signed `SpeakCoach-vX.Y.Z.apk` release. Signing secrets, version syncing, in-app update rules, backup semantics and dependency notes are documented in [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md).
+After merging the versioned changes to `main`, push a `vX.Y.Z` tag. GitHub Actions validates the version, runs tests, builds and signs `SpeakCoach-vX.Y.Z.apk`, and creates a draft release with the APK attached. The release stays unpublished until you click **Publish release**. Signing secrets, version syncing, in-app update rules, backup semantics and dependency notes are documented in [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md).
 
 ## Tech stack
 

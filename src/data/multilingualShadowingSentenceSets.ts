@@ -2,7 +2,7 @@ import type { ShadowingDifficulty, ShadowingSentence } from './shadowingBank';
 import type { ShadowingLanguageCode } from './shadowingLanguages';
 
 type StarterRow = { topic: string; text: string; phoneticFocus: string };
-type LanguageRows = Record<ShadowingDifficulty, StarterRow[]>;
+type LanguageRows = Record<Exclude<ShadowingDifficulty, 'ielts'>, StarterRow[]>;
 
 // Compact offline starter: one native-language sentence at each difficulty.
 // English remains in its original, separate sentence bank.
@@ -83,6 +83,7 @@ export function getInitialMultilingualShadowingSets(
   languageCode: Exclude<ShadowingLanguageCode, 'en'>,
   difficulty: ShadowingDifficulty
 ): ShadowingSentence[][] {
+  if (difficulty === 'ielts') return [];
   const rows = SENTENCES[languageCode][difficulty];
   const rate = difficulty === 'easy' ? 390 : difficulty === 'medium' ? 430 : 470;
   return rows.map((row, setIndex) => [{

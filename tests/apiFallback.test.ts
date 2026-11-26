@@ -36,7 +36,7 @@ describe('Per-slot secondary API fallback', () => {
   }> = [
     { slotId: 'voice_tts', primaryProviderId: 'openai_tts', secondaryProviderId: 'elevenlabs_tts' },
     { slotId: 'pronunciation_scoring', primaryProviderId: 'whisper_alignment', secondaryProviderId: 'gemini_pronunciation' },
-    { slotId: 'ielts_stt', primaryProviderId: 'whisper_stt', secondaryProviderId: 'gemini_stt' },
+    { slotId: 'ielts_stt', primaryProviderId: 'gemini_stt', secondaryProviderId: 'whisper_stt' },
     { slotId: 'llm_evaluator', primaryProviderId: 'gemini_eval', secondaryProviderId: 'openai_compat_eval' },
     { slotId: 'llm_generator', primaryProviderId: 'gemini_gen', secondaryProviderId: 'openai_compat_gen' }
   ];
@@ -175,13 +175,15 @@ describe('Per-slot secondary API fallback', () => {
     };
     await saveSlotConfig(primaryConfig);
     await saveApiKey(slotId, primaryProviderId, 'primary-speech-key');
+    const primaryFingerprint = await createProviderVerificationFingerprint(primaryConfig, 'primary-speech-key');
     const secondaryFingerprint = await createProviderVerificationFingerprint({
       slotId, providerId: secondaryPreset.id, baseUrl: secondaryPreset.defaultBaseUrl,
       modelOrVoice: secondaryPreset.defaultModelOrVoice
     }, 'secondary-speech-key');
     await saveSlotConnectionTestResult(slotId, {
       ok: true, slotId, providerId: primaryProviderId, tier: primaryPreset.tier,
-      label: 'Online AI', latencyMs: 10, message: 'PASS — primary verified'
+      label: 'Online AI', latencyMs: 10, message: 'PASS — primary verified',
+      verificationFingerprint: primaryFingerprint ?? undefined
     });
     await saveSecondarySlotConfig(slotId, {
       providerId: secondaryPreset.id,
@@ -210,10 +212,93 @@ describe('Per-slot secondary API fallback', () => {
       }
     });
 
-    expect(requestedUrls.some(url => url.includes('/audio/transcriptions'))).toBe(true);
-    expect(requestedUrls.some(url => url.includes(':generateContent'))).toBe(true);
-    expect(outcome.transcript).toContain('hello from the secondary');
+    expect(requestedUrls).toHaveLength(2);
+    expect(requestedUrls[0]).toContain('/audio/transcriptions'); // API 1 always runs first.
+    expect(requestedUrls[1]).toContain(':generateContent'); // API 2 runs only after API 1 fails.
     expect(outcome.activeTier.providerId).toBe(secondaryProviderId);
+    expect(outcome.activeTier.isFallback).toBe(true);
+    expect(outcome.transcript).toContain('hello from the secondary');
+  });
+
+  it('alternates the starting STT account per recording and falls back after a failed first attempt', async () => {
+    const slotId = 'ielts_stt' as const;
+    const primaryPreset = getPreset(slotId, 'whisper_stt');
+    const secondaryPreset = getPreset(slotId, 'gemini_stt');
+    const primaryConfig: SlotConfig = {
+      slotId, providerId: primaryPreset.id,
+      baseUrl: primaryPreset.defaultBaseUrl, modelOrVoice: primaryPreset.defaultModelOrVoice
+    };
+    await saveSlotConfig(primaryConfig);
+    await saveApiKey(slotId, primaryPreset.id, 'primary-speech-key');
+    const primaryFingerprint = await createProviderVerificationFingerprint(primaryConfig, 'primary-speech-key');
+    await saveSlotConnectionTestResult(slotId, {
+      ok: true, slotId, providerId: primaryPreset.id, tier: primaryPreset.tier,
+      label: 'Online AI', latencyMs: 10, message: 'PASS — API 1 verified',
+      verificationFingerprint: primaryFingerprint ?? undefined
+    });
+
+    const secondaryConfig = {
+      slotId, providerId: secondaryPreset.id,
+      baseUrl: secondaryPreset.defaultBaseUrl, modelOrVoice: secondaryPreset.defaultModelOrVoice
+    };
+    const secondaryFingerprint = await createProviderVerificationFingerprint(secondaryConfig, 'secondary-speech-key');
+    await saveSecondarySlotConfig(slotId, {
+      providerId: secondaryPreset.id, baseUrl: secondaryPreset.defaultBaseUrl,
+      modelOrVoice: secondaryPreset.defaultModelOrVoice, verified: true,
+      testResult: {
+        ok: true, latencyMs: 12, message: 'PASS — API 2 verified',
+        testedAt: Date.now(), verificationFingerprint: secondaryFingerprint ?? undefined
+      }
+    });
+    await saveApiKey(slotId, secondaryPreset.id, 'secondary-speech-key', 'secondary');
+
+    const requestedUrls: string[] = [];
+    const transcribe = (failGemini = false) => transcribeWithTier2WhisperOrFallback({
+      slotId,
+      wavBase64: generateProbeWavBase64(1, 440),
+      durationMs: 1000,
+      offlineTranscript: 'offline fallback transcript',
+      transport: async opts => {
+        requestedUrls.push(opts.url);
+        if (opts.url.includes('/audio/transcriptions')) {
+          return {
+            url: opts.url, status: 200, headers: {},
+            data: { text: 'transcript from API 1', duration: 1 }
+          };
+        }
+        if (failGemini) {
+          return { url: opts.url, status: 503, headers: {}, data: { error: { message: 'API 2 unavailable' } } };
+        }
+        return {
+          url: opts.url, status: 200, headers: {},
+          data: { candidates: [{ content: { parts: [{ audioTranscription: { text: 'transcript from API 2' } }] } }] }
+        };
+      }
+    });
+
+    const first = await transcribe();
+    expect(requestedUrls[0]).toContain('/audio/transcriptions');
+    expect(first.activeTier.providerId).toBe(primaryPreset.id);
+    expect(first.activeTier.isFallback).toBe(false);
+
+    const second = await transcribe();
+    expect(requestedUrls[1]).toContain(':generateContent');
+    expect(second.activeTier.providerId).toBe(secondaryPreset.id);
+    expect(second.activeTier.isFallback).toBe(false);
+
+    const third = await transcribe();
+    expect(requestedUrls[2]).toContain('/audio/transcriptions');
+    expect(third.activeTier.providerId).toBe(primaryPreset.id);
+    expect(third.activeTier.isFallback).toBe(false);
+
+    // The fourth recording starts with API 2. If it fails, API 1 is tried
+    // immediately for that same recording and is correctly marked fallback.
+    const fourth = await transcribe(true);
+    expect(requestedUrls[3]).toContain(':generateContent');
+    expect(requestedUrls[4]).toContain('/audio/transcriptions');
+    expect(fourth.activeTier.providerId).toBe(primaryPreset.id);
+    expect(fourth.activeTier.isFallback).toBe(true);
+    expect(fourth.transcript).toContain('transcript from API 1');
   });
 
   it('labels both failed TTS attempts explicitly as API 1 and API 2', async () => {

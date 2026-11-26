@@ -209,6 +209,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: SpeakCoach ${{ github.ref_name }}
           generate_release_notes: true
+          draft: true
           make_latest: true
           files: android/app/build/outputs/apk/release/SpeakCoach-v*.apk
 

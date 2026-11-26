@@ -13,7 +13,34 @@ describe('App settings persistence', () => {
       language: null,
       showTutorialOnStartup: true,
       onboardingCompleted: false,
-      prefetchShadowingAudio: true
+      prefetchShadowingAudio: true,
+      shadowingDifficulty: 'easy',
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
+    });
+  });
+
+  it('persists Shadowing difficulty and translation language across app restarts', async () => {
+    await saveAppSettings({ shadowingDifficulty: 'hard', translationTargetLanguage: 'sv' });
+    await expect(loadAppSettings()).resolves.toMatchObject({
+      shadowingDifficulty: 'hard',
+      translationTargetLanguage: 'sv'
+    });
+  });
+
+  it('sanitizes unsupported Shadowing preferences to safe defaults', async () => {
+    localStorage.setItem('speakcoach.app_settings.v1', JSON.stringify({
+      shadowingDifficulty: 'expert',
+      translationTargetLanguage: 'xx'
+    }));
+    await expect(loadAppSettings()).resolves.toMatchObject({
+      shadowingDifficulty: 'easy',
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
     });
   });
 
@@ -61,7 +88,12 @@ describe('App settings persistence', () => {
       language: null,
       showTutorialOnStartup: true,
       onboardingCompleted: false,
-      prefetchShadowingAudio: true
+      prefetchShadowingAudio: true,
+      shadowingDifficulty: 'easy',
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
     });
   });
 
@@ -75,7 +107,12 @@ describe('App settings persistence', () => {
       language: null,
       showTutorialOnStartup: true,
       onboardingCompleted: false,
-      prefetchShadowingAudio: true
+      prefetchShadowingAudio: true,
+      shadowingDifficulty: 'easy',
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
     });
   });
 
@@ -91,7 +128,12 @@ describe('App settings persistence', () => {
       language: null,
       showTutorialOnStartup: true,
       onboardingCompleted: false,
-      prefetchShadowingAudio: true
+      prefetchShadowingAudio: true,
+      shadowingDifficulty: 'easy',
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
     });
   });
 });

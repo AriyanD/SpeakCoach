@@ -134,6 +134,14 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     expect(container.querySelector('#ielts-set-mode')).not.toBeNull();
     container.querySelector<HTMLButtonElement>('[data-mode-choice="part2"]')?.click();
     expect(container.querySelector<HTMLSelectElement>('#ielts-set-mode')?.value).toBe('part2');
+    expect(container.querySelector('.ielts-set-meta')?.textContent).toBe('1 Part 2 cue card');
+    expect(container.querySelector('.ielts-set-status')).toBeNull();
+    const part2ModeButton = container.querySelector<HTMLButtonElement>('[data-mode-choice="part2"]');
+    part2ModeButton?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    const part3ModeButton = container.querySelector<HTMLButtonElement>('[data-mode-choice="part3"]');
+    expect(document.activeElement).toBe(part3ModeButton);
+    expect(part3ModeButton?.getAttribute('aria-checked')).toBe('true');
+    expect(container.querySelector('.ielts-set-meta')?.textContent).toMatch(/Part 3 prompts$/);
 
     // Click history button
     const historyBtn = container.querySelector<HTMLButtonElement>('#ielts-history-btn');

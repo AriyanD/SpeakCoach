@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUILTIN_SHADOWING_SETS } from '../src/data/shadowingSentenceSets';
 import {
   appendShadowingSet,
+  createEmptyShadowingSetHistory,
+  makeSeedHistory,
   getActiveShadowingSet,
   loadShadowingSetHistory,
   moveShadowingSet,
@@ -35,6 +37,30 @@ describe('Shadowing sentence-set history', () => {
         expect(set.every(sentence => sentence.text.trim().length > 0)).toBe(true);
       }
     }
+  });
+
+  it('creates an empty AI-only IELTS history bucket without offline starter sentences', () => {
+    const history = makeSeedHistory('en');
+    expect(history.ielts).toEqual({ sets: [], activeSetId: '', activeSentenceIndex: 0 });
+    expect(createEmptyShadowingSetHistory().ielts.sets).toHaveLength(0);
+  });
+
+  it('round-trips optional per-sentence translations without changing saved sentence data', async () => {
+    const history = makeSeedHistory('en');
+    const sentence = history.easy.sets[0].sentences[0];
+    sentence.translations = { fa: 'ترجمه', sv: 'Översättning' };
+    await saveShadowingSetHistory(history);
+    const loaded = await loadShadowingSetHistory();
+    expect(loaded.easy.sets[0].sentences[0].translations).toEqual({ fa: 'ترجمه', sv: 'Översättning' });
+  });
+
+  it('upgrades a legacy v2 history with no IELTS bucket without losing saved sets', async () => {
+    const legacy = makeSeedHistory('en') as any;
+    delete legacy.ielts;
+    memory.set('speakcoach_shadowing_set_history_v2', JSON.stringify(legacy));
+    const upgraded = await loadShadowingSetHistory();
+    expect(upgraded.easy.sets).toHaveLength(5);
+    expect(upgraded.ielts).toEqual({ sets: [], activeSetId: '', activeSentenceIndex: 0 });
   });
 
   it('migrates the previously saved AI batch into the unified history', async () => {

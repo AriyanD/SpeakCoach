@@ -47,11 +47,11 @@ A successful provider connection test confirms the tested endpoint responded. It
 
 ## Application identity
 
-The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The **initial public release** was `1.0.0` (`versionCode` 1); the current published app version is `1.0.14` (`versionCode` 14). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
+The application name is **SpeakCoach**. The standalone Android application ID is `com.ariyand.speakcoach`. The **initial public release** was `1.0.0` (`versionCode` 1); the current published app version is `1.1.4` (`versionCode` 19). This is a new installation identity; it is not intended to update an earlier development build. Future SpeakCoach updates are checked against the public GitHub Releases page for `AriyanD/SpeakCoach` and are downloaded and installed only after the user confirms the Android installer prompts. The updater verifies the downloaded APK against the SHA-256 digest published by GitHub before opening Android's package installer. Android may require the user to allow installs from SpeakCoach. All future APKs must retain this application ID and be signed with the same private release keystore.
 
 ## In-app updates
 
-SpeakCoach requires Android 6.0 (API 23) or newer. The current updater checks the native Android SDK level before offering or installing an update and refuses API 22 or older. The published 1.0.14 APK predates the source-side API 23 change; its already-installed updater cannot be retrofitted, so Android 5.1 users must not install a future API 23+ APK. Release notes must continue to state the minimum Android version explicitly.
+SpeakCoach requires Android 6.0 (API 23) or newer. The current updater checks the native Android SDK level before offering or installing an update and refuses API 22 or older. The published 1.1.4 APK predates the source-side API 23 change; its already-installed updater cannot be retrofitted, so Android 5.1 users must not install a future API 23+ APK. Release notes must continue to state the minimum Android version explicitly.
 
 Open **Settings → Software updates** to check the public GitHub Releases page for a newer version. SpeakCoach downloads the matching APK, verifies its SHA-256 checksum against GitHub release metadata, and opens the Android package installer after user confirmation. Android may ask you to allow installs from SpeakCoach. Future releases must use the same Android application ID and persistent signing keystore.
 
@@ -64,7 +64,7 @@ Open **Settings → Software updates** to check the public GitHub Releases page 
 
 ## Build and install
 
-The GitHub Actions workflow runs tests, TypeScript checks, the web build and Android APK builds. Pushing a `v*` tag builds a stable-signed APK and publishes it as a GitHub Release. The in-app update checker reads the latest published Release and downloads the attached `SpeakCoach-vX.Y.Z.apk` asset.
+The GitHub Actions workflow runs tests, TypeScript checks, the web build and Android APK builds. Pushing a `vX.Y.Z` tag triggers the workflow: it validates the tag against Android `versionName`, runs tests and builds the stable-signed APK, then creates a **draft GitHub Release** with the APK attached. The release remains unpublished until you explicitly click **Publish release**. Create the tag only after the versioned PR has been merged to `main`. The in-app update checker reads the latest published Release and downloads the attached `SpeakCoach-vX.Y.Z.apk` asset.
 
 ### Local development
 
@@ -98,7 +98,7 @@ A release APK must be signed with the same keystore on every release to support 
 - `SPEAKCOACH_RELEASE_KEY_ALIAS`: key alias.
 - `SPEAKCOACH_RELEASE_KEY_PASSWORD`: key password.
 
-Do not commit the keystore or passwords. Before each future release, keep `package.json`, `src/config/appVersion.ts`, and Android `versionName` synchronized with the `vX.Y.Z` tag, and increment Android `versionCode` for every update. All four secrets are required to publish a GitHub Release. Ordinary branch builds can still upload a debug APK and an unsigned release artifact, but a version tag fails safely unless stable signing is configured. Never lose the keystore or its passwords: every future APK update must use the same application ID and signing certificate. The in-app updater checks for a newer full Release and will not install an unsigned workflow artifact.
+Do not commit the keystore or passwords. Before each future release, keep `package.json`, `src/config/appVersion.ts`, and Android `versionName` synchronized with the `vX.Y.Z` tag, and increment Android `versionCode` for every update. All four secrets are required to build and attach the stable-signed APK to a draft GitHub Release. Ordinary branch builds can still upload a debug APK and an unsigned release artifact, but a version tag fails safely unless stable signing is configured. Never lose the keystore or its passwords: every future APK update must use the same application ID and signing certificate. The in-app updater checks for a newer full Release and will not install an unsigned workflow artifact.
 
 
 ## Backup safety

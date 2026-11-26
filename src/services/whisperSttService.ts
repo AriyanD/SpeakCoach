@@ -9,6 +9,7 @@ import { clearProviderAccountHealth, createProviderVerificationFingerprint, getP
 import { buildSpokenTokensFromTranscript, type SpokenWordToken } from './wordAlignment';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest, resolveWireFormat } from './customEndpointHelper';
 import { getShadowingLanguage } from '../data/shadowingLanguages';
+import { isWavEffectivelySilent } from './wavVadAnalyzer';
 import { isAzurePronunciationLocaleSupported, toWhisperLanguageCode } from './shadowingSpeechLanguage';
 
 /**
@@ -635,7 +636,9 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
     secondaryVerificationNotice = `API 2 (${getPreset(requestedSlotId, secondary.providerId).name}) needs a successful connection test before it can be used.`;
   }
 
-  // Rotate only between the primary and secondary APIs of the requested slot.
+  // Rotate only between the primary and secondary APIs of this STT slot.
+  // Each new recording alternates the starting account; if it fails, the
+  // other verified account is tried before executeWithTierFallback uses Android.
   const rotationKey = `speakcoach.stt.rotation.${requestedSlotId}.v1`;
   let rotation = 0;
   try {
@@ -654,10 +657,16 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
   let usedAccount: 'primary' | 'secondary' = preferred?.account ?? 'primary';
   let rawResponse: WhisperVerboseResponse | undefined;
   let providerFailureMessage = '';
+  let hadPriorCandidateFailure = false;
 
   const outcome = await executeWithTierFallback<{ transcript: string; words: SpokenWordToken[]; error?: string }>(
     requestedSlotId,
     async () => {
+      // Block only near-digital-silence. The low threshold avoids rejecting quiet speech.
+      if (isWavEffectivelySilent(params.wavBase64)) {
+        providerFailureMessage = 'The recording contains no usable audio. Please record your answer again.';
+        throw new Error(providerFailureMessage);
+      }
       if (orderedCandidates.length === 0) {
         providerFailureMessage = [...verificationNotices, secondaryVerificationNotice].filter(Boolean).join(' ')
           || 'No verified speech API is configured for this feature.';
@@ -699,6 +708,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
                   transport: params.transport
                 });
           if (!res.transcript.trim()) {
+            hadPriorCandidateFailure = true;
             errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): the provider returned an empty transcription.`);
             continue;
           }
@@ -712,6 +722,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
             : undefined;
           return { transcript: res.transcript, words: res.words, error: fallbackNotice };
         } catch (error) {
+          hadPriorCandidateFailure = true;
           await markProviderAccountFailure(candidateSlotId, candidate.account, error);
           errors.push(`${candidateSlotId}/${candidate.account} (${getPreset(candidateSlotId, candidateCfg.providerId).name}): ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -744,7 +755,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
         tier: usedPreset.tier,
         label: (usedPreset.tier === 3 ? 'Basic offline' : 'Online AI') as TierLabel,
         detailLabel: `Online AI (API ${usedAccount === 'secondary' ? '2' : '1'} · Tier ${usedPreset.tier} · ${usedPreset.name})`,
-        isFallback: usedAccount === 'secondary'
+        isFallback: hadPriorCandidateFailure
       }
     : outcome.activeTier;
 
