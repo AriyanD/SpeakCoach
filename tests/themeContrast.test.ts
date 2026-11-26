@@ -112,8 +112,8 @@ describe('theme contrast and semantic palette', () => {
   });
 
   it('defines a calm navigation notice style for Shadowing', () => {
-    expect(lightCss).toMatch(/\\.status-box\\.notice\\s*\\{/);
-    expect(darkCss).toMatch(/\\.status-box\\.notice\\s*\\{/);
+    expect(lightCss).toMatch(/\.status-box\.notice\s*\{/);
+    expect(darkCss).toMatch(/\.status-box\.notice\s*\{/);
   });
 
   it('keeps individual IELTS history delete controls at the 48px minimum touch target', () => {
