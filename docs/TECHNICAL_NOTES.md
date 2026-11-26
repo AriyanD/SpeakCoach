@@ -64,7 +64,7 @@ Open **Settings → Software updates** to check the public GitHub Releases page 
 
 ## Build and install
 
-The GitHub Actions workflow runs tests, TypeScript checks, the web build and Android APK builds. Creating a GitHub draft release for a `vX.Y.Z` tag triggers the workflow: it validates the tag against Android `versionName`, runs tests and builds the stable-signed APK, then attaches the APK to the draft. The release remains unpublished until you explicitly click **Publish release**. The in-app update checker reads the latest published Release and downloads the attached `SpeakCoach-vX.Y.Z.apk` asset.
+The GitHub Actions workflow runs tests, TypeScript checks, the web build and Android APK builds. Pushing a `vX.Y.Z` tag triggers the workflow: it validates the tag against Android `versionName`, runs tests and builds the stable-signed APK, then creates a **draft GitHub Release** with the APK attached. The release remains unpublished until you explicitly click **Publish release**. Create the tag only after the versioned PR has been merged to `main`. The in-app update checker reads the latest published Release and downloads the attached `SpeakCoach-vX.Y.Z.apk` asset.
 
 ### Local development
 

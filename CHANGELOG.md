@@ -1,6 +1,6 @@
 # Changelog
 
-Notable user-facing changes are recorded here. A GitHub draft release stays private until it is intentionally published.
+Notable user-facing changes are recorded here. A version tag triggers creation of a draft release; it stays unpublished until intentionally published.
 
 ## 1.2.0 — 2026-11-27
 
