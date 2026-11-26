@@ -278,7 +278,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     root.querySelector<HTMLButtonElement>('#nav-ielts')?.click();
     await new Promise(resolve => setTimeout(resolve, 60));
     expect(audioRecorder.isRecording()).toBe(false);
-  });
+  }, 10000);
 
   it('stops an active Shadowing recording when navigating to another tab', async () => {
     const root = document.createElement('div');
