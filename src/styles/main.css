@@ -4694,3 +4694,41 @@ body {
 .shadowing-main-card #sh-auto-translate-toggle svg { display:block; margin:0; vertical-align:middle; transform:none; }
 .shadowing-main-card .sh-grammar-language-toggle { display:inline-flex; align-items:center; justify-content:center; }
 .shadowing-main-card .sh-grammar-language-toggle svg { display:block; margin:0; vertical-align:middle; transform:none; }
+
+
+/* Keep the chat composer input and send control in one shared row. */
+.shadowing-main-card .sh-grammar-chat-compose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: end;
+  column-gap: 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.shadowing-main-card .sh-grammar-chat-compose > #sh-grammar-chat-input {
+  display: block;
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex: none;
+  box-sizing: border-box;
+}
+.shadowing-main-card .sh-grammar-chat-compose > #sh-grammar-chat-send {
+  display: grid;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: end;
+  justify-self: end;
+  flex: none;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0;
+  box-sizing: border-box;
+}
