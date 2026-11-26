@@ -1032,7 +1032,13 @@ export function renderShadowingView(
       errorNode.setAttribute('role', 'alert');
       errorNode.textContent = state.grammarChatError;
       messages?.appendChild(errorNode);
-      if (input) input.value = question;
+      state.grammarChatDraft = question;
+      if (input) {
+        input.value = question;
+        input.disabled = false;
+        input.style.height = 'auto';
+        input.style.height = `${Math.min(input.scrollHeight, 144)}px`;
+      }
     } finally {
       if (requestToken === state.grammarChatToken) {
         state.grammarChatBusy = false;
