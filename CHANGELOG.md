@@ -73,3 +73,4 @@ Notable user-facing changes are recorded here. Release tags and version numbers 
 
 ### Fixed
 - Fixed Translation & Grammar card styles being scoped to the wrong parent, replaced the duplicate grammar/chat rules with a single card-scoped theme-aware block, and added independently managed scroll rails to both explanation and follow-up messages.
+- The Translation & Grammar action row now gives grammar explanation more room and a full-height, 60px translation-language toggle hit area.
