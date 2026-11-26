@@ -4634,16 +4634,16 @@ body {
 }
 
 
-/* Grammar explanation controls: one coherent action group, toggle anchored at its right edge. */
+/* Explain Grammar is one continuous pill; the translation toggle floats inside its right end. */
 .shadowing-main-card .sh-translation-actions { direction:ltr; align-items:stretch; }
 .shadowing-main-card .sh-translation-actions > .sh-translate-btn { flex:1 1 0; min-width:0; }
-.shadowing-main-card .sh-translation-actions > .sh-grammar-button-group { direction:ltr; display:flex; flex:1 1 0; min-width:0; height:45px; min-height:45px; padding:0; overflow:hidden; align-items:center; gap:0; border:1px solid var(--accent); border-radius:999px; background:var(--accent); box-sizing:border-box; }
-.shadowing-main-card .sh-grammar-button-group > .sh-grammar-btn { flex:1 1 auto; min-width:0; height:100%; min-height:0; padding:0 12px; border:0; border-radius:999px 0 0 999px; background:transparent; color:var(--on-accent); box-shadow:none; white-space:nowrap; }
-.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle { flex:0 0 38px; width:38px; min-width:38px; height:38px; min-height:38px; margin-inline-end:3px; padding:0; display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,.82); border-radius:50%; background:transparent; color:rgba(255,255,255,.72); cursor:pointer; box-sizing:border-box; }
+.shadowing-main-card .sh-translation-actions > .sh-grammar-button-group { position:relative; display:block; flex:1 1 0; min-width:0; height:45px; min-height:45px; padding:0; overflow:hidden; border:1px solid var(--accent); border-radius:999px; background:var(--accent); box-sizing:border-box; direction:ltr; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-btn { display:flex; align-items:center; justify-content:center; width:100%; height:100%; min-height:0; margin:0; padding:0 45px 0 12px; border:0; border-radius:999px; background:transparent; color:var(--on-accent); box-shadow:none; text-align:center; white-space:nowrap; box-sizing:border-box; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle { position:absolute; z-index:2; top:50%; right:5px; display:inline-flex; align-items:center; justify-content:center; width:32px; min-width:32px; height:32px; min-height:32px; margin:0; padding:0; transform:translateY(-50%); border:1px solid rgba(255,255,255,.82); border-radius:50%; background:transparent; color:rgba(255,255,255,.72); cursor:pointer; box-sizing:border-box; }
 .shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle.is-on { background:#fff; color:var(--accent); border-color:#fff; }
 .shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle.is-off { background:transparent; color:rgba(255,255,255,.68); border-color:rgba(255,255,255,.82); }
 .shadowing-main-card .sh-grammar-language-toggle:disabled { opacity:.55; cursor:not-allowed; }
-.shadowing-main-card .sh-grammar-translation-icon { display:block; width:21px; height:21px; margin:0; flex:0 0 auto; }
+.shadowing-main-card .sh-grammar-translation-icon { display:block; width:19px; height:19px; margin:0; flex:0 0 auto; }
 .shadowing-main-card .sh-translation-actions > .sh-translate-btn { height:45px; min-height:45px; }
 .shadowing-main-card .sh-grammar-scroll-shell { display:grid; grid-template-rows:24px minmax(0,1fr) 24px; justify-items:center; gap:3px; width:100%; min-width:0; }
 .shadowing-main-card .sh-grammar-scroll-body { grid-row:2; width:100%; min-height:130px; max-height:380px; overflow-y:auto; resize:vertical; scrollbar-width:thin; scrollbar-color:var(--accent) color-mix(in srgb,var(--accent) 18%,var(--bg-secondary)); scrollbar-gutter:stable; }
@@ -4673,9 +4673,10 @@ body {
 .shadowing-main-card .sh-grammar-chat-thinking span:nth-child(2) { animation-delay:.16s; }
 .shadowing-main-card .sh-grammar-chat-thinking span:nth-child(3) { animation-delay:.32s; }
 @keyframes sh-chat-dot { 0%,60%,100% { transform:translateY(0); opacity:.45; } 30% { transform:translateY(-4px); opacity:1; } }
-#nav-settings > svg { display:block; width:23px; height:23px; margin:0 auto; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+#nav-settings { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; }
+#nav-settings > svg { display:block; width:23px; height:23px; flex:0 0 23px; margin:0 auto; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 @media (prefers-reduced-motion:reduce) { .shadowing-main-card .sh-grammar-chat-thinking span { animation:none; } }
-@media (max-width:380px) { .shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle { flex-basis:36px; width:36px; min-width:36px; height:36px; min-height:36px; } .shadowing-main-card .sh-grammar-chat-message { max-width:94%; } }
+@media (max-width:380px) { .shadowing-main-card .sh-grammar-chat-message { max-width:94%; } }
 
 /* Remove the generic inline-icon offset from centered translation controls. */
 .shadowing-main-card #sh-auto-translate-toggle { display:inline-flex; align-items:center; justify-content:center; }
