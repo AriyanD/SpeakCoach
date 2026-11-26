@@ -307,7 +307,7 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, d
       const replayText = (w.referenceWord ?? w.spokenWord ?? '').trim();
       const activeWord = state.wordPlayback?.index === wordIndex;
       return `
-        <button type="button" class="word-chip ${w.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-status="${w.status}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayText)}" ${activeWord && state.wordPlayback?.phase === 'loading' ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayText)}" ${replayText && !audioBusy && (!playbackActive || wordPlayback) ? '' : 'disabled'}>
+        <button type="button" class="word-chip ${w.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-status="${w.status}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayText)}" ${activeWord && state.wordPlayback?.phase === 'loading' ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayText)}" ${replayText && !audioBusy && (!playbackActive || (wordPlayback && activeWord)) ? '' : 'disabled'}>
           <span class="word-chip-status" aria-hidden="true">${statusMark}</span>
           <span>${escapeHtml(text)}</span>
           ${activeWord && state.wordPlayback?.phase === 'loading' ? '<span class="sh-word-spinner" aria-hidden="true"></span>' : ''}${speedBadge}
@@ -573,6 +573,9 @@ export function renderShadowingView(
       ${weakActionHtml}
       <p class="sh-result-replay-help">${drillMode ? 'Each chip shows the latest result for that target word.' : 'Tap a word to hear it. For more details and practice with difficult words, see Shadowing Score Report below.'}</p>
     </div>` : '';
+  const focusedControlId = container.contains(document.activeElement) ? (document.activeElement as HTMLElement | null)?.id : undefined;
+  const focusedSelectionStart = document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement ? document.activeElement.selectionStart : null;
+  const focusedSelectionEnd = document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement ? document.activeElement.selectionEnd : null;
   container.innerHTML = `
     <div class="shadowing-page shadowing-main-card">
       <div class="page-heading shadowing-main-header">
@@ -773,6 +776,13 @@ export function renderShadowingView(
     state.autoTranslationError = null;
     renderShadowingView(container, summary);
   });
+  if (focusedControlId) {
+    const focusedControl = Array.from(container.querySelectorAll<HTMLElement>('[id]')).find(element => element.id === focusedControlId);
+    focusedControl?.focus();
+    if ((focusedControl instanceof HTMLTextAreaElement || focusedControl instanceof HTMLInputElement) && focusedSelectionStart !== null && focusedSelectionEnd !== null) {
+      focusedControl.setSelectionRange(focusedSelectionStart, focusedSelectionEnd);
+    }
+  }
   if (isCaptureBusy) {
     container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button, select').forEach(control => {
       if (control.id === 'sh-stop-score-btn' || (control.id === 'sh-record-btn' && isRec && !isStopping)) return;
@@ -1024,7 +1034,7 @@ export function renderShadowingView(
           onPlaybackStart: () => {
             if (wordPlaybackToken !== shadowingModelPlaybackToken) return;
             state.wordPlayback = { index: wordIndex, phase: 'playing' };
-            container.querySelectorAll<HTMLElement>(`[data-word-index=\"${wordIndex}\"]`).forEach(chip => chip.classList.add('sh-word-playing'));
+            container.querySelectorAll<HTMLElement>(`[data-word-index=\"${wordIndex}\"]`).forEach(chip => { chip.classList.remove('sh-word-pending'); chip.classList.add('sh-word-playing'); chip.removeAttribute('aria-busy'); chip.querySelector('.sh-word-spinner')?.remove(); });
           }
         });
         state.statusMessage = `Played “${word}” via ${result.activeTier.detailLabel}.`;
@@ -1180,7 +1190,7 @@ export function renderShadowingView(
         await persistCurrentShadowingHistory();
         startShadowingPrefetch();
         renderShadowingView(container, summary);
-        if (state.autoPlayNextShadowing) window.setTimeout(() => container.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.click(), 0);
+        if (state.autoPlayNextShadowing) window.setTimeout(() => { if (state.autoPlayNextShadowing && container.isConnected) container.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.click(); }, 0);
         const markers = container.querySelectorAll('#sh-history-position, .sh-sentence-set-summary');
         markers.forEach(marker => marker.classList.add('sh-set-flash'));
         window.setTimeout(() => markers.forEach(marker => marker.classList.remove('sh-set-flash')), 1200);
