@@ -68,8 +68,8 @@ interface ShadowingState {
   grammarChatError: string | null;
   grammarChatToken: number;
   grammarScrollTop: number;
+  grammarChatScrollTop: number;
   autoTranslationError: string | null;
-  wordPlayback: { index: number; phase: 'loading' | 'playing' } | null;
   translationMode: 'translate' | 'grammar';
   translationStatus: string | null;
   translationStatusType: 'info' | 'pass' | 'fail';
@@ -113,8 +113,8 @@ const state: ShadowingState = {
   grammarChatError: null,
   grammarChatToken: 0,
   grammarScrollTop: 0,
+  grammarChatScrollTop: 0,
   autoTranslationError: null,
-  wordPlayback: null,
   translationMode: 'translate',
   translationStatus: null,
   translationStatusType: 'info',
@@ -461,6 +461,9 @@ export function renderShadowingView(
     state.grammarChatToken++;
     state.translationStatus = null;
     state.translationStatusType = 'info';
+    state.autoTranslationError = null;
+    state.grammarScrollTop = 0;
+    state.grammarChatScrollTop = 0;
   }
   const targetExpectedDurationMs = state.customDrillText
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
@@ -566,7 +569,7 @@ export function renderShadowingView(
       <div class="sh-result-strip-score" role="status" aria-live="polite">
         ${drillMode ? `<strong>Correct words</strong><span id="sh-drill-correct-count">${drillCorrect} / ${drillWords.length}</span>` : `<strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace${state.lastReport.activeTier.tier >= 3 ? ' (approx.)' : ''}</span>`}
       </div>
-      <div class="sh-result-strip-words">${state.lastReport.words.map((word, wordIndex) => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); const mark = word.status === 'match' ? '✓' : word.status === 'mispronounced' ? '!' : word.status === 'missing' ? '−' : '+'; const activeWord = state.wordPlayback?.index === wordIndex; return `<button type="button" class="sh-result-chip ${word.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayWord)}" ${activeWord && state.wordPlayback?.phase === 'loading' ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord && !isCaptureBusy && (!isPlaybackActive || isWordPlayback) ? '' : 'disabled'}>${drillMode ? mark + ' ' : ''}${escapeHtml(replayWord)}${activeWord && state.wordPlayback?.phase === 'loading' ? '<span class="sh-word-spinner" aria-hidden="true"></span>' : ''}</button>`; }).join('')}</div>
+      <div class="sh-result-strip-words">${state.lastReport.words.map((word, wordIndex) => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); const mark = word.status === 'match' ? '✓' : word.status === 'mispronounced' ? '!' : word.status === 'missing' ? '−' : '+'; const activeWord = state.wordPlayback?.index === wordIndex; return `<button type="button" class="sh-result-chip ${word.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayWord)}" ${activeWord && state.wordPlayback?.phase === 'loading' ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord && !isCaptureBusy && (!isPlaybackActive || (isWordPlayback && activeWord)) ? '' : 'disabled'}>${drillMode ? mark + ' ' : ''}${escapeHtml(replayWord)}${activeWord && state.wordPlayback?.phase === 'loading' ? '<span class="sh-word-spinner" aria-hidden="true"></span>' : ''}</button>`; }).join('')}</div>
       ${weakActionHtml}
       <p class="sh-result-replay-help">${drillMode ? 'Each chip shows the latest result for that target word.' : 'Tap a word to hear it. For more details and practice with difficult words, see Shadowing Score Report below.'}</p>
     </div>` : '';
@@ -592,7 +595,7 @@ export function renderShadowingView(
         </select>
       </div>
       <div class="sh-language-picker-field">
-        <label class="sh-language-picker-label" for="sh-translation-language-global"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9M14.4 17.5h4.8"/></svg><span>Translation language</span></label>
+        <label class="sh-language-picker-label" for="sh-translation-language-global"><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9"/><path d="M14.4 17.5h4.8"/></svg><span>Translation language</span></label>
         <select class="form-select sh-language-select" id="sh-translation-language-global" aria-label="Translation language" ${isCaptureBusy || state.isGeneratingAi ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
       </div>
       <section class="sh-sentence-set-details" aria-labelledby="sh-sentence-set-title">
@@ -611,7 +614,7 @@ export function renderShadowingView(
           <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
         </div>
         <div class="btn-row sh-generate-actions">
-          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h9M7.5 3.5V6M5.2 6c.5 2.9 2.2 5 5 6.3M10 6c-.6 3-2.4 5.3-5.6 6.7m8.6 8.5 3.8-9 3.8 9m-6.2-3h4.8"/></svg></button>
+          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9"/><path d="M14.4 17.5h4.8"/></svg></button>
           <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''}>
             ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
           </button>
@@ -655,12 +658,11 @@ export function renderShadowingView(
           ${state.activeModelPlayback ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
         </button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" ${isCaptureBusy ? 'disabled' : ''} title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
-        <button type="button" class="btn btn-secondary sh-player-icon-btn sh-autoplay-toggle ${state.autoPlayNextShadowing ? 'is-on' : 'is-off'}" id="sh-autoplay-next-btn" aria-label="Auto-play next sentence" title="Auto-play next sentence" aria-pressed="${state.autoPlayNextShadowing}"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 5 10 7-10 7z"/><path d="M19 8a7 7 0 0 1-1 10M19 8v4h-4"/></svg></button>
+        <button type="button" class="btn btn-secondary sh-player-icon-btn sh-autoplay-toggle ${state.autoPlayNextShadowing ? 'is-on' : 'is-off'}" id="sh-autoplay-next-btn" aria-label="Auto-play next sentence" title="Auto-play next sentence" aria-pressed="${state.autoPlayNextShadowing}" ${isCaptureBusy || isStopping ? 'disabled' : ''}><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 5 10 7-10 7z"/><path d="M19 8a7 7 0 0 1-1 10M19 8v4h-4"/></svg></button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'slow') && !isCaptureBusy && (!isPlaybackActive || state.audioActivity === 'playingModel(slow)') ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
           ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
         </button>
       </div>
-      ${state.autoTranslateSentenceSets && hasSentence && !state.customDrillText ? `<div class="sh-auto-translation-card" id="sh-auto-translation-card" dir="auto">${escapeHtml(sentence?.translations?.[state.translationTargetLanguage] ?? (state.autoTranslationError ?? 'Translating this sentence…'))}${!sentence?.translations?.[state.translationTargetLanguage] && state.autoTranslationError ? ' <button type="button" class="btn btn-secondary" id="sh-auto-translation-retry">Retry</button>' : ''}</div>` : ''}
       ${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
 
       <div class="btn-row sh-record-controls">
@@ -669,8 +671,7 @@ export function renderShadowingView(
         </button>
         <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
       </div>
-
-
+      ${state.autoTranslateSentenceSets && hasSentence && !state.customDrillText ? `<div class="sh-auto-translation-card" id="sh-auto-translation-card" dir="auto">${escapeHtml(sentence?.translations?.[state.translationTargetLanguage] ?? (state.autoTranslationError ?? 'Translating this sentence…'))}${!sentence?.translations?.[state.translationTargetLanguage] && state.autoTranslationError ? ' <button type="button" class="btn btn-secondary" id="sh-auto-translation-retry">Retry</button>' : ''}</div>` : ''}
 
       ${
         state.emptyAttemptError
@@ -719,7 +720,7 @@ export function renderShadowingView(
         <div class="sh-translation-actions">
           <button type="button" class="btn btn-secondary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>Translate</button>
           <button type="button" class="btn btn-secondary sh-grammar-btn" id="sh-grammar-btn" ${state.isTranslating ? 'disabled' : ''}>Explain Grammar</button>
-          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.explainGrammarInTranslationLanguage ? 'is-on' : 'is-off'}" id="sh-grammar-language-toggle" aria-label="Explain grammar in my translation language" title="Explain grammar in my translation language" aria-pressed="${state.explainGrammarInTranslationLanguage}" ${state.isTranslating ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h9M7.5 3.5V6M5.2 6c.5 2.9 2.2 5 5 6.3M10 6c-.6 3-2.4 5.3-5.6 6.7m8.6 8.5 3.8-9 3.8 9m-6.2-3h4.8"/></svg></button>
+          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.explainGrammarInTranslationLanguage ? 'is-on' : 'is-off'}" id="sh-grammar-language-toggle" aria-label="Explain grammar in my translation language" title="Explain grammar in my translation language" aria-pressed="${state.explainGrammarInTranslationLanguage}" ${state.isTranslating ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9"/><path d="M14.4 17.5h4.8"/></svg></button>
         </div>
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
@@ -737,25 +738,32 @@ export function renderShadowingView(
       <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
   `;
 
+  const grammarChatScrollOnRender = container.querySelector<HTMLElement>('#sh-grammar-chat-messages');
+  if (grammarChatScrollOnRender) grammarChatScrollOnRender.scrollTop = state.grammarChatScrollTop;
   const grammarScrollOnRender = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
   if (grammarScrollOnRender) grammarScrollOnRender.scrollTop = state.grammarScrollTop;
   if (state.autoTranslateSentenceSets && sentence && activeSet && !state.customDrillText && !sentence.translations?.[state.translationTargetLanguage]) {
-    const requestKey = `${activeSet.id}:${sentence.id}:${state.translationTargetLanguage}`;
+    const requestLanguageCode = state.languageCode;
+    const requestDifficulty = state.difficulty;
+    const requestTargetCode = state.translationTargetLanguage;
+    const historyForRequest = sentenceSetHistory;
+    const requestSetId = activeSet.id;
+    const requestKey = `${requestSetId}:${sentence.id}:${requestTargetCode}`;
     if (!shadowingTranslationRequests.has(requestKey) && !shadowingTranslationFailures.has(requestKey)) {
       shadowingTranslationRequests.add(requestKey);
-      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === state.translationTargetLanguage)?.label ?? state.translationTargetLanguage;
+      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === requestTargetCode)?.label ?? requestTargetCode;
       void translateShadowingText(sentence.text, targetLanguage).then(async result => {
-        if (sentenceSetHistory && getActiveShadowingSet(sentenceSetHistory, state.difficulty).id === activeSet.id) {
-          const savedSentence = getActiveShadowingSet(sentenceSetHistory, state.difficulty).sentences.find(item => item.id === sentence.id);
-          if (savedSentence) savedSentence.translations = { ...(savedSentence.translations ?? {}), [state.translationTargetLanguage]: result.text };
-          await persistCurrentShadowingHistory();
-          state.autoTranslationError = null;
-          if (container.isConnected) renderShadowingView(container, summary);
+        const savedSet = historyForRequest?.[requestDifficulty].sets.find(set => set.id === requestSetId);
+        const savedSentence = savedSet?.sentences.find(item => item.id === sentence.id);
+        if (savedSentence && historyForRequest) {
+          savedSentence.translations = { ...(savedSentence.translations ?? {}), [requestTargetCode]: result.text };
+          sentenceLanguageHistories = setShadowingHistoryForLanguage(sentenceLanguageHistories, requestLanguageCode, historyForRequest);
+          await saveShadowingLanguageHistories(sentenceLanguageHistories);
+          if (state.languageCode === requestLanguageCode && state.difficulty === requestDifficulty && state.translationTargetLanguage === requestTargetCode && container.isConnected) { state.autoTranslationError = null; renderShadowingView(container, summary); }
         }
       }).catch(error => {
         shadowingTranslationFailures.add(requestKey);
-        state.autoTranslationError = `Translation unavailable: ${error instanceof Error ? error.message : String(error)}`;
-        if (container.isConnected) renderShadowingView(container, summary);
+        if (state.languageCode === requestLanguageCode && state.difficulty === requestDifficulty && state.translationTargetLanguage === requestTargetCode && container.isConnected) { state.autoTranslationError = `Translation unavailable: ${error instanceof Error ? error.message : String(error)}`; renderShadowingView(container, summary); }
       }).finally(() => shadowingTranslationRequests.delete(requestKey));
     }
   }
@@ -817,7 +825,16 @@ export function renderShadowingView(
 
   container.querySelector<HTMLTextAreaElement>('#sh-translation-input')?.addEventListener('input', event => {
     state.translationText = (event.target as HTMLTextAreaElement).value;
+    state.translationSourceText = state.translationText;
     state.translationResult = '';
+    state.grammarResult = '';
+    state.grammarChatMessages = [];
+    state.grammarChatDraft = '';
+    state.grammarChatBusy = false;
+    state.grammarChatError = null;
+    state.grammarChatToken++;
+    state.grammarScrollTop = 0;
+    state.grammarChatScrollTop = 0;
     state.translationStatus = null;
     container.querySelector('#sh-translation-result')?.remove();
     container.querySelector('#sh-grammar-result')?.remove();
@@ -830,8 +847,13 @@ export function renderShadowingView(
     });
     state.translationResult = '';
     state.translationStatus = null;
-    container.querySelector('#sh-translation-result')?.remove();
-    container.querySelector('#sh-translation-status')?.remove();
+    state.autoTranslationError = null;
+    state.grammarResult = '';
+    state.grammarChatMessages = [];
+    state.grammarChatDraft = '';
+    state.grammarChatError = null;
+    state.grammarChatToken++;
+    renderShadowingView(container, summary);
   });
   container.querySelector<HTMLButtonElement>('#sh-autoplay-next-btn')?.addEventListener('click', () => {
     state.autoPlayNextShadowing = !state.autoPlayNextShadowing;
@@ -895,6 +917,7 @@ export function renderShadowingView(
   container.querySelector<HTMLButtonElement>('#sh-translate-btn')?.addEventListener('click', () => { void runTranslationAction('translate'); });
   container.querySelector<HTMLButtonElement>('#sh-grammar-btn')?.addEventListener('click', () => { void runTranslationAction('grammar'); });
   const grammarChatInput = container.querySelector<HTMLTextAreaElement>('#sh-grammar-chat-input');
+  grammarChatInput?.addEventListener('scroll', () => { const messages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages'); if (messages) state.grammarChatScrollTop = messages.scrollTop; });
   grammarChatInput?.addEventListener('input', () => {
     state.grammarChatDraft = grammarChatInput.value.slice(0, 500);
     const send = container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send');
@@ -916,22 +939,48 @@ export function renderShadowingView(
     state.grammarChatBusy = true;
     state.grammarChatError = null;
     const requestToken = ++state.grammarChatToken;
-    renderShadowingView(container, summary);
+    const messages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages');
+    const input = container.querySelector<HTMLTextAreaElement>('#sh-grammar-chat-input');
+    const send = container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send');
+    const appendMessage = (role: 'user' | 'assistant', content: string): void => {
+      const bubble = document.createElement('div');
+      bubble.className = `sh-grammar-chat-message ${role}`;
+      bubble.dir = 'auto';
+      bubble.textContent = content;
+      messages?.appendChild(bubble);
+    };
+    appendMessage('user', question);
+    const thinking = document.createElement('div');
+    thinking.className = 'sh-grammar-chat-thinking';
+    thinking.setAttribute('role', 'status');
+    thinking.textContent = 'Thinking…';
+    messages?.appendChild(thinking);
+    if (messages) messages.scrollTop = messages.scrollHeight;
+    if (input) { input.value = ''; input.disabled = true; }
+    if (send) send.disabled = true;
     try {
       const result = await askGrammarFollowUp({ sentence: sentenceText, practiceLanguage: selectedLanguage.label, explanationLanguage, explanation, history: state.grammarChatMessages.slice(-6), question });
       if (requestToken !== state.grammarChatToken || state.translationSourceText !== sentenceText) return;
       state.grammarChatMessages = [...state.grammarChatMessages, { role: 'assistant', content: result.text }];
+      appendMessage('assistant', result.text);
     } catch (error) {
       if (requestToken !== state.grammarChatToken || state.translationSourceText !== sentenceText) return;
       state.grammarChatDraft = question;
       state.grammarChatError = `Could not send the follow-up: ${error instanceof Error ? error.message : String(error)}`;
+      const errorNode = document.createElement('div');
+      errorNode.className = 'status-box fail';
+      errorNode.setAttribute('role', 'alert');
+      errorNode.textContent = state.grammarChatError;
+      messages?.appendChild(errorNode);
+      if (input) input.value = question;
     } finally {
       if (requestToken === state.grammarChatToken) {
         state.grammarChatBusy = false;
-        renderShadowingView(container, summary);
-        const messages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages');
-        if (messages) messages.scrollTop = messages.scrollHeight;
-        container.querySelector<HTMLTextAreaElement>('#sh-grammar-chat-input')?.focus();
+        thinking.remove();
+        if (input) input.disabled = false;
+        if (send) send.disabled = !state.grammarChatDraft.trim();
+        if (messages) { messages.scrollTop = messages.scrollHeight; state.grammarChatScrollTop = messages.scrollTop; }
+        input?.focus();
       }
     }
   };
@@ -941,12 +990,13 @@ export function renderShadowingView(
     const body = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
     const up = container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up');
     const down = container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down');
-    if (body && up && down) { up.disabled = body.scrollTop <= 0; down.disabled = body.scrollTop + body.clientHeight >= body.scrollHeight - 2; }
+    if (body && up && down) { up.disabled = body.scrollTop <= 0; down.disabled = body.scrollTop + body.clientHeight >= body.scrollHeight - 2; body.parentElement?.classList.toggle('has-more', !down.disabled); }
   };
   grammarScrollBody?.addEventListener('scroll', () => { state.grammarScrollTop = grammarScrollBody.scrollTop; updateGrammarScrollButtons(); });
   updateGrammarScrollButtons();
-  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: -grammarScrollBody.clientHeight * 0.8, behavior: 'smooth' }));
-  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: grammarScrollBody.clientHeight * 0.8, behavior: 'smooth' }));
+  const scrollBehavior: ScrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: -grammarScrollBody.clientHeight * 0.8, behavior: scrollBehavior }));
+  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: grammarScrollBody.clientHeight * 0.8, behavior: scrollBehavior }));
 
   container.querySelectorAll<HTMLButtonElement>('[data-word-replay]').forEach(button => {
     button.addEventListener('click', async () => {
@@ -1023,15 +1073,30 @@ export function renderShadowingView(
       sentenceSetHistory = appendShadowingSet(sentenceSetHistory!, state.difficulty, generated);
       await persistCurrentShadowingHistory();
       if (state.autoTranslateSentenceSets) {
-        try {
-          const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === state.translationTargetLanguage)?.label ?? state.translationTargetLanguage;
-          const translations = await translateShadowingSentenceBatch(generated.map(item => item.text), targetLanguage);
-          const savedSet = getActiveShadowingSet(sentenceSetHistory, state.difficulty);
-          savedSet.sentences = savedSet.sentences.map((item, index) => ({ ...item, translations: { ...(item.translations ?? {}), [state.translationTargetLanguage]: translations[index] } }));
-          await persistCurrentShadowingHistory();
-        } catch (translationError) {
-          state.statusMessage = `Sentences saved. Translation failed: ${translationError instanceof Error ? translationError.message : String(translationError)}`;
-        }
+        const historyForBatch = sentenceSetHistory!;
+        const languageForBatch = state.languageCode;
+        const difficultyForBatch = state.difficulty;
+        const targetCodeForBatch = state.translationTargetLanguage;
+        const savedSetForBatch = getActiveShadowingSet(historyForBatch, difficultyForBatch);
+        const setIdForBatch = savedSetForBatch.id;
+        const batchKeys = savedSetForBatch.sentences.map(item => `${setIdForBatch}:${item.id}:${targetCodeForBatch}`);
+        batchKeys.forEach(key => shadowingTranslationRequests.add(key));
+        const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === targetCodeForBatch)?.label ?? targetCodeForBatch;
+        void translateShadowingSentenceBatch(savedSetForBatch.sentences.map(item => item.text), targetLanguage).then(async translations => {
+          const savedSet = historyForBatch[difficultyForBatch].sets.find(set => set.id === setIdForBatch);
+          if (!savedSet) return;
+          savedSet.sentences = savedSet.sentences.map((item, index) => ({ ...item, translations: { ...(item.translations ?? {}), [targetCodeForBatch]: translations[index] } }));
+          sentenceLanguageHistories = setShadowingHistoryForLanguage(sentenceLanguageHistories, languageForBatch, historyForBatch);
+          await saveShadowingLanguageHistories(sentenceLanguageHistories);
+          if (state.languageCode === languageForBatch && state.difficulty === difficultyForBatch && state.translationTargetLanguage === targetCodeForBatch && sentenceSetHistory?.[difficultyForBatch].activeSetId === setIdForBatch && container.isConnected) { state.autoTranslationError = null; renderShadowingView(container, summary); }
+        }).catch(error => {
+          batchKeys.forEach(key => shadowingTranslationFailures.add(key));
+          if (state.languageCode === languageForBatch && state.difficulty === difficultyForBatch && state.translationTargetLanguage === targetCodeForBatch && sentenceSetHistory?.[difficultyForBatch].activeSetId === setIdForBatch && container.isConnected) {
+            state.autoTranslationError = 'Translation unavailable. Use Retry to translate this sentence separately.';
+            state.statusMessage = `Sentences saved. Translation failed: ${error instanceof Error ? error.message : String(error)}`;
+            renderShadowingView(container, summary);
+          }
+        }).finally(() => batchKeys.forEach(key => shadowingTranslationRequests.delete(key)));
       }
       state.index = 0;
       state.customDrillText = null;
@@ -1105,6 +1170,7 @@ export function renderShadowingView(
       const currentSetIndex = entry?.sets.findIndex(set => set.id === entry.activeSetId) ?? -1;
       if (entry && currentSetIndex >= 0 && currentSetIndex < entry.sets.length - 1) {
         sentenceSetHistory = moveShadowingSet(sentenceSetHistory!, state.difficulty, 1);
+        state.statusMessage = `Moved to Set ${currentSetIndex + 2} of ${entry.sets.length}.`;
         state.index = 0;
         state.customDrillText = null;
         state.drillWords = [];
