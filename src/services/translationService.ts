@@ -179,13 +179,13 @@ export interface GrammarFollowUpInput {
 }
 
 export function buildGrammarFollowUpPrompt(input: GrammarFollowUpInput): string {
-  const turns = input.history.slice(-6).map(turn => ({ role: turn.role, content: turn.content.slice(0, 1200) }));
+  const turns = input.history.slice(-6).map(turn => ({ role: turn.role, content: turn.content.slice(0, 300) }));
   return JSON.stringify({
-    sentence: input.sentence,
+    sentence: input.sentence.slice(0, 400),
     practiceLanguage: input.practiceLanguage,
-    explanation: input.explanation.slice(0, 3000),
+    explanation: input.explanation.slice(0, 1600),
     recentConversation: turns,
-    question: input.question.trim().slice(0, 500)
+    question: input.question.trim().slice(0, 400)
   });
 }
 

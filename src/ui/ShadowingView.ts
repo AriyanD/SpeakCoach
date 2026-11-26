@@ -729,7 +729,7 @@ export function renderShadowingView(
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
       ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div class="sh-grammar-scroll-row"><button type="button" class="sh-grammar-scroll-btn" id="sh-grammar-scroll-up" aria-label="Scroll explanation up" disabled>↑</button><div class="sh-grammar-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, '<br>')}</div><button type="button" class="sh-grammar-scroll-btn" id="sh-grammar-scroll-down" aria-label="Scroll explanation down">↓</button></div></div>
-      <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="form-label">Ask a follow-up</div><div class="sh-grammar-chat-messages" id="sh-grammar-chat-messages">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status">Thinking…</div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" rows="2" maxlength="500" placeholder="Ask about a specific part of this explanation…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="btn btn-secondary" id="sh-grammar-chat-send" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}>Send</button></div></div>` : ''}
+      <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="form-label">Ask a follow-up</div><div class="sh-grammar-chat-messages" id="sh-grammar-chat-messages" role="log" aria-live="polite" aria-relevant="additions">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status">Thinking…</div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" aria-label="Ask a follow-up" rows="2" maxlength="500" placeholder="Ask about a specific part of this explanation…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="btn btn-secondary" id="sh-grammar-chat-send" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}>Send</button></div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
       <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
@@ -953,6 +953,7 @@ export function renderShadowingView(
     state.grammarChatError = null;
     const requestToken = ++state.grammarChatToken;
     const messages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages');
+    messages?.querySelectorAll('[role="alert"]').forEach(node => node.remove());
     const input = container.querySelector<HTMLTextAreaElement>('#sh-grammar-chat-input');
     const send = container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send');
     const appendMessage = (role: 'user' | 'assistant', content: string): void => {
@@ -1080,6 +1081,7 @@ export function renderShadowingView(
     if (state.isGeneratingAi || isAudioCaptureBusy() || isAudioPlaybackActive()) return;
     state.isGeneratingAi = true;
     state.aiGenerationError = null;
+    state.statusMessage = '';
     state.statusMessage = 'Generating 20 new practice sentences...';
     renderShadowingView(container, summary);
     try {
@@ -1115,7 +1117,7 @@ export function renderShadowingView(
       state.index = 0;
       state.customDrillText = null;
       clearAttemptState();
-      if (!state.statusMessage.startsWith('Sentences saved. Translation failed:')) state.statusMessage = `Added a new set of 20 sentences by ${generated[0]?.providerName ?? 'AI'} to your history.`;
+      state.statusMessage = `Added a new set of 20 sentences by ${generated[0]?.providerName ?? 'AI'} to your history.`;
       state.aiGenerationError = null;
     } catch (error) {
       state.aiGenerationError = `AI sentence set generation failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -1547,6 +1549,8 @@ export function renderShadowingView(
   // The main router invokes this when leaving Shadowing. Invalidate pending
   // async recording/scoring work before stopping native capture and playback.
   return () => {
+    state.grammarChatToken++;
+    state.grammarChatBusy = false;
     state.wordPlayback = null;
     shadowingViewGeneration++;
     clearShadowingRecordingTimer();

@@ -34,6 +34,8 @@ describe('Shadowing translation helpers', () => {
     expect(prompt.recentConversation[0].content).toBe('turn-2');
     expect(prompt.sentence).toContain('working here');
     expect(prompt.question).toBe('Why this tense?');
+    const oversized = buildGrammarFollowUpPrompt({ sentence: 's'.repeat(1000), practiceLanguage: 'English', explanationLanguage: 'Persian', explanation: 'e'.repeat(4000), history: Array.from({ length: 6 }, (_, index) => ({ role: index % 2 ? 'assistant' as const : 'user' as const, content: 't'.repeat(1200) })), question: 'q'.repeat(500) });
+    expect(oversized.length).toBeLessThan(4000);
   });
 
   it('rejects text beyond the safe request size', () => {

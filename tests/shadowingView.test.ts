@@ -66,6 +66,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     await new Promise(resolve => setTimeout(resolve, 30));
     const { loadAppSettings } = await import('../src/storage/appSettings');
     await expect(loadAppSettings()).resolves.toMatchObject({ autoPlayNextShadowing: true, autoTranslateSentenceSets: true });
+    root.remove();
   });
 
   it('starts with offline sentence sets, removes source choice, and reports missing AI configuration', async () => {
