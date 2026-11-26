@@ -69,6 +69,7 @@ interface ShadowingState {
   grammarChatToken: number;
   grammarScrollTop: number;
   autoTranslationError: string | null;
+  wordPlayback: { index: number; phase: 'loading' | 'playing' } | null;
   translationMode: 'translate' | 'grammar';
   translationStatus: string | null;
   translationStatusType: 'info' | 'pass' | 'fail';
@@ -113,6 +114,7 @@ const state: ShadowingState = {
   grammarChatToken: 0,
   grammarScrollTop: 0,
   autoTranslationError: null,
+  wordPlayback: null,
   translationMode: 'translate',
   translationStatus: null,
   translationStatusType: 'info',
@@ -282,7 +284,7 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, d
   const isOfflineMode = report.activeTier.tier === 3 || report.activeTier.label === 'Basic offline';
 
   const chipsHtml = report.words
-    .map((w) => {
+    .map((w, wordIndex) => {
       const text =
         w.status === 'extra' ? `+${w.spokenWord}` : w.referenceWord ?? w.spokenWord ?? '';
       const statusMark = w.status === 'match' ? '✓' : w.status === 'mispronounced' ? '!' : w.status === 'missing' ? '−' : '+';
@@ -303,11 +305,12 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, d
             ? `extra${durationText}`
             : `${w.accuracyScore}%${durationText}`;
       const replayText = (w.referenceWord ?? w.spokenWord ?? '').trim();
+      const activeWord = state.wordPlayback?.index === wordIndex;
       return `
-        <button type="button" class="word-chip ${w.status}" data-word-status="${w.status}" data-word-replay="${escapeHtml(replayText)}" aria-label="Play pronunciation of ${escapeHtml(replayText)}" ${replayText && !audioBusy && (!playbackActive || wordPlayback) ? '' : 'disabled'}>
+        <button type="button" class="word-chip ${w.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-status="${w.status}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayText)}" ${activeWord && state.wordPlayback?.phase === 'loading' ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayText)}" ${replayText && !audioBusy && (!playbackActive || wordPlayback) ? '' : 'disabled'}>
           <span class="word-chip-status" aria-hidden="true">${statusMark}</span>
           <span>${escapeHtml(text)}</span>
-          ${speedBadge}
+          ${activeWord && state.wordPlayback?.phase === 'loading' ? '<span class="sh-word-spinner" aria-hidden="true"></span>' : ''}${speedBadge}
           <span class="word-chip-meta">${meta}</span>${progress ? `<span class="drill-word-progress">${progress}</span>` : ""}
         </button>
       `;
@@ -563,7 +566,7 @@ export function renderShadowingView(
       <div class="sh-result-strip-score" role="status" aria-live="polite">
         ${drillMode ? `<strong>Correct words</strong><span id="sh-drill-correct-count">${drillCorrect} / ${drillWords.length}</span>` : `<strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace${state.lastReport.activeTier.tier >= 3 ? ' (approx.)' : ''}</span>`}
       </div>
-      <div class="sh-result-strip-words">${state.lastReport.words.map(word => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); const mark = word.status === 'match' ? '✓' : word.status === 'mispronounced' ? '!' : word.status === 'missing' ? '−' : '+'; return `<button type="button" class="sh-result-chip ${word.status}" data-word-replay="${escapeHtml(replayWord)}" aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord && !isCaptureBusy && (!isPlaybackActive || isWordPlayback) ? '' : 'disabled'}>${drillMode ? mark + ' ' : ''}${escapeHtml(replayWord)}</button>`; }).join('')}</div>
+      <div class="sh-result-strip-words">${state.lastReport.words.map((word, wordIndex) => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); const mark = word.status === 'match' ? '✓' : word.status === 'mispronounced' ? '!' : word.status === 'missing' ? '−' : '+'; const activeWord = state.wordPlayback?.index === wordIndex; return `<button type="button" class="sh-result-chip ${word.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayWord)}" ${activeWord && state.wordPlayback?.phase === 'loading' ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord && !isCaptureBusy && (!isPlaybackActive || isWordPlayback) ? '' : 'disabled'}>${drillMode ? mark + ' ' : ''}${escapeHtml(replayWord)}${activeWord && state.wordPlayback?.phase === 'loading' ? '<span class="sh-word-spinner" aria-hidden="true"></span>' : ''}</button>`; }).join('')}</div>
       ${weakActionHtml}
       <p class="sh-result-replay-help">${drillMode ? 'Each chip shows the latest result for that target word.' : 'Tap a word to hear it. For more details and practice with difficult words, see Shadowing Score Report below.'}</p>
     </div>` : '';
@@ -948,9 +951,10 @@ export function renderShadowingView(
   container.querySelectorAll<HTMLButtonElement>('[data-word-replay]').forEach(button => {
     button.addEventListener('click', async () => {
       const word = button.dataset.wordReplay?.trim();
+      const wordIndex = Number(button.dataset.wordIndex ?? -1);
       if (!word) return;
       state.navigationNotice = null;
-      if (state.audioActivity === 'playingWord') { shadowingModelPlaybackToken++; stopAllTts(); state.audioActivity = 'idle'; state.statusMessage = 'Word playback stopped.'; renderShadowingView(container, summary); return; }
+      if (state.audioActivity === 'playingWord') { shadowingModelPlaybackToken++; stopAllTts(); state.audioActivity = 'idle'; state.wordPlayback = null; state.statusMessage = 'Word playback stopped.'; renderShadowingView(container, summary); return; }
       if (isAudioCaptureBusy() || isAudioPlaybackActive() || button.disabled) return;
       button.disabled = true;
       button.setAttribute('aria-busy', 'true');
@@ -958,13 +962,19 @@ export function renderShadowingView(
       state.activeModelPlayback = null;
       stopAllTts();
       state.audioActivity = 'playingWord';
+      state.wordPlayback = { index: wordIndex, phase: 'loading' };
       renderShadowingView(container, summary);
       try {
         const audioContext = await audioSetContextPromise;
         if (wordPlaybackToken !== shadowingModelPlaybackToken || state.audioActivity !== 'playingWord') return;
         const result = await speakSentenceWithTierFallback(word, {
           locale: selectedLanguage.locale,
-          shadowingSetAudio: audioContext ? { ...audioContext, kind: 'extra' } : undefined
+          shadowingSetAudio: audioContext ? { ...audioContext, kind: 'extra' } : undefined,
+          onPlaybackStart: () => {
+            if (wordPlaybackToken !== shadowingModelPlaybackToken) return;
+            state.wordPlayback = { index: wordIndex, phase: 'playing' };
+            container.querySelectorAll<HTMLElement>(`[data-word-index=\"${wordIndex}\"]`).forEach(chip => chip.classList.add('sh-word-playing'));
+          }
         });
         state.statusMessage = `Played “${word}” via ${result.activeTier.detailLabel}.`;
       } catch (error) {
@@ -974,6 +984,7 @@ export function renderShadowingView(
       } finally {
         if (wordPlaybackToken === shadowingModelPlaybackToken && state.audioActivity === 'playingWord') {
           state.audioActivity = 'idle';
+          state.wordPlayback = null;
           renderShadowingView(container, summary);
         }
       }
@@ -1456,6 +1467,7 @@ export function renderShadowingView(
   // The main router invokes this when leaving Shadowing. Invalidate pending
   // async recording/scoring work before stopping native capture and playback.
   return () => {
+    state.wordPlayback = null;
     shadowingViewGeneration++;
     clearShadowingRecordingTimer();
     shadowingModelPlaybackToken++;
@@ -1516,6 +1528,7 @@ export function resetShadowingViewState(): void {
   state.translationText = '';
   state.translationResult = '';
   state.translationStatus = null;
+  state.wordPlayback = null;
   state.isTranslating = false;
   clearAttemptState();
 }
