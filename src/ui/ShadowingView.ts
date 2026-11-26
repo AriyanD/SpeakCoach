@@ -22,7 +22,7 @@ import type { GlobalTierSummary } from '../services/tierManager';
 import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
 import { activateShadowingAudioSet } from '../services/shadowingAudioStore';
 import type { WordMatchStatus } from '../services/wordAlignment';
-import { translateShadowingText, translateShadowingSentenceBatch } from '../services/translationService';
+import { translateShadowingText, translateShadowingSentenceBatch, askGrammarFollowUp } from '../services/translationService';
 import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavVadAnalyzer';
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
 import { getCachedModelWordTimings } from '../services/modelTimingService';
@@ -62,6 +62,11 @@ interface ShadowingState {
   wordPlayback: { index: number; phase: 'loading' | 'playing' } | null;
   translationResult: string;
   grammarResult: string;
+  grammarChatMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  grammarChatDraft: string;
+  grammarChatBusy: boolean;
+  grammarChatError: string | null;
+  grammarChatToken: number;
   translationMode: 'translate' | 'grammar';
   translationStatus: string | null;
   translationStatusType: 'info' | 'pass' | 'fail';
@@ -99,6 +104,11 @@ const state: ShadowingState = {
   wordPlayback: null,
   translationResult: '',
   grammarResult: '',
+  grammarChatMessages: [],
+  grammarChatDraft: '',
+  grammarChatBusy: false,
+  grammarChatError: null,
+  grammarChatToken: 0,
   translationMode: 'translate',
   translationStatus: null,
   translationStatusType: 'info',
@@ -435,6 +445,11 @@ export function renderShadowingView(
     state.translationText = translationSource;
     state.translationResult = '';
     state.grammarResult = '';
+    state.grammarChatMessages = [];
+    state.grammarChatDraft = '';
+    state.grammarChatBusy = false;
+    state.grammarChatError = null;
+    state.grammarChatToken++;
     state.translationStatus = null;
     state.translationStatusType = 'info';
   }
@@ -699,7 +714,8 @@ export function renderShadowingView(
         </div>
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
-      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, '<br>')}</div></div>` : ''}
+      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div class="sh-grammar-scroll-row"><button type="button" class="sh-grammar-scroll-btn" id="sh-grammar-scroll-up" aria-label="Scroll explanation up" disabled>↑</button><div class="sh-grammar-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, '<br>')}</div><button type="button" class="sh-grammar-scroll-btn" id="sh-grammar-scroll-down" aria-label="Scroll explanation down">↓</button></div></div>
+      <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="form-label">Ask a follow-up</div><div class="sh-grammar-chat-messages" id="sh-grammar-chat-messages">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status">Thinking…</div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" rows="2" maxlength="500" placeholder="Ask about a specific part of this explanation…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="btn btn-secondary" id="sh-grammar-chat-send" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}>Send</button></div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
       <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
@@ -818,8 +834,13 @@ export function renderShadowingView(
         : TRANSLATION_LANGUAGES.find(language => language.code === requestTargetLanguage)?.label ?? requestTargetLanguage;
       const result = await translateShadowingText(textToTranslate, targetLanguage, undefined, mode);
       if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
-        if (mode === 'grammar') state.grammarResult = result.text;
-        else state.translationResult = result.text;
+        if (mode === 'grammar') {
+          state.grammarResult = result.text;
+          state.grammarChatMessages = [];
+          state.grammarChatDraft = '';
+          state.grammarChatError = null;
+          state.grammarChatToken++;
+        } else state.translationResult = result.text;
         state.translationStatus = `${mode === 'grammar' ? 'Grammar explanation' : 'Translation'} complete via ${result.providerName} (${result.account === 'secondary' ? 'API 2' : 'API 1'}).`;
         state.translationStatusType = 'pass';
       }
@@ -835,6 +856,58 @@ export function renderShadowingView(
   };
   container.querySelector<HTMLButtonElement>('#sh-translate-btn')?.addEventListener('click', () => { void runTranslationAction('translate'); });
   container.querySelector<HTMLButtonElement>('#sh-grammar-btn')?.addEventListener('click', () => { void runTranslationAction('grammar'); });
+  const grammarChatInput = container.querySelector<HTMLTextAreaElement>('#sh-grammar-chat-input');
+  grammarChatInput?.addEventListener('input', () => {
+    state.grammarChatDraft = grammarChatInput.value.slice(0, 500);
+    const send = container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send');
+    if (send) send.disabled = state.grammarChatBusy || !state.grammarChatDraft.trim();
+  });
+  grammarChatInput?.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send')?.click(); }
+  });
+  const sendGrammarFollowUp = async (): Promise<void> => {
+    const question = state.grammarChatDraft.trim();
+    if (!question || state.grammarChatBusy || !state.grammarResult) return;
+    const sentenceText = state.translationSourceText ?? state.translationText;
+    const explanation = state.grammarResult;
+    const explanationLanguage = state.explainGrammarInTranslationLanguage
+      ? (TRANSLATION_LANGUAGES.find(language => language.code === state.translationTargetLanguage)?.label ?? state.translationTargetLanguage)
+      : selectedLanguage.label;
+    state.grammarChatMessages = [...state.grammarChatMessages, { role: 'user', content: question }];
+    state.grammarChatDraft = '';
+    state.grammarChatBusy = true;
+    state.grammarChatError = null;
+    const requestToken = ++state.grammarChatToken;
+    renderShadowingView(container, summary);
+    try {
+      const result = await askGrammarFollowUp({ sentence: sentenceText, practiceLanguage: selectedLanguage.label, explanationLanguage, explanation, history: state.grammarChatMessages.slice(-6), question });
+      if (requestToken !== state.grammarChatToken || state.translationSourceText !== sentenceText) return;
+      state.grammarChatMessages = [...state.grammarChatMessages, { role: 'assistant', content: result.text }];
+    } catch (error) {
+      if (requestToken !== state.grammarChatToken || state.translationSourceText !== sentenceText) return;
+      state.grammarChatDraft = question;
+      state.grammarChatError = `Could not send the follow-up: ${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      if (requestToken === state.grammarChatToken) {
+        state.grammarChatBusy = false;
+        renderShadowingView(container, summary);
+        const messages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages');
+        if (messages) messages.scrollTop = messages.scrollHeight;
+      }
+    }
+  };
+  container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send')?.addEventListener('click', () => { void sendGrammarFollowUp(); });
+  const grammarScrollBody = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
+  const updateGrammarScrollButtons = (): void => {
+    const body = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
+    const up = container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up');
+    const down = container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down');
+    if (body && up && down) { up.disabled = body.scrollTop <= 0; down.disabled = body.scrollTop + body.clientHeight >= body.scrollHeight - 2; }
+  };
+  grammarScrollBody?.addEventListener('scroll', updateGrammarScrollButtons);
+  updateGrammarScrollButtons();
+  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: -grammarScrollBody.clientHeight * 0.8, behavior: 'smooth' }));
+  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: grammarScrollBody.clientHeight * 0.8, behavior: 'smooth' }));
 
   container.querySelectorAll<HTMLButtonElement>('[data-word-replay]').forEach(button => {
     button.addEventListener('click', async () => {
