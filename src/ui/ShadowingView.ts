@@ -687,13 +687,13 @@ export function renderShadowingView(
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-autoplay-toggle" id="sh-autoplay-next-btn" aria-label="Auto-play" title="Auto-play" aria-pressed="${state.autoPlayNextShadowing}" ${isCaptureBusy || isStopping ? "disabled" : ""}>
   <svg class="icon-on" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 16" width="28" height="16" aria-hidden="true" ${state.autoPlayNextShadowing ? "" : "style=\"display:none\""}>
     <rect width="28" height="16" rx="8" fill="currentColor"/>
-    <circle cx="8" cy="8" r="6" fill="var(--bg-primary, #fff)"/>
-    <path d="M6.5 5.5v5l4-2.5z" fill="currentColor"/>
+    <circle cx="20" cy="8" r="6" fill="var(--bg-primary, #fff)"/>
+    <path d="M18.5 5.5v5l4-2.5z" fill="currentColor"/>
   </svg>
   <svg class="icon-off" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 16" width="28" height="16" aria-hidden="true" opacity="0.55" ${state.autoPlayNextShadowing ? "style=\"display:none\"" : ""}>
-    <rect x="0.75" y="0.75" width="26.5" height="14.5" rx="7.25" fill="none" stroke="currentColor" stroke-width="1.5"/>
-    <circle cx="20" cy="8" r="6" fill="currentColor"/>
-    <path d="M18.5 5.5v5l4-2.5z" fill="var(--bg-primary, #fff)"/>
+    <rect width="28" height="16" rx="8" fill="currentColor"/>
+    <circle cx="8" cy="8" r="6" fill="var(--bg-primary, #fff)"/>
+    <path d="M6.5 5.5h2v5h-2z M10 5.5h2v5h-2z" fill="currentColor"/>
   </svg>
 </button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'slow') && !isCaptureBusy && (!isPlaybackActive || state.audioActivity === 'playingModel(slow)') ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
