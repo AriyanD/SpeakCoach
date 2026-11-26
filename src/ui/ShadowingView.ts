@@ -67,6 +67,8 @@ interface ShadowingState {
   grammarChatBusy: boolean;
   grammarChatError: string | null;
   grammarChatToken: number;
+  grammarScrollTop: number;
+  autoTranslationError: string | null;
   translationMode: 'translate' | 'grammar';
   translationStatus: string | null;
   translationStatusType: 'info' | 'pass' | 'fail';
@@ -109,6 +111,8 @@ const state: ShadowingState = {
   grammarChatBusy: false,
   grammarChatError: null,
   grammarChatToken: 0,
+  grammarScrollTop: 0,
+  autoTranslationError: null,
   translationMode: 'translate',
   translationStatus: null,
   translationStatusType: 'info',
@@ -187,6 +191,8 @@ let shadowingTier3FallbackNoticeShown = false;
 const shadowingPrefetchScheduler = new ShadowingPrefetchScheduler();
 let shadowingPrefetchQueue: Promise<void> = Promise.resolve();
 let shadowingViewGeneration = 0;
+const shadowingTranslationRequests = new Set<string>();
+const shadowingTranslationFailures = new Set<string>();
 
 function clearShadowingRecordingTimer(): void {
   if (shadowingRecordingTimeout) clearTimeout(shadowingRecordingTimeout);
@@ -651,7 +657,7 @@ export function renderShadowingView(
           ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
         </button>
       </div>
-      ${state.autoTranslateSentenceSets && hasSentence && !state.customDrillText ? `<div class="sh-auto-translation-card" id="sh-auto-translation-card" dir="auto">${escapeHtml(sentence?.translations?.[state.translationTargetLanguage] ?? 'Translation will appear here after it is available.')}</div>` : ''}
+      ${state.autoTranslateSentenceSets && hasSentence && !state.customDrillText ? `<div class="sh-auto-translation-card" id="sh-auto-translation-card" dir="auto">${escapeHtml(sentence?.translations?.[state.translationTargetLanguage] ?? (state.autoTranslationError ?? 'Translating this sentence…'))}${!sentence?.translations?.[state.translationTargetLanguage] && state.autoTranslationError ? ' <button type="button" class="btn btn-secondary" id="sh-auto-translation-retry">Retry</button>' : ''}</div>` : ''}
       ${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
 
       <div class="btn-row sh-record-controls">
@@ -728,6 +734,34 @@ export function renderShadowingView(
       <button type="button" class="btn btn-secondary sh-api-notice-toggle" id="sh-api-notice-toggle-btn" aria-controls="sh-api-capability-notice">ⓘ Troubleshooting</button>
   `;
 
+  const grammarScrollOnRender = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
+  if (grammarScrollOnRender) grammarScrollOnRender.scrollTop = state.grammarScrollTop;
+  if (state.autoTranslateSentenceSets && sentence && activeSet && !state.customDrillText && !sentence.translations?.[state.translationTargetLanguage]) {
+    const requestKey = `${activeSet.id}:${sentence.id}:${state.translationTargetLanguage}`;
+    if (!shadowingTranslationRequests.has(requestKey) && !shadowingTranslationFailures.has(requestKey)) {
+      shadowingTranslationRequests.add(requestKey);
+      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === state.translationTargetLanguage)?.label ?? state.translationTargetLanguage;
+      void translateShadowingText(sentence.text, targetLanguage).then(async result => {
+        if (sentenceSetHistory && getActiveShadowingSet(sentenceSetHistory, state.difficulty).id === activeSet.id) {
+          const savedSentence = getActiveShadowingSet(sentenceSetHistory, state.difficulty).sentences.find(item => item.id === sentence.id);
+          if (savedSentence) savedSentence.translations = { ...(savedSentence.translations ?? {}), [state.translationTargetLanguage]: result.text };
+          await persistCurrentShadowingHistory();
+          state.autoTranslationError = null;
+          if (container.isConnected) renderShadowingView(container, summary);
+        }
+      }).catch(error => {
+        shadowingTranslationFailures.add(requestKey);
+        state.autoTranslationError = `Translation unavailable: ${error instanceof Error ? error.message : String(error)}`;
+        if (container.isConnected) renderShadowingView(container, summary);
+      }).finally(() => shadowingTranslationRequests.delete(requestKey));
+    }
+  }
+  container.querySelector<HTMLButtonElement>('#sh-auto-translation-retry')?.addEventListener('click', () => {
+    if (!activeSet || !sentence) return;
+    shadowingTranslationFailures.delete(`${activeSet.id}:${sentence.id}:${state.translationTargetLanguage}`);
+    state.autoTranslationError = null;
+    renderShadowingView(container, summary);
+  });
   if (isCaptureBusy) {
     container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button, select').forEach(control => {
       if (control.id === 'sh-stop-score-btn' || (control.id === 'sh-record-btn' && isRec && !isStopping)) return;
@@ -835,6 +869,7 @@ export function renderShadowingView(
       const result = await translateShadowingText(textToTranslate, targetLanguage, undefined, mode);
       if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
         if (mode === 'grammar') {
+          state.grammarScrollTop = 0;
           state.grammarResult = result.text;
           state.grammarChatMessages = [];
           state.grammarChatDraft = '';
@@ -893,6 +928,7 @@ export function renderShadowingView(
         renderShadowingView(container, summary);
         const messages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages');
         if (messages) messages.scrollTop = messages.scrollHeight;
+        container.querySelector<HTMLTextAreaElement>('#sh-grammar-chat-input')?.focus();
       }
     }
   };
@@ -904,7 +940,7 @@ export function renderShadowingView(
     const down = container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down');
     if (body && up && down) { up.disabled = body.scrollTop <= 0; down.disabled = body.scrollTop + body.clientHeight >= body.scrollHeight - 2; }
   };
-  grammarScrollBody?.addEventListener('scroll', updateGrammarScrollButtons);
+  grammarScrollBody?.addEventListener('scroll', () => { state.grammarScrollTop = grammarScrollBody.scrollTop; updateGrammarScrollButtons(); });
   updateGrammarScrollButtons();
   container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: -grammarScrollBody.clientHeight * 0.8, behavior: 'smooth' }));
   container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: grammarScrollBody.clientHeight * 0.8, behavior: 'smooth' }));
@@ -989,7 +1025,7 @@ export function renderShadowingView(
       state.index = 0;
       state.customDrillText = null;
       clearAttemptState();
-      state.statusMessage = `Added a new set of 20 sentences by ${generated[0]?.providerName ?? 'AI'} to your history.`;
+      if (!state.statusMessage.startsWith('Sentences saved. Translation failed:')) state.statusMessage = `Added a new set of 20 sentences by ${generated[0]?.providerName ?? 'AI'} to your history.`;
       state.aiGenerationError = null;
     } catch (error) {
       state.aiGenerationError = `AI sentence set generation failed: ${error instanceof Error ? error.message : String(error)}`;

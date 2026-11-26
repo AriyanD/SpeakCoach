@@ -3,6 +3,14 @@ import { loadAppSettings, type AppLanguage } from '../storage/appSettings';
 type Dictionary = Record<string, string>;
 
 const fa: Dictionary = {
+  'Ask a follow-up': 'پرسیدن سؤال تکمیلی',
+  'Ask about a specific part of this explanation…': 'دربارهٔ بخش مشخصی از این توضیح سؤال کنید…',
+  'Send': 'ارسال',
+  'Thinking…': 'در حال فکر کردن…',
+  'Scroll explanation up': 'رفتن به بالای توضیح',
+  'Scroll explanation down': 'رفتن به پایین توضیح',
+  'Translating this sentence…': 'در حال ترجمهٔ این جمله…',
+  'Retry': 'تلاش دوباره',
   'Translation language': 'زبان ترجمه',
   'Auto-play next sentence': 'پخش خودکار جملهٔ بعدی',
   'Translate new sentence sets automatically': 'ترجمهٔ خودکار مجموعه‌های جدید جمله',
