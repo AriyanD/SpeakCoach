@@ -4678,6 +4678,17 @@ body {
 @media (prefers-reduced-motion:reduce) { .shadowing-main-card .sh-grammar-chat-thinking span { animation:none; } }
 @media (max-width:380px) { .shadowing-main-card .sh-grammar-chat-message { max-width:94%; } }
 
+/* Explain Grammar is one continuous pill; its translation switch is a circular control inside the right end. */
+.shadowing-main-card .sh-translation-actions { direction:ltr; align-items:stretch; }
+.shadowing-main-card .sh-translation-actions > .sh-translate-btn { flex:1 1 0; min-width:0; height:45px; min-height:45px; }
+.shadowing-main-card .sh-translation-actions > .sh-grammar-button-group { position:relative; display:block; flex:1 1 0; min-width:0; height:45px; min-height:45px; padding:0; overflow:hidden; border:1px solid var(--accent); border-radius:999px; background:var(--accent); box-sizing:border-box; direction:ltr; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-btn { display:flex; align-items:center; justify-content:center; width:100%; height:100%; min-height:0; margin:0; padding:0 45px 0 12px; border:0; border-radius:999px; background:transparent; color:var(--on-accent); box-shadow:none; text-align:center; white-space:nowrap; box-sizing:border-box; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle { position:absolute; z-index:2; top:50%; right:5px; display:inline-flex; align-items:center; justify-content:center; width:32px; min-width:32px; height:32px; min-height:32px; margin:0; padding:0; transform:translateY(-50%); border:1px solid rgba(255,255,255,.82); border-radius:50%; background:transparent; color:rgba(255,255,255,.72); cursor:pointer; box-sizing:border-box; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle.is-on { background:#fff; color:var(--accent); border-color:#fff; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle.is-off { background:transparent; color:rgba(255,255,255,.68); border-color:rgba(255,255,255,.82); }
+.shadowing-main-card .sh-grammar-language-toggle:disabled { opacity:.55; cursor:not-allowed; }
+.shadowing-main-card .sh-grammar-translation-icon { display:block; width:19px; height:19px; margin:0; flex:0 0 auto; }
+
 /* Remove the generic inline-icon offset from centered translation controls. */
 .shadowing-main-card #sh-auto-translate-toggle { display:inline-flex; align-items:center; justify-content:center; }
 .shadowing-main-card #sh-auto-translate-toggle svg { display:block; margin:0; vertical-align:middle; transform:none; }
