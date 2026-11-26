@@ -1065,7 +1065,7 @@ export function renderShadowingView(
     const entry = sentenceSetHistory[state.difficulty];
     const currentSetIndex = entry.sets.findIndex(set => set.id === entry.activeSetId);
     if (currentSetIndex >= entry.sets.length - 1) {
-      state.navigationNotice = \"You've reached the end of your generated sets. Generate a new set to continue.\";
+      state.navigationNotice = "You've reached the end of your generated sets. Generate a new set to continue.";
       renderShadowingView(container, summary);
       const generate = container.querySelector<HTMLButtonElement>('#sh-generate-ai-btn');
       generate?.classList.add('sh-attention');
@@ -1119,7 +1119,7 @@ export function renderShadowingView(
         window.setTimeout(() => markers.forEach(marker => marker.classList.remove('sh-set-flash')), 1200);
         return;
       }
-      state.navigationNotice = \"You've reached the end of your generated sets. Generate a new set to continue.\";
+      state.navigationNotice = "You've reached the end of your generated sets. Generate a new set to continue.";
       renderShadowingView(container, summary);
       const generate = container.querySelector<HTMLButtonElement>('#sh-generate-ai-btn');
       generate?.classList.add('sh-attention');
