@@ -278,7 +278,7 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
       if (validated.appSettings) {
         await saveAppSettings(validated.appSettings);
         const saved = await loadAppSettings();
-        for (const [key, value] of Object.entries(validated.appSettings)) if ((saved as Record<string, unknown>)[key] !== value) throw new Error(`The ${key} preference could not be verified after import.`);
+        for (const [key, value] of Object.entries(validated.appSettings)) if ((saved as unknown as Record<string, unknown>)[key] !== value) throw new Error(`The ${key} preference could not be verified after import.`);
       }
 
       // Imported provider configurations must be tested again; never restore a

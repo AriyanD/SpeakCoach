@@ -68,7 +68,7 @@ export async function loadShadowingLanguageHistories(): Promise<ShadowingLanguag
       const parsed: unknown = JSON.parse(stored.value);
       if (isLanguageHistories(parsed)) {
         const upgraded = { ...(parsed as ShadowingLanguageHistories) };
-        for (const [code, history] of Object.entries(upgraded)) {
+        for (const history of Object.values(upgraded)) {
           if (history && !history.ielts) history.ielts = { sets: [], activeSetId: '', activeSentenceIndex: 0 };
         }
         if (JSON.stringify(upgraded) !== JSON.stringify(parsed)) await saveShadowingLanguageHistories(upgraded);
