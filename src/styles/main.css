@@ -4632,3 +4632,47 @@ body {
     min-height: 60px;
   }
 }
+
+
+/* Grammar explanation controls: one coherent action group, toggle anchored at its right edge. */
+.shadowing-main-card .sh-translation-actions { direction:ltr; align-items:stretch; }
+.shadowing-main-card .sh-translation-actions > .sh-translate-btn { flex:1 1 0; min-width:0; }
+.shadowing-main-card .sh-translation-actions > .sh-grammar-button-group { direction:ltr; display:flex; flex:1 1 0; min-width:0; height:45px; min-height:45px; padding:0; overflow:hidden; align-items:center; gap:0; border:1px solid var(--accent); border-radius:999px; background:var(--accent); box-sizing:border-box; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-btn { flex:1 1 auto; min-width:0; height:100%; min-height:0; padding:0 12px; border:0; border-radius:999px 0 0 999px; background:transparent; color:var(--on-accent); box-shadow:none; white-space:nowrap; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle { flex:0 0 38px; width:38px; min-width:38px; height:38px; min-height:38px; margin-inline-end:3px; padding:0; display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,.82); border-radius:50%; background:transparent; color:rgba(255,255,255,.72); cursor:pointer; box-sizing:border-box; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle.is-on { background:#fff; color:var(--accent); border-color:#fff; }
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle.is-off { background:transparent; color:rgba(255,255,255,.68); border-color:rgba(255,255,255,.82); }
+.shadowing-main-card .sh-grammar-language-toggle:disabled { opacity:.55; cursor:not-allowed; }
+.shadowing-main-card .sh-grammar-translation-icon { display:block; width:21px; height:21px; margin:0; flex:0 0 auto; }
+.shadowing-main-card .sh-translation-actions > .sh-translate-btn { height:45px; min-height:45px; }
+.shadowing-main-card .sh-grammar-scroll-shell { display:grid; grid-template-rows:24px minmax(0,1fr) 24px; justify-items:center; gap:3px; width:100%; min-width:0; }
+.shadowing-main-card .sh-grammar-scroll-body { grid-row:2; width:100%; min-height:130px; max-height:380px; overflow-y:auto; resize:vertical; scrollbar-width:thin; scrollbar-color:var(--accent) color-mix(in srgb,var(--accent) 18%,var(--bg-secondary)); scrollbar-gutter:stable; }
+.shadowing-main-card .sh-grammar-scroll-body::-webkit-scrollbar { width:10px; }
+.shadowing-main-card .sh-grammar-scroll-body::-webkit-scrollbar-track { background:color-mix(in srgb,var(--accent) 18%,var(--bg-secondary)); border-radius:999px; }
+.shadowing-main-card .sh-grammar-scroll-body::-webkit-scrollbar-thumb { background:var(--accent); border:2px solid color-mix(in srgb,var(--accent) 18%,var(--bg-secondary)); border-radius:999px; }
+.shadowing-main-card .sh-grammar-scroll-arrow { display:grid; place-items:center; width:30px; min-width:30px; height:22px; min-height:22px; padding:0; border:0; border-radius:7px; background:color-mix(in srgb,var(--accent) 14%,var(--bg-secondary)); color:var(--accent); cursor:pointer; }
+.shadowing-main-card .sh-grammar-scroll-arrow svg { display:block; width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+.shadowing-main-card .sh-grammar-scroll-arrow.is-up { grid-row:1; }
+.shadowing-main-card .sh-grammar-scroll-arrow.is-down { grid-row:3; }
+.shadowing-main-card .sh-grammar-chat { display:flex; flex-direction:column; gap:10px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+.shadowing-main-card .sh-grammar-chat-heading { display:flex; flex-direction:column; gap:3px; }
+.shadowing-main-card .sh-grammar-chat-heading strong { color:var(--text-primary); font-size:.94rem; }
+.shadowing-main-card .sh-grammar-chat-heading span { color:var(--text-secondary); font-size:.78rem; }
+.shadowing-main-card .sh-grammar-chat-messages { display:flex; flex-direction:column; gap:10px; max-height:260px; min-height:72px; overflow-y:auto; overscroll-behavior:contain; padding:10px; border:1px solid var(--border); border-radius:15px; background:var(--bg-primary); scrollbar-width:thin; scrollbar-color:var(--accent) var(--bg-secondary); }
+.shadowing-main-card .sh-grammar-chat-message { max-width:min(88%, 520px); padding:10px 13px; border-radius:16px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
+.shadowing-main-card .sh-grammar-chat-message.user { align-self:flex-end; border-bottom-right-radius:5px; background:var(--accent); color:var(--on-accent); }
+.shadowing-main-card .sh-grammar-chat-message.assistant { align-self:flex-start; max-width:100%; border-bottom-left-radius:5px; background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); }
+.shadowing-main-card .sh-grammar-chat-compose { position:relative; display:flex; align-items:flex-end; gap:0; padding:5px 6px 5px 13px; border:1px solid var(--border); border-radius:18px; background:var(--bg-primary); }
+.shadowing-main-card .sh-grammar-chat-compose textarea { flex:1 1 auto; width:100%; min-width:0; min-height:36px; max-height:144px; height:36px; margin:0; padding:8px 8px 7px 0; border:0; outline:0; box-shadow:none; background:transparent; color:var(--text-primary); line-height:1.4; resize:none; overflow-y:auto; }
+.shadowing-main-card .sh-grammar-chat-compose textarea:focus { outline:0; box-shadow:none; }
+.shadowing-main-card .sh-grammar-chat-send { display:grid; place-items:center; flex:0 0 36px; width:36px; min-width:36px; height:36px; min-height:36px; margin:0; padding:0; border:0; border-radius:50%; background:var(--accent); color:var(--on-accent); cursor:pointer; }
+.shadowing-main-card .sh-grammar-chat-send svg { display:block; width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.shadowing-main-card .sh-grammar-chat-send:disabled { opacity:.4; cursor:not-allowed; }
+.shadowing-main-card .sh-grammar-chat-thinking { display:flex; align-items:center; gap:5px; align-self:flex-start; min-height:28px; padding:8px 12px; border:1px solid var(--border); border-radius:14px; background:var(--bg-secondary); }
+.shadowing-main-card .sh-grammar-chat-thinking span { width:6px; height:6px; border-radius:50%; background:var(--text-secondary); animation:sh-chat-dot 1.15s ease-in-out infinite; }
+.shadowing-main-card .sh-grammar-chat-thinking span:nth-child(2) { animation-delay:.16s; }
+.shadowing-main-card .sh-grammar-chat-thinking span:nth-child(3) { animation-delay:.32s; }
+@keyframes sh-chat-dot { 0%,60%,100% { transform:translateY(0); opacity:.45; } 30% { transform:translateY(-4px); opacity:1; } }
+#nav-settings > svg { display:block; width:23px; height:23px; margin:0 auto; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+@media (prefers-reduced-motion:reduce) { .shadowing-main-card .sh-grammar-chat-thinking span { animation:none; } }
+@media (max-width:380px) { .shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle { flex-basis:36px; width:36px; min-width:36px; height:36px; min-height:36px; } .shadowing-main-card .sh-grammar-chat-message { max-width:94%; } }

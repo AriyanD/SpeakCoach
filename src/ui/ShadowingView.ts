@@ -759,12 +759,13 @@ export function renderShadowingView(
           <button type="button" class="btn btn-secondary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>Translate</button>
           <div class="sh-grammar-button-group" role="group" aria-label="Grammar explanation options">
             <button type="button" class="btn btn-secondary sh-grammar-btn" id="sh-grammar-btn" ${state.isTranslating ? 'disabled' : ''}>Explain Grammar</button>
-            <button type="button" class="btn btn-secondary sh-translation-toggle sh-grammar-language-toggle ${state.explainGrammarInTranslationLanguage ? 'is-on' : 'is-off'}" id="sh-grammar-language-toggle" aria-label="Explain grammar in my translation language" title="Explain grammar in my translation language" aria-pressed="${state.explainGrammarInTranslationLanguage}" ${state.isTranslating ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m12.2 20.5 3.8-9 3.8 9"/><path d="M13.6 17.5h4.8"/></svg></button>
+            <button type="button" class="sh-grammar-language-toggle ${state.explainGrammarInTranslationLanguage ? 'is-on' : 'is-off'}" id="sh-grammar-language-toggle" aria-label="Include translation in grammar explanation" title="Show translation" aria-pressed="${state.explainGrammarInTranslationLanguage}" ${state.isTranslating ? 'disabled' : ''}><svg class="sh-grammar-translation-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h9M8 3v2.5"/><path d="M5.5 5.5c.6 3 2.3 5.1 5 6.4"/><path d="M11.5 5.5c-.6 3-2.3 5.1-5 6.4"/><path d="m12.5 20 3.6-8.5 3.6 8.5M14 17h4.2"/></svg></button>
           </div>
         </div>
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
-      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div class="sh-grammar-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, "<br>")}</div></div>      <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="form-label">Ask a follow-up</div><div class="sh-grammar-chat-messages" id="sh-grammar-chat-messages" role="log" aria-live="polite" aria-relevant="additions">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status">Thinking…</div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" aria-label="Ask a follow-up" rows="2" maxlength="500" placeholder="Ask about a specific part of this explanation…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="btn btn-secondary" id="sh-grammar-chat-send" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}>Send</button></div></div>` : ''}
+      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div class="sh-grammar-scroll-shell"><button type="button" class="sh-grammar-scroll-arrow is-up" id="sh-grammar-scroll-up" aria-label="Scroll grammar explanation up" title="Scroll up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg></button><div class="sh-grammar-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, "<br>")}</div><button type="button" class="sh-grammar-scroll-arrow is-down" id="sh-grammar-scroll-down" aria-label="Scroll grammar explanation down" title="Scroll down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6"/></svg></button></div></div>
+      <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="sh-grammar-chat-heading"><strong>Ask a follow-up</strong><span>Continue the conversation about this explanation</span></div><div class="sh-grammar-chat-messages" id="sh-grammar-chat-messages" role="log" aria-live="polite" aria-relevant="additions">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status" aria-label="AI is responding"><span></span><span></span><span></span></div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" aria-label="Ask a follow-up question" rows="1" maxlength="500" placeholder="Ask a follow-up question…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="sh-grammar-chat-send" id="sh-grammar-chat-send" aria-label="Send message" title="Send message" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
       <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
@@ -781,6 +782,8 @@ export function renderShadowingView(
   if (grammarChatScrollOnRender) grammarChatScrollOnRender.scrollTop = state.grammarChatScrollTop;
   const grammarScrollOnRender = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
   if (grammarScrollOnRender) grammarScrollOnRender.scrollTop = state.grammarScrollTop;
+  const grammarChatOnRender = container.querySelector<HTMLElement>('#sh-grammar-chat-messages');
+  if (grammarChatOnRender && state.grammarChatMessages.length > 0) grammarChatOnRender.scrollTop = grammarChatOnRender.scrollHeight;
   if (state.autoTranslateSentenceSets && sentence && activeSet && !state.customDrillText && !sentence.translations?.[state.translationTargetLanguage]) {
     const requestLanguageCode = state.languageCode;
     const requestDifficulty = state.difficulty;
@@ -967,10 +970,17 @@ export function renderShadowingView(
   const grammarChatMessages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages');
   grammarChatMessages?.addEventListener('scroll', () => { state.grammarChatScrollTop = grammarChatMessages.scrollTop; });
   grammarChatInput?.addEventListener('scroll', () => { const messages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages'); if (messages) state.grammarChatScrollTop = messages.scrollTop; });
+  const resizeGrammarChatInput = (): void => {
+    if (!grammarChatInput) return;
+    grammarChatInput.style.height = 'auto';
+    grammarChatInput.style.height = `${Math.min(grammarChatInput.scrollHeight, 144)}px`;
+  };
+  resizeGrammarChatInput();
   grammarChatInput?.addEventListener('input', () => {
     state.grammarChatDraft = grammarChatInput.value.slice(0, 500);
     const send = container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send');
     if (send) send.disabled = state.grammarChatBusy || !state.grammarChatDraft.trim();
+    resizeGrammarChatInput();
   });
   grammarChatInput?.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send')?.click(); }
@@ -1003,7 +1013,7 @@ export function renderShadowingView(
     const thinking = document.createElement('div');
     thinking.className = 'sh-grammar-chat-thinking';
     thinking.setAttribute('role', 'status');
-    thinking.textContent = 'Thinking…';
+    thinking.innerHTML = '<span></span><span></span><span></span>';
     messages?.appendChild(thinking);
     if (messages) messages.scrollTop = messages.scrollHeight;
     if (input) { input.value = ''; input.disabled = true; }
@@ -1037,6 +1047,8 @@ export function renderShadowingView(
   container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send')?.addEventListener('click', () => { void sendGrammarFollowUp(); });
   const grammarScrollBody = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
   grammarScrollBody?.addEventListener('scroll', () => { state.grammarScrollTop = grammarScrollBody.scrollTop; });
+  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: -Math.max(100, grammarScrollBody.clientHeight * 0.75), behavior: 'smooth' }));
+  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: Math.max(100, grammarScrollBody.clientHeight * 0.75), behavior: 'smooth' }));
 
   container.querySelectorAll<HTMLButtonElement>('[data-word-replay]').forEach(button => {
     button.addEventListener('click', async () => {
