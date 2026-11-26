@@ -764,7 +764,7 @@ export function renderShadowingView(
         </div>
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
-      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div class="sh-grammar-scroll-shell"><button type="button" class="sh-grammar-scroll-arrow is-up" id="sh-grammar-scroll-up" aria-label="Scroll grammar explanation up" title="Scroll up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg></button><div class="sh-grammar-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, "<br>")}</div><button type="button" class="sh-grammar-scroll-arrow is-down" id="sh-grammar-scroll-down" aria-label="Scroll grammar explanation down" title="Scroll down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6"/></svg></button></div></div>
+      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div class="sh-grammar-scroll-shell"><div class="sh-grammar-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, "<br>")}</div><div class="sh-grammar-scroll-rail"><button type="button" class="sh-grammar-scroll-arrow is-up" id="sh-grammar-scroll-up" aria-label="Scroll grammar explanation up" title="Scroll up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg></button><div class="sh-grammar-scroll-track" id="sh-grammar-scroll-track" role="scrollbar" aria-label="Grammar explanation scroll position" aria-controls="sh-grammar-scroll-body" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="sh-grammar-scroll-thumb" id="sh-grammar-scroll-thumb"></div></div><button type="button" class="sh-grammar-scroll-arrow is-down" id="sh-grammar-scroll-down" aria-label="Scroll grammar explanation down" title="Scroll down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6"/></svg></button></div></div></div>
       <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="sh-grammar-chat-heading"><strong>Ask a follow-up</strong><span>Continue the conversation about this explanation</span></div><div class="sh-grammar-chat-messages" id="sh-grammar-chat-messages" role="log" aria-live="polite" aria-relevant="additions">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status" aria-label="AI is responding"><span></span><span></span><span></span></div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" aria-label="Ask a follow-up question" rows="1" maxlength="500" placeholder="Ask a follow-up question…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="sh-grammar-chat-send" id="sh-grammar-chat-send" aria-label="Send message" title="Send message" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
@@ -1052,9 +1052,90 @@ export function renderShadowingView(
   };
   container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send')?.addEventListener('click', () => { void sendGrammarFollowUp(); });
   const grammarScrollBody = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
-  grammarScrollBody?.addEventListener('scroll', () => { state.grammarScrollTop = grammarScrollBody.scrollTop; });
-  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: -Math.max(100, grammarScrollBody.clientHeight * 0.75), behavior: 'smooth' }));
-  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: Math.max(100, grammarScrollBody.clientHeight * 0.75), behavior: 'smooth' }));
+  const grammarScrollTrack = container.querySelector<HTMLElement>('#sh-grammar-scroll-track');
+  const grammarScrollThumb = container.querySelector<HTMLElement>('#sh-grammar-scroll-thumb');
+  if (grammarScrollBody && grammarScrollTrack && grammarScrollThumb) {
+    let dragOffset = 0;
+    let draggingPointerId: number | null = null;
+    const syncGrammarScrollbar = (): void => {
+      const maxScroll = Math.max(0, grammarScrollBody.scrollHeight - grammarScrollBody.clientHeight);
+      const trackHeight = grammarScrollTrack.clientHeight;
+      const thumbHeight = maxScroll > 0
+        ? Math.min(trackHeight, Math.max(28, trackHeight * grammarScrollBody.clientHeight / grammarScrollBody.scrollHeight))
+        : trackHeight;
+      const travel = Math.max(0, trackHeight - thumbHeight);
+      const progress = maxScroll > 0 ? grammarScrollBody.scrollTop / maxScroll : 0;
+      grammarScrollThumb.style.height = `${thumbHeight}px`;
+      grammarScrollThumb.style.transform = `translateY(${travel * progress}px)`;
+      grammarScrollTrack.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
+      const canScrollUp = grammarScrollBody.scrollTop > 0;
+      const canScrollDown = grammarScrollBody.scrollTop < maxScroll - 1;
+      const upButton = container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up');
+      const downButton = container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down');
+      if (upButton) upButton.disabled = !canScrollUp;
+      if (downButton) downButton.disabled = !canScrollDown;
+    };
+    const scrollFromPointer = (clientY: number): void => {
+      const maxScroll = Math.max(0, grammarScrollBody.scrollHeight - grammarScrollBody.clientHeight);
+      const trackRect = grammarScrollTrack.getBoundingClientRect();
+      const thumbHeight = grammarScrollThumb.offsetHeight;
+      const travel = Math.max(0, trackRect.height - thumbHeight);
+      if (maxScroll <= 0 || travel <= 0) return;
+      const nextTop = Math.max(0, Math.min(travel, clientY - trackRect.top - dragOffset));
+      grammarScrollBody.scrollTop = nextTop / travel * maxScroll;
+    };
+    grammarScrollBody.addEventListener('scroll', () => {
+      state.grammarScrollTop = grammarScrollBody.scrollTop;
+      syncGrammarScrollbar();
+    }, { passive: true });
+    container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up')?.addEventListener('click', () => {
+      grammarScrollBody.scrollBy({ top: -Math.max(100, grammarScrollBody.clientHeight * 0.75), behavior: 'smooth' });
+    });
+    container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down')?.addEventListener('click', () => {
+      grammarScrollBody.scrollBy({ top: Math.max(100, grammarScrollBody.clientHeight * 0.75), behavior: 'smooth' });
+    });
+    grammarScrollTrack.addEventListener('pointerdown', event => {
+      if (event.button !== 0 && event.pointerType === 'mouse') return;
+      const thumbRect = grammarScrollThumb.getBoundingClientRect();
+      const onThumb = event.target === grammarScrollThumb || grammarScrollThumb.contains(event.target as Node);
+      dragOffset = onThumb ? event.clientY - thumbRect.top : grammarScrollThumb.offsetHeight / 2;
+      draggingPointerId = event.pointerId;
+      try { grammarScrollTrack.setPointerCapture(event.pointerId); } catch { /* Pointer capture is optional in embedded WebViews. */ }
+      if (!onThumb) scrollFromPointer(event.clientY);
+      event.preventDefault();
+    });
+    grammarScrollTrack.addEventListener('pointermove', event => {
+      if (draggingPointerId !== event.pointerId) return;
+      scrollFromPointer(event.clientY);
+    });
+    const stopDragging = (event: PointerEvent): void => {
+      if (draggingPointerId !== event.pointerId) return;
+      draggingPointerId = null;
+      try {
+        if (grammarScrollTrack.hasPointerCapture(event.pointerId)) grammarScrollTrack.releasePointerCapture(event.pointerId);
+      } catch { /* The pointer may already have been released by the WebView. */ }
+    };
+    grammarScrollTrack.addEventListener('pointerup', stopDragging);
+    grammarScrollTrack.addEventListener('pointercancel', stopDragging);
+    grammarScrollTrack.addEventListener('lostpointercapture', () => { draggingPointerId = null; });
+    grammarScrollTrack.addEventListener('keydown', event => {
+      const pageStep = Math.max(100, grammarScrollBody.clientHeight * 0.75);
+      if (event.key === 'ArrowUp') grammarScrollBody.scrollBy({ top: -40, behavior: 'smooth' });
+      else if (event.key === 'ArrowDown') grammarScrollBody.scrollBy({ top: 40, behavior: 'smooth' });
+      else if (event.key === 'PageUp') grammarScrollBody.scrollBy({ top: -pageStep, behavior: 'smooth' });
+      else if (event.key === 'PageDown') grammarScrollBody.scrollBy({ top: pageStep, behavior: 'smooth' });
+      else if (event.key === 'Home') grammarScrollBody.scrollTo({ top: 0, behavior: 'smooth' });
+      else if (event.key === 'End') grammarScrollBody.scrollTo({ top: grammarScrollBody.scrollHeight, behavior: 'smooth' });
+      else return;
+      event.preventDefault();
+    });
+    syncGrammarScrollbar();
+    if (typeof ResizeObserver !== 'undefined') {
+      const grammarResizeObserver = new ResizeObserver(syncGrammarScrollbar);
+      grammarResizeObserver.observe(grammarScrollBody);
+      grammarResizeObserver.observe(grammarScrollTrack);
+    }
+  }
 
   container.querySelectorAll<HTMLButtonElement>('[data-word-replay]').forEach(button => {
     button.addEventListener('click', async () => {
