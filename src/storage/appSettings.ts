@@ -27,9 +27,9 @@ async function preserveCorruptAppSettings(raw: string): Promise<void> {
 
 export type AppThemePreference = 'system' | 'light' | 'dark';
 export type AppLanguage = 'en' | 'fa' | null;
-export type ShadowingDifficultyPreference = 'easy' | 'medium' | 'hard';
+export type ShadowingDifficultyPreference = 'easy' | 'medium' | 'hard' | 'ielts';
 
-const SHADOWING_DIFFICULTIES = new Set<ShadowingDifficultyPreference>(['easy', 'medium', 'hard']);
+const SHADOWING_DIFFICULTIES = new Set<ShadowingDifficultyPreference>(['easy', 'medium', 'hard', 'ielts']);
 const TRANSLATION_TARGET_LANGUAGES = new Set([
   'fa', 'ar', 'de', 'es', 'fr', 'it', 'nl', 'pt', 'ru', 'sv', 'tr', 'zh', 'ja', 'ko'
 ]);
@@ -51,6 +51,12 @@ export interface AppSettings {
   shadowingDifficulty: ShadowingDifficultyPreference;
   /** Last selected target language for Shadowing translation. */
   translationTargetLanguage: string;
+  /** Automatically play the next Shadowing sentence after manual Next navigation. */
+  autoPlayNextShadowing: boolean;
+  /** Translate newly generated Shadowing sets after they have been saved. */
+  autoTranslateSentenceSets: boolean;
+  /** Explain grammar in the selected translation language instead of the practice language. */
+  explainGrammarInTranslationLanguage: boolean;
 }
 
 const DEFAULTS: AppSettings = {
@@ -61,7 +67,10 @@ const DEFAULTS: AppSettings = {
   onboardingCompleted: false,
   prefetchShadowingAudio: true,
   shadowingDifficulty: 'easy',
-  translationTargetLanguage: 'fa'
+  translationTargetLanguage: 'fa',
+  autoPlayNextShadowing: false,
+  autoTranslateSentenceSets: false,
+  explainGrammarInTranslationLanguage: false
 };
 
 async function getRaw(key: string): Promise<string | null> {
@@ -121,7 +130,10 @@ export async function loadAppSettings(): Promise<AppSettings> {
         : DEFAULTS.shadowingDifficulty,
       translationTargetLanguage: typeof parsed.translationTargetLanguage === 'string' && TRANSLATION_TARGET_LANGUAGES.has(parsed.translationTargetLanguage)
         ? parsed.translationTargetLanguage
-        : DEFAULTS.translationTargetLanguage
+        : DEFAULTS.translationTargetLanguage,
+      autoPlayNextShadowing: typeof parsed.autoPlayNextShadowing === 'boolean' ? parsed.autoPlayNextShadowing : DEFAULTS.autoPlayNextShadowing,
+      autoTranslateSentenceSets: typeof parsed.autoTranslateSentenceSets === 'boolean' ? parsed.autoTranslateSentenceSets : DEFAULTS.autoTranslateSentenceSets,
+      explainGrammarInTranslationLanguage: typeof parsed.explainGrammarInTranslationLanguage === 'boolean' ? parsed.explainGrammarInTranslationLanguage : DEFAULTS.explainGrammarInTranslationLanguage
     };
     try { if (typeof localStorage !== 'undefined') localStorage.setItem(THEME_MIRROR_KEY, settings.theme); } catch { /* Best-effort first-paint hint only. */ }
     return settings;
@@ -145,7 +157,10 @@ export async function saveAppSettings(settings: Partial<AppSettings>): Promise<A
       : current.shadowingDifficulty,
     translationTargetLanguage: settings.translationTargetLanguage && TRANSLATION_TARGET_LANGUAGES.has(settings.translationTargetLanguage)
       ? settings.translationTargetLanguage
-      : current.translationTargetLanguage
+      : current.translationTargetLanguage,
+    autoPlayNextShadowing: settings.autoPlayNextShadowing ?? current.autoPlayNextShadowing,
+    autoTranslateSentenceSets: settings.autoTranslateSentenceSets ?? current.autoTranslateSentenceSets,
+    explainGrammarInTranslationLanguage: settings.explainGrammarInTranslationLanguage ?? current.explainGrammarInTranslationLanguage
   };
   await setRaw(APP_SETTINGS_KEY, JSON.stringify(updated));
   try { if (typeof localStorage !== 'undefined') localStorage.setItem(THEME_MIRROR_KEY, updated.theme); } catch { /* Native Preferences remains the source of truth. */ }

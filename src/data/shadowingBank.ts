@@ -1,6 +1,6 @@
 import { SHADOWING_BANK_DATA } from './shadowingBankData';
 
-export type ShadowingDifficulty = 'easy' | 'medium' | 'hard';
+export type ShadowingDifficulty = 'easy' | 'medium' | 'hard' | 'ielts';
 
 export interface ReferenceWordTiming {
   word: string;
@@ -19,6 +19,8 @@ export interface ShadowingSentence {
   speakingTip?: string;
   meaningContext?: string;
   usefulVocabulary?: { term: string; meaning: string }[];
+  /** Optional cached translations keyed by target language code. */
+  translations?: Record<string, string>;
 }
 
 export const BUILTIN_SHADOWING_SENTENCES: ShadowingSentence[] = (SHADOWING_BANK_DATA as unknown as { value: ShadowingSentence[] }[]).flatMap(group => group.value);

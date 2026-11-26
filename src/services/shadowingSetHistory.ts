@@ -19,20 +19,21 @@ export type ShadowingSetHistory = Record<ShadowingDifficulty, ShadowingDifficult
 
 export const SHADOWING_HISTORY_KEY = 'speakcoach_shadowing_set_history_v2';
 export const MAX_SHADOWING_SETS_PER_DIFFICULTY = 10;
-const DIFFICULTIES: ShadowingDifficulty[] = ['easy', 'medium', 'hard'];
+const DIFFICULTIES: ShadowingDifficulty[] = ['easy', 'medium', 'hard', 'ielts'];
 
 export function createEmptyShadowingSetHistory(): ShadowingSetHistory {
   return {
     easy: { sets: [], activeSetId: '', activeSentenceIndex: 0 },
     medium: { sets: [], activeSetId: '', activeSentenceIndex: 0 },
-    hard: { sets: [], activeSetId: '', activeSentenceIndex: 0 }
+    hard: { sets: [], activeSetId: '', activeSentenceIndex: 0 },
+    ielts: { sets: [], activeSetId: '', activeSentenceIndex: 0 }
   };
 }
 
 export function makeSeedHistory(languageCode: ShadowingLanguageCode = 'en'): ShadowingSetHistory {
   const history = {} as ShadowingSetHistory;
   for (const difficulty of DIFFICULTIES) {
-    const initialSets = languageCode === 'en'
+    const initialSets = difficulty === 'ielts' ? [] : languageCode === 'en'
       ? getInitialShadowingSets(difficulty)
       : getInitialMultilingualShadowingSets(languageCode, difficulty);
     const sets = initialSets.map((sentences, index) => ({
@@ -58,16 +59,17 @@ function isHistory(value: unknown): value is ShadowingSetHistory {
   return DIFFICULTIES.every(difficulty => {
     const entry = (value as ShadowingSetHistory)[difficulty];
     const activeSet = entry?.sets?.find(set => set.id === entry.activeSetId);
-    return !!entry && Array.isArray(entry.sets) && entry.sets.length > 0 &&
+    return !!entry && Array.isArray(entry.sets) &&
       entry.sets.every(set => !!set && typeof set.id === 'string' &&
         (set.source === 'builtin' || set.source === 'ai') &&
         Array.isArray(set.sentences) &&
         set.sentences.length >= 1 && set.sentences.length <= 20 &&
         (set.source !== 'ai' || set.sentences.length === 20) &&
         set.sentences.every(isSentence)) &&
-      !!activeSet &&
-      Number.isInteger(entry.activeSentenceIndex) && entry.activeSentenceIndex >= 0 &&
-      entry.activeSentenceIndex < activeSet.sentences.length;
+      (entry.sets.length === 0
+        ? entry.activeSetId === '' && entry.activeSentenceIndex === 0
+        : !!activeSet && Number.isInteger(entry.activeSentenceIndex) && entry.activeSentenceIndex >= 0 &&
+          entry.activeSentenceIndex < activeSet.sentences.length);
   });
 }
 
@@ -87,7 +89,7 @@ export async function loadShadowingSetHistory(): Promise<ShadowingSetHistory> {
     const legacy = JSON.parse(localStorage.getItem('speakcoach_shadowing_active_set_v1') || 'null') as unknown;
     if (Array.isArray(legacy) && legacy.length === 20 && legacy.every(isSentence)) {
       const difficulty = legacy[0].difficulty;
-      if (DIFFICULTIES.includes(difficulty) && legacy.every(sentence => sentence.difficulty === difficulty)) {
+      if (DIFFICULTIES.includes(difficulty) && difficulty !== 'ielts' && legacy.every(sentence => sentence.difficulty === difficulty)) {
         const entry = seeded[difficulty];
         const migrated: ShadowingSentenceSet = {
           id: `migrated-ai-${Date.now()}`,

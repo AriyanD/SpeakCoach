@@ -56,7 +56,8 @@ function isLanguageHistories(value: unknown): value is ShadowingLanguageHistorie
     !!history && typeof history === 'object' &&
     ['easy', 'medium', 'hard'].every(difficulty =>
       isDifficultyHistory((history as Record<string, unknown>)[difficulty])
-    )
+    ) && ((history as Record<string, unknown>).ielts === undefined ||
+      isDifficultyHistory((history as Record<string, unknown>).ielts))
   );
 }
 
@@ -65,7 +66,14 @@ export async function loadShadowingLanguageHistories(): Promise<ShadowingLanguag
     const stored = await Preferences.get({ key: SHADOWING_LANGUAGE_HISTORY_KEY });
     if (stored.value) {
       const parsed: unknown = JSON.parse(stored.value);
-      if (isLanguageHistories(parsed)) return parsed;
+      if (isLanguageHistories(parsed)) {
+        const upgraded = { ...(parsed as ShadowingLanguageHistories) };
+        for (const [code, history] of Object.entries(upgraded)) {
+          if (history && !history.ielts) history.ielts = { sets: [], activeSetId: '', activeSentenceIndex: 0 };
+        }
+        if (JSON.stringify(upgraded) !== JSON.stringify(parsed)) await saveShadowingLanguageHistories(upgraded);
+        return upgraded;
+      }
     }
   } catch (error) {
     console.warn('[SpeakCoach] Could not load language-specific Shadowing history; attempting migration.', error);

@@ -11,21 +11,28 @@ export interface ShadowingTranslationResult {
   modelName: string;
   account: 'primary' | 'secondary';
 }
-export function buildShadowingTranslationPrompt(text: string, targetLanguage: string, mode: 'translate' | 'grammar' = 'translate'): string {
+export function buildShadowingTranslationPrompt(text: string, targetLanguage: string, mode: 'translate' | 'grammar' | 'batch' = 'translate'): string {
   const source = text.trim();
   const language = targetLanguage.trim();
   if (!source) throw new Error('Enter a word or sentence to translate.');
   if (source.length > 4000) throw new Error('Text is too long (maximum 4,000 characters).');
   if (mode === 'grammar') return [
-    'Explain the English grammar of the following text entirely in English. Do not translate the explanation or use Persian or any other language.',
-    'Give a learner-friendly explanation suitable for English learners and IELTS candidates: explain sentence structure, tense and aspect, clauses, word order, and important grammatical patterns, including why they are used. Add short examples in English when useful.',
+    `Explain the grammar of the following text entirely in ${language}. Do not translate the sentence itself.`,
+    `Give a learner-friendly explanation in ${language}: explain sentence structure, tense and aspect, clauses, word order, and important grammatical patterns, including why they are used. Add short examples in ${language} when useful.`,
     'For a single word or fragment, explain its grammatical role and common usage. Use concise headings and bullet points.',
-    'Regardless of the selected translation language, the entire grammar explanation must be in English.',
     '',
     'Text:',
     source
   ].join('\n');
   if (!language) throw new Error('Choose a target language.');
+  if (mode === 'batch') return [
+    `Translate every sentence in the JSON array into ${language}.`,
+    'Return ONLY a valid JSON array of strings, in the same order and with exactly the same number of items. Do not add markdown or commentary.',
+    'Preserve the meaning and natural tone of each sentence.',
+    '',
+    'Sentences:',
+    source
+  ].join('\\n');
   return [
     'Translate the following text into ' + language + '.',
     'Preserve the original meaning, tone, and punctuation. Return only the translated text, without labels, explanations, or quotation marks.',
@@ -53,7 +60,7 @@ export async function translateShadowingText(
   text: string,
   targetLanguage: string,
   transport?: (opts: any) => Promise<any>,
-  mode: 'translate' | 'grammar' = 'translate'
+  mode: 'translate' | 'grammar' | 'batch' = 'translate'
 ): Promise<ShadowingTranslationResult> {
   const prompt = buildShadowingTranslationPrompt(text, targetLanguage, mode);
   const configs = await loadAllSlotsConfig();
@@ -99,8 +106,10 @@ export async function translateShadowingText(
           model,
           messages: [
             { role: 'system', content: mode === 'grammar'
-              ? 'You are an expert English grammar tutor for English learners and IELTS candidates. Explain grammar entirely in English. Never respond in Persian or another language, even if the app translation language is set to Persian.'
-              : 'You are a precise translator. Return only the translation, without labels or explanations.' },
+              ? `You are an expert language tutor. Explain grammar entirely in ${targetLanguage}. Do not translate the source sentence.`
+              : mode === 'batch'
+                ? `You are a precise translator. Return only a valid JSON array of translated strings in ${targetLanguage}, preserving item count and order.`
+                : 'You are a precise translator. Return only the translation, without labels or explanations.' },
             { role: 'user', content: prompt }
           ],
           temperature: 0.2
@@ -117,4 +126,35 @@ export async function translateShadowingText(
   });
 
   return { ...attempt.result, account: attempt.account };
+}
+
+
+/** Translate a complete generated set in one translator-slot request. A malformed
+ * successful response gets one explicit retry; transport failures are not replayed here. */
+export async function translateShadowingSentenceBatch(
+  sentences: string[],
+  targetLanguage: string,
+  transport?: (opts: any) => Promise<any>
+): Promise<string[]> {
+  if (sentences.length !== 20 || sentences.some(sentence => !sentence.trim())) {
+    throw new Error('A translation batch must contain exactly 20 non-empty sentences.');
+  }
+  const source = JSON.stringify(sentences);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await translateShadowingText(source, targetLanguage, transport, 'batch');
+      const parsed = JSON.parse(result.text.replace(/^\uFEFF/, '').trim());
+      const values = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.translations) ? parsed.translations : null);
+      if (!values || values.length !== sentences.length || values.some((value: unknown) => typeof value !== 'string' || !value.trim())) {
+        throw new Error('The translation provider returned an invalid batch.');
+      }
+      return values.map((value: string) => value.trim());
+    } catch (error) {
+      lastError = error;
+      // Retry only malformed/empty successful output, never a transport/provider failure.
+      if (!(error instanceof SyntaxError) && !(error instanceof Error && error.message.includes('invalid batch'))) throw error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Could not parse the translated sentence set.');
 }
