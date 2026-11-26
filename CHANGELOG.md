@@ -2,6 +2,18 @@
 
 Notable user-facing changes are recorded here. Release tags and version numbers are created only when a release is intentionally published.
 
+## Unreleased
+
+### Added
+- Shadowing can automatically play the next sentence and translate newly generated AI sentence sets into a selected language.
+- Grammar explanations can be read in either the practice language or the selected translation language, with a compact scrollable explanation and follow-up tutor chat.
+- English-only IELTS answer-sentence practice generates its own 20-sentence sets without using offline starter sentences.
+
+### Improved
+- Shadowing history navigation stays usable at the newest set, announces set changes, and highlights the current set.
+- Word replay now shows which word is loading and playing.
+- Shadowing translation preferences and IELTS difficulty survive backup/restore; existing saved histories are upgraded without discarding earlier sets.
+
 ## 1.1.0 — 2026-11-21
 
 ### Added
