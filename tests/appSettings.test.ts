@@ -15,7 +15,10 @@ describe('App settings persistence', () => {
       onboardingCompleted: false,
       prefetchShadowingAudio: true,
       shadowingDifficulty: 'easy',
-      translationTargetLanguage: 'fa'
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
     });
   });
 
@@ -34,7 +37,10 @@ describe('App settings persistence', () => {
     }));
     await expect(loadAppSettings()).resolves.toMatchObject({
       shadowingDifficulty: 'easy',
-      translationTargetLanguage: 'fa'
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
     });
   });
 
@@ -84,7 +90,10 @@ describe('App settings persistence', () => {
       onboardingCompleted: false,
       prefetchShadowingAudio: true,
       shadowingDifficulty: 'easy',
-      translationTargetLanguage: 'fa'
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
     });
   });
 
@@ -100,7 +109,10 @@ describe('App settings persistence', () => {
       onboardingCompleted: false,
       prefetchShadowingAudio: true,
       shadowingDifficulty: 'easy',
-      translationTargetLanguage: 'fa'
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
     });
   });
 
@@ -118,7 +130,10 @@ describe('App settings persistence', () => {
       onboardingCompleted: false,
       prefetchShadowingAudio: true,
       shadowingDifficulty: 'easy',
-      translationTargetLanguage: 'fa'
+      translationTargetLanguage: 'fa',
+      autoPlayNextShadowing: false,
+      autoTranslateSentenceSets: false,
+      explainGrammarInTranslationLanguage: false
     });
   });
 });

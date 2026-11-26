@@ -24,6 +24,11 @@ describe('AI Shadowing sentence response parsing', () => {
     expect(normalizeShadowingSentenceForDuplicateCheck('The city is quiet.')).not.toBe(normalizeShadowingSentenceForDuplicateCheck('The city is crowded.'));
   });
 
+  it('accepts IELTS answer sentences in the extended 18–30 word range', () => {
+    const text = 'To be honest, I really enjoy living near the coast because it gives me room to unwind, and I can still reach work easily.';
+    expect(parseShadowingSentenceResponse(JSON.stringify({ text }), 'ielts').text).toBe(text);
+  });
+
   it('rejects responses outside the required 8–28 word range with a useful count', () => {
     expect(() => parseShadowingSentenceResponse(JSON.stringify({
       text: 'I enjoy reading books.'

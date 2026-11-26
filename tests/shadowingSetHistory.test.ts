@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUILTIN_SHADOWING_SETS } from '../src/data/shadowingSentenceSets';
 import {
   appendShadowingSet,
+  createEmptyShadowingSetHistory,
+  makeSeedHistory,
   getActiveShadowingSet,
   loadShadowingSetHistory,
   moveShadowingSet,
@@ -35,6 +37,12 @@ describe('Shadowing sentence-set history', () => {
         expect(set.every(sentence => sentence.text.trim().length > 0)).toBe(true);
       }
     }
+  });
+
+  it('creates an empty AI-only IELTS history bucket without offline starter sentences', () => {
+    const history = makeSeedHistory('en');
+    expect(history.ielts).toEqual({ sets: [], activeSetId: '', activeSentenceIndex: 0 });
+    expect(createEmptyShadowingSetHistory().ielts.sets).toHaveLength(0);
   });
 
   it('migrates the previously saved AI batch into the unified history', async () => {

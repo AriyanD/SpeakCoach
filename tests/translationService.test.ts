@@ -17,6 +17,15 @@ describe('Shadowing translation helpers', () => {
     expect(extractShadowingTranslationText({ choices: [{ message: { content: [{ text: 'Guten' }, { text: 'Tag' }] } }] }, 'openai')).toBe('Guten\nTag');
   });
 
+  it('builds grammar explanations in the explicitly selected language', () => {
+    expect(buildShadowingTranslationPrompt('I have been working here.', 'Persian', 'grammar')).toContain('entirely in Persian');
+    expect(buildShadowingTranslationPrompt('I have been working here.', 'English', 'grammar')).toContain('entirely in English');
+  });
+
+  it('builds a JSON-only prompt for sentence translation batches', () => {
+    expect(buildShadowingTranslationPrompt('[\\"hello\\"]', 'Persian', 'batch')).toContain('valid JSON array of strings');
+  });
+
   it('rejects text beyond the safe request size', () => {
     expect(() => buildShadowingTranslationPrompt('x'.repeat(4001), 'Persian')).toThrow('4,000 characters');
   });
