@@ -1,9 +1,10 @@
 import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const stylesDirectory = new URL('../src/styles/', import.meta.url);
+const stylesDirectory = resolve(process.cwd(), 'src/styles');
 const cssFiles = readdirSync(stylesDirectory).filter(name => name.endsWith('.css'));
-const styles = cssFiles.map(name => readFileSync(new URL(name, stylesDirectory), 'utf8')).join('\n');
+const styles = cssFiles.map(name => readFileSync(resolve(stylesDirectory, name), 'utf8')).join('\n');
 const withoutComments = styles.replace(/\/\*[\s\S]*?\*\//g, '');
 
 describe('stylesheet integrity', () => {

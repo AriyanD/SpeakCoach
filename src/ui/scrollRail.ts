@@ -39,7 +39,7 @@ export function attachScrollRail(field: HTMLElement, options: ScrollRailOptions 
     down.disabled = idle || body.scrollTop >= maxScroll - 1;
   };
   const scrollByPage = (direction: -1 | 1): void => {
-    body.scrollBy({ top: Math.max(100, body.clientHeight * 0.75) * direction, behavior: 'smooth' });
+    body.scrollBy({ top: Math.max(1, body.clientHeight * 0.75) * direction, behavior: 'smooth' });
   };
   const pageFromPointer = (clientY: number): void => {
     const maxScroll = Math.max(0, body.scrollHeight - body.clientHeight);
@@ -81,7 +81,7 @@ export function attachScrollRail(field: HTMLElement, options: ScrollRailOptions 
   listen(track, 'lostpointercapture', () => { activePointer = null; });
   listen(track, 'keydown', event => {
     const key = event as KeyboardEvent;
-    const pageStep = Math.max(100, body.clientHeight * 0.75);
+    const pageStep = Math.max(1, body.clientHeight * 0.75);
     if (key.key === 'ArrowUp') body.scrollBy({ top: -40, behavior: 'smooth' });
     else if (key.key === 'ArrowDown') body.scrollBy({ top: 40, behavior: 'smooth' });
     else if (key.key === 'PageUp') body.scrollBy({ top: -pageStep, behavior: 'smooth' });
