@@ -22,7 +22,7 @@ import type { GlobalTierSummary } from '../services/tierManager';
 import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
 import { activateShadowingAudioSet } from '../services/shadowingAudioStore';
 import type { WordMatchStatus } from '../services/wordAlignment';
-import { translateShadowingText } from '../services/translationService';
+import { translateShadowingText, translateShadowingSentenceBatch } from '../services/translationService';
 import { analyzeWavBase64Vad, type WavVadAnalysisResult } from '../services/wavVadAnalyzer';
 import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttService';
 import { getCachedModelWordTimings } from '../services/modelTimingService';
@@ -56,6 +56,10 @@ interface ShadowingState {
   translationText: string;
   translationSourceText: string | null;
   translationTargetLanguage: string;
+  autoPlayNextShadowing: boolean;
+  autoTranslateSentenceSets: boolean;
+  explainGrammarInTranslationLanguage: boolean;
+  wordPlayback: { index: number; phase: 'loading' | 'playing' } | null;
   translationResult: string;
   grammarResult: string;
   translationMode: 'translate' | 'grammar';
@@ -89,6 +93,10 @@ const state: ShadowingState = {
   translationText: '',
   translationSourceText: null,
   translationTargetLanguage: 'fa',
+  autoPlayNextShadowing: false,
+  autoTranslateSentenceSets: false,
+  explainGrammarInTranslationLanguage: false,
+  wordPlayback: null,
   translationResult: '',
   grammarResult: '',
   translationMode: 'translate',
@@ -147,6 +155,9 @@ function ensureSentenceSetHistory(): Promise<ShadowingSetHistory> {
     const appSettings = await loadAppSettings();
     state.difficulty = appSettings.shadowingDifficulty;
     state.translationTargetLanguage = appSettings.translationTargetLanguage;
+    state.autoPlayNextShadowing = appSettings.autoPlayNextShadowing;
+    state.autoTranslateSentenceSets = appSettings.autoTranslateSentenceSets;
+    state.explainGrammarInTranslationLanguage = appSettings.explainGrammarInTranslationLanguage;
     state.languageCode = await loadSelectedShadowingLanguage();
     const existing = getShadowingHistoryForLanguage(sentenceLanguageHistories, state.languageCode);
     sentenceSetHistory = existing ?? createShadowingHistoryForLanguage(state.languageCode);
@@ -556,6 +567,10 @@ export function renderShadowingView(
           ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
         </select>
       </div>
+      <div class="sh-language-picker-field">
+        <label class="sh-language-picker-label" for="sh-translation-language-global"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9M14.4 17.5h4.8"/></svg><span>Translation language</span></label>
+        <select class="form-select sh-language-select" id="sh-translation-language-global" aria-label="Translation language" ${isCaptureBusy || state.isGeneratingAi ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
+      </div>
       <section class="sh-sentence-set-details" aria-labelledby="sh-sentence-set-title">
         <div class="sh-sentence-set-heading section-heading"><h2 id="sh-sentence-set-title">Sentence set</h2><span class="sh-sentence-set-summary">${state.difficulty[0].toUpperCase()+state.difficulty.slice(1)} · Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id)+1 : 0} of ${activeHistory.sets.length} · Change${state.isGeneratingAi ? " · Generating…" : state.aiGenerationError ? " · Error" : ""}</span></div>
       <p class="sh-set-guidance">AI-generated sets contain 20 sentences; offline starter sets may contain one.</p>
@@ -563,6 +578,7 @@ export function renderShadowingView(
         <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy" aria-pressed="${state.difficulty === 'easy'}" ${isRec || isStopping ? 'disabled' : ''}>Easy</button>
         <button type="button" class="pill-btn ${state.difficulty === 'medium' ? 'active' : ''}" data-diff="medium" aria-pressed="${state.difficulty === 'medium'}" ${isRec || isStopping ? 'disabled' : ''}>Medium</button>
         <button type="button" class="pill-btn ${state.difficulty === 'hard' ? 'active' : ''}" data-diff="hard" aria-pressed="${state.difficulty === 'hard'}" ${isRec || isStopping ? 'disabled' : ''}>Hard</button>
+        ${state.languageCode === 'en' ? `<button type="button" class="pill-btn ${state.difficulty === 'ielts' ? 'active' : ''}" data-diff="ielts" aria-pressed="${state.difficulty === 'ielts'}" ${isRec || isStopping ? 'disabled' : ''}>IELTS</button>` : ''}
       </div>
 
       <div class="sh-sentence-set-controls">
@@ -571,6 +587,7 @@ export function renderShadowingView(
           <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
         </div>
         <div class="btn-row sh-generate-actions">
+          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h9M7.5 3.5V6M5.2 6c.5 2.9 2.2 5 5 6.3M10 6c-.6 3-2.4 5.3-5.6 6.7m8.6 8.5 3.8-9 3.8 9m-6.2-3h4.8"/></svg></button>
           <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''}>
             ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
           </button>
@@ -614,6 +631,7 @@ export function renderShadowingView(
           ${state.activeModelPlayback ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
         </button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" ${isCaptureBusy ? 'disabled' : ''} title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
+        <button type="button" class="btn btn-secondary sh-player-icon-btn sh-autoplay-toggle ${state.autoPlayNextShadowing ? 'is-on' : 'is-off'}" id="sh-autoplay-next-btn" aria-label="Auto-play next sentence" title="Auto-play next sentence" aria-pressed="${state.autoPlayNextShadowing}"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 5 10 7-10 7z"/><path d="M19 8a7 7 0 0 1-1 10M19 8v4h-4"/></svg></button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'slow') && !isCaptureBusy && (!isPlaybackActive || state.audioActivity === 'playingModel(slow)') ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
           ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
         </button>
@@ -634,7 +652,7 @@ export function renderShadowingView(
           ? `<div class="status-box fail" id="sh-empty-error" role="alert">${escapeHtml(
               state.emptyAttemptError
             )}</div>`
-          : `${state.navigationNotice ? '<div class="status-box info" role="status" aria-live="polite">' + escapeHtml(state.navigationNotice) + '</div>' : '<div class="status-box info" id="sh-status-msg" role="status" aria-live="polite">' + escapeHtml(state.statusMessage) + '</div>'}`
+          : `${state.navigationNotice ? '<div class="status-box notice" role="status" aria-live="polite">' + escapeHtml(state.navigationNotice) + '</div>' : '<div class="status-box info" id="sh-status-msg" role="status" aria-live="polite">' + escapeHtml(state.statusMessage) + '</div>'}`
       }
 
       ${resultStripHtml}
@@ -665,7 +683,7 @@ export function renderShadowingView(
       <div class="card-header">
         <div>
           <h2 class="card-title">Translation &amp; Grammar</h2>
-          <p class="card-subtitle">Edit the sentence or enter a single word, choose a language, then translate.</p>
+          <p class="card-subtitle">Edit the sentence or enter a single word, then translate or explore its grammar.</p>
         </div>
       </div>
       <div class="form-field">
@@ -673,13 +691,10 @@ export function renderShadowingView(
         <textarea class="form-input sh-translation-input" id="sh-translation-input" rows="3" maxlength="4000" placeholder="Your sentence or word will appear here." ${state.isTranslating ? 'disabled' : ''}>${escapeHtml(state.translationText)}</textarea>
       </div>
       <div class="sh-translation-controls">
-        <div class="form-field sh-translation-language-field">
-          <label class="form-label" for="sh-translation-language">Translate into</label>
-          <select class="form-select" id="sh-translation-language" ${state.isTranslating ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
-        </div>
         <div class="sh-translation-actions">
           <button type="button" class="btn btn-secondary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>Translate</button>
           <button type="button" class="btn btn-secondary sh-grammar-btn" id="sh-grammar-btn" ${state.isTranslating ? 'disabled' : ''}>Explain Grammar</button>
+          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.explainGrammarInTranslationLanguage ? 'is-on' : 'is-off'}" id="sh-grammar-language-toggle" aria-label="Explain grammar in my translation language" title="Explain grammar in my translation language" aria-pressed="${state.explainGrammarInTranslationLanguage}" ${state.isTranslating ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h9M7.5 3.5V6M5.2 6c.5 2.9 2.2 5 5 6.3M10 6c-.6 3-2.4 5.3-5.6 6.7m8.6 8.5 3.8-9 3.8 9m-6.2-3h4.8"/></svg></button>
         </div>
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
@@ -733,6 +748,7 @@ export function renderShadowingView(
     if (!SHADOWING_LANGUAGES.some(language => language.code === nextCode) || nextCode === state.languageCode) return;
     await persistCurrentShadowingHistory();
     state.languageCode = nextCode;
+    if (nextCode !== 'en' && state.difficulty === 'ielts') { state.difficulty = 'easy'; await saveAppSettings({ shadowingDifficulty: 'easy' }); }
     await saveSelectedShadowingLanguage(nextCode);
     const nextHistory = getShadowingHistoryForLanguage(sentenceLanguageHistories, nextCode);
     sentenceSetHistory = nextHistory ?? createShadowingHistoryForLanguage(nextCode);
@@ -753,7 +769,7 @@ export function renderShadowingView(
     container.querySelector('#sh-grammar-result')?.remove();
     container.querySelector('#sh-translation-status')?.remove();
   });
-  container.querySelector<HTMLSelectElement>('#sh-translation-language')?.addEventListener('change', event => {
+  container.querySelector<HTMLSelectElement>('#sh-translation-language-global')?.addEventListener('change', event => {
     state.translationTargetLanguage = (event.target as HTMLSelectElement).value;
     void saveAppSettings({ translationTargetLanguage: state.translationTargetLanguage }).catch(error => {
       console.warn('[SpeakCoach] Could not save translation language preference.', error);
@@ -762,6 +778,21 @@ export function renderShadowingView(
     state.translationStatus = null;
     container.querySelector('#sh-translation-result')?.remove();
     container.querySelector('#sh-translation-status')?.remove();
+  });
+  container.querySelector<HTMLButtonElement>('#sh-autoplay-next-btn')?.addEventListener('click', () => {
+    state.autoPlayNextShadowing = !state.autoPlayNextShadowing;
+    void saveAppSettings({ autoPlayNextShadowing: state.autoPlayNextShadowing });
+    renderShadowingView(container, summary);
+  });
+  container.querySelector<HTMLButtonElement>('#sh-auto-translate-toggle')?.addEventListener('click', () => {
+    state.autoTranslateSentenceSets = !state.autoTranslateSentenceSets;
+    void saveAppSettings({ autoTranslateSentenceSets: state.autoTranslateSentenceSets });
+    renderShadowingView(container, summary);
+  });
+  container.querySelector<HTMLButtonElement>('#sh-grammar-language-toggle')?.addEventListener('click', () => {
+    state.explainGrammarInTranslationLanguage = !state.explainGrammarInTranslationLanguage;
+    void saveAppSettings({ explainGrammarInTranslationLanguage: state.explainGrammarInTranslationLanguage });
+    renderShadowingView(container, summary);
   });
   const runTranslationAction = async (mode: 'translate' | 'grammar'): Promise<void> => {
     if (state.isTranslating) return;
@@ -781,7 +812,9 @@ export function renderShadowingView(
     state.translationStatusType = 'info';
     renderShadowingView(container, summary);
     try {
-      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === requestTargetLanguage)?.label ?? requestTargetLanguage;
+      const targetLanguage = mode === 'grammar' && !state.explainGrammarInTranslationLanguage
+        ? selectedLanguage.label
+        : TRANSLATION_LANGUAGES.find(language => language.code === requestTargetLanguage)?.label ?? requestTargetLanguage;
       const result = await translateShadowingText(textToTranslate, targetLanguage, undefined, mode);
       if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
         if (mode === 'grammar') state.grammarResult = result.text;
@@ -840,7 +873,9 @@ export function renderShadowingView(
     container.querySelectorAll<HTMLButtonElement>('[data-diff]').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
-      state.difficulty = (btn.dataset.diff as ShadowingDifficulty) || 'easy';
+      const requestedDifficulty = (btn.dataset.diff as ShadowingDifficulty) || 'easy';
+      if (requestedDifficulty === 'ielts' && state.languageCode !== 'en') return;
+      state.difficulty = requestedDifficulty;
       void saveAppSettings({ shadowingDifficulty: state.difficulty }).catch(error => {
         console.warn('[SpeakCoach] Could not save Shadowing difficulty preference.', error);
       });
