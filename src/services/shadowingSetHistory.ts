@@ -54,23 +54,25 @@ function isSentence(value: unknown): value is ShadowingSentence {
     typeof item.expectedTotalDurationMs === 'number';
 }
 
+function isHistoryEntry(value: unknown): boolean {
+  const entry = value as ShadowingDifficultyHistory | null;
+  const activeSet = entry?.sets?.find(set => set.id === entry.activeSetId);
+  return !!entry && Array.isArray(entry.sets) &&
+    entry.sets.every(set => !!set && typeof set.id === 'string' &&
+      (set.source === 'builtin' || set.source === 'ai') && Array.isArray(set.sentences) &&
+      set.sentences.length >= 1 && set.sentences.length <= 20 &&
+      (set.source !== 'ai' || set.sentences.length === 20) && set.sentences.every(isSentence)) &&
+    (entry.sets.length === 0
+      ? entry.activeSetId === '' && entry.activeSentenceIndex === 0
+      : !!activeSet && Number.isInteger(entry.activeSentenceIndex) && entry.activeSentenceIndex >= 0 &&
+        entry.activeSentenceIndex < activeSet.sentences.length);
+}
+
 function isHistory(value: unknown): value is ShadowingSetHistory {
   if (!value || typeof value !== 'object') return false;
-  return DIFFICULTIES.every(difficulty => {
-    const entry = (value as ShadowingSetHistory)[difficulty];
-    const activeSet = entry?.sets?.find(set => set.id === entry.activeSetId);
-    return !!entry && Array.isArray(entry.sets) &&
-      entry.sets.every(set => !!set && typeof set.id === 'string' &&
-        (set.source === 'builtin' || set.source === 'ai') &&
-        Array.isArray(set.sentences) &&
-        set.sentences.length >= 1 && set.sentences.length <= 20 &&
-        (set.source !== 'ai' || set.sentences.length === 20) &&
-        set.sentences.every(isSentence)) &&
-      (entry.sets.length === 0
-        ? entry.activeSetId === '' && entry.activeSentenceIndex === 0
-        : !!activeSet && Number.isInteger(entry.activeSentenceIndex) && entry.activeSentenceIndex >= 0 &&
-          entry.activeSentenceIndex < activeSet.sentences.length);
-  });
+  const record = value as Record<string, unknown>;
+  return ['easy', 'medium', 'hard'].every(difficulty => isHistoryEntry(record[difficulty])) &&
+    (record.ielts === undefined || isHistoryEntry(record.ielts));
 }
 
 export async function loadShadowingSetHistory(): Promise<ShadowingSetHistory> {
@@ -78,7 +80,14 @@ export async function loadShadowingSetHistory(): Promise<ShadowingSetHistory> {
     const { value } = await Preferences.get({ key: SHADOWING_HISTORY_KEY });
     if (value) {
       const parsed: unknown = JSON.parse(value);
-      if (isHistory(parsed)) return parsed;
+      if (isHistory(parsed)) {
+        const upgraded = parsed as ShadowingSetHistory;
+        if (!upgraded.ielts) {
+          upgraded.ielts = { sets: [], activeSetId: '', activeSentenceIndex: 0 };
+          await saveShadowingSetHistory(upgraded);
+        }
+        return upgraded;
+      }
     }
   } catch (error) {
     console.warn('[SpeakCoach] Could not load Shadowing history; starting with offline sets.', error);

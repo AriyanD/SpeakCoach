@@ -45,6 +45,15 @@ describe('Shadowing sentence-set history', () => {
     expect(createEmptyShadowingSetHistory().ielts.sets).toHaveLength(0);
   });
 
+  it('upgrades a legacy v2 history with no IELTS bucket without losing saved sets', async () => {
+    const legacy = makeSeedHistory('en') as any;
+    delete legacy.ielts;
+    memory.set('speakcoach_shadowing_set_history_v2', JSON.stringify(legacy));
+    const upgraded = await loadShadowingSetHistory();
+    expect(upgraded.easy.sets).toHaveLength(5);
+    expect(upgraded.ielts).toEqual({ sets: [], activeSetId: '', activeSentenceIndex: 0 });
+  });
+
   it('migrates the previously saved AI batch into the unified history', async () => {
     const legacy = BUILTIN_SHADOWING_SETS.easy[0].map((sentence, index) => ({
       ...sentence,
