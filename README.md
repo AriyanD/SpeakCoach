@@ -42,9 +42,12 @@ There is **no SpeakCoach server and no subscription**. You connect your own AI p
 ### Shadowing
 - Built-in multilingual sentence library by **language**, **topic** and **difficulty** (Easy / Medium / Hard).
 - **AI-generated sentence sets** (20 sentences) on demand, optionally on a topic you choose, with a **history** you can step back through.
-- Playback with **speed control** (normal and 0.72×), word-by-word alignment and timing, and replay of your own recording where available.
+- A dedicated **IELTS sentence practice mode** with English-only, AI-generated 20-sentence sets and its own history. It does not mix in the multilingual offline starter library.
+- Optional **automatic next-sentence playback** keeps a practice session moving hands-free.
+- Playback with **speed control** (normal and 0.72×), word-by-word alignment and timing, and replay of your own recording where available. Word replay indicates when a word is loading and when it is playing.
 - A **compact score strip** right under the Record button: overall score, colour-coded word chips (tap a word to hear it) and details below.
 - Approximate scores for pronunciation, fluency, pace and completeness, with weak words highlighted for a quick retry.
+- **Translation and grammar help:** translate a sentence or selected words, or translate a generated set in one batch. Choose the translation language and whether grammar explanations appear in the practice language or translation language; ask follow-up questions in the built-in tutor chat.
 - **Fast replays:** AI voice audio for the active set is saved on your phone, so sentences you already heard play again instantly, even after restarting the app. Upcoming sentences are fetched in the background in groups of four as you progress (can be switched off in Settings to save quota).
 
 ### IELTS Speaking
@@ -64,7 +67,7 @@ Six independent provider slots, each with its own configuration and **API 1 → 
 | IELTS Speech-to-Text | Transcribes IELTS answers | Android speech recognition |
 | IELTS Evaluator | Fluency, Lexical Resource, Grammar feedback | None – answers are saved for retry |
 | Question & Sentence Generator | Creates IELTS sets and shadowing sentences | Previously generated sets stay available |
-| Shadowing Translator | Translates the current Shadowing sentence and selected words | No offline translation; configure an online provider |
+| Translation & Grammar | Translates sentences, selected words and generated sets; explains grammar and supports follow-up tutor chat | No offline translation or AI explanation; configure an online provider |
 
 API 2 is an **opt-in backup account** per slot. A connection test is tied to the exact provider, endpoint, model/voice and key, and stays valid for 30 days; when an API needs a re-test, is cooling down after a rate limit, or the app falls back to the offline tier, SpeakCoach tells you why instead of failing silently. **Settings → Backup & Restore → Test all APIs** re-tests every configured account in one go and saves a slot only when all its configured online accounts pass.
 
@@ -107,8 +110,8 @@ Requires Android 6.0 (API 23) or newer. Android 5.1 (API 22) and older are not s
 
 1. **Get an API key.** Free-tier friendly options: [Google AI Studio](https://aistudio.google.com/app/apikey) (Gemini) and [Groq](https://console.groq.com/keys) (Whisper transcription).
 2. In **Settings**, configure each of the **six slots separately**: choose its provider, enter its API key (and Base URL/model when required), tap **Test**, then **Save**. The six slots are Voice/TTS, Shadowing analysis, IELTS Speech-to-Text, IELTS Evaluator, Question & Sentence Generator, and **Shadowing Translator**. The translator has its own independent API configuration; set it up too if you want sentence/word translation. You can enable API 2 as a fallback inside each slot. After restoring a backup, or when a test is older than 30 days, use **Settings → Backup & Restore → Test all APIs** to re-check everything at once.
-3. **Shadowing:** pick a topic and level, listen, then record yourself.
-4. **IELTS:** tap *Get new question sets*, choose a mode and start practising. Review the feedback in *Test History*.
+3. **Shadowing:** choose a language, topic and level, or switch to the English-only IELTS sentence mode. Listen, use Translate / Explain Grammar when needed, then record yourself. Enable automatic next-sentence playback if you prefer hands-free practice.
+4. **IELTS Speaking:** tap *Get new question sets*, choose a test mode and start practising. Review the feedback in *Test History*.
 
 ## Build from source
 
