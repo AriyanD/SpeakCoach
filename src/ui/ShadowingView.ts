@@ -621,7 +621,7 @@ export function renderShadowingView(
         </select>
       </div>
       <div class="sh-language-picker-field">
-        <label class="sh-language-picker-label" for="sh-translation-language-global"><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9"/><path d="M14.4 17.5h4.8"/></svg><span>Translation language</span></label>
+        <label class="sh-language-picker-label" for="sh-translation-language-global"><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m12.2 20.5 3.8-9 3.8 9"/><path d="M13.6 17.5h4.8"/></svg><span>Translation language</span></label>
         <select class="form-select sh-language-select" id="sh-translation-language-global" aria-label="Translation language" ${isCaptureBusy || state.isGeneratingAi ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
       </div>
       <section class="sh-sentence-set-details" aria-labelledby="sh-sentence-set-title">
@@ -643,7 +643,7 @@ export function renderShadowingView(
           <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''}>
             ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
           </button>
-          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9"/><path d="M14.4 17.5h4.8"/></svg></button>
+          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m12.2 20.5 3.8-9 3.8 9"/><path d="M13.6 17.5h4.8"/></svg></button>
         </div>
         <div class="sh-history-controls" aria-label="Sentence set history">
           <span class="sh-history-caption">From history</span>
@@ -757,8 +757,10 @@ export function renderShadowingView(
       <div class="sh-translation-controls">
         <div class="sh-translation-actions">
           <button type="button" class="btn btn-secondary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>Translate</button>
-          <button type="button" class="btn btn-secondary sh-grammar-btn" id="sh-grammar-btn" ${state.isTranslating ? 'disabled' : ''}>Explain Grammar</button>
-          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.explainGrammarInTranslationLanguage ? 'is-on' : 'is-off'}" id="sh-grammar-language-toggle" aria-label="Explain grammar in my translation language" title="Explain grammar in my translation language" aria-pressed="${state.explainGrammarInTranslationLanguage}" ${state.isTranslating ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9"/><path d="M14.4 17.5h4.8"/></svg></button>
+          <div class="sh-grammar-button-group" role="group" aria-label="Grammar explanation options">
+            <button type="button" class="btn btn-secondary sh-grammar-btn" id="sh-grammar-btn" ${state.isTranslating ? 'disabled' : ''}>Explain Grammar</button>
+            <button type="button" class="btn btn-secondary sh-translation-toggle sh-grammar-language-toggle ${state.explainGrammarInTranslationLanguage ? 'is-on' : 'is-off'}" id="sh-grammar-language-toggle" aria-label="Explain grammar in my translation language" title="Explain grammar in my translation language" aria-pressed="${state.explainGrammarInTranslationLanguage}" ${state.isTranslating ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m12.2 20.5 3.8-9 3.8 9"/><path d="M13.6 17.5h4.8"/></svg></button>
+          </div>
         </div>
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}

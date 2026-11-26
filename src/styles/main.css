@@ -4504,3 +4504,131 @@ body {
 .shadowing-main-card .sh-autoplay-toggle svg { display: block; width: 28px; height: 16px; }
 .shadowing-main-card .sh-autoplay-notice { margin: 8px 0 0; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 8%, var(--bg-primary)); color: var(--text-secondary); font-size: .82rem; line-height: 1.5; }
 .shadowing-main-card .sh-grammar-scroll-body { width: 100%; min-width: 0; min-height: 130px; max-height: 380px; overflow-y: auto; resize: vertical; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-primary); line-height: 1.65; white-space: normal; user-select: text; scrollbar-width: thin; overflow-wrap: anywhere; }
+
+
+/* Final Shadowing interaction refinements. */
+.shadowing-main-card .sh-language-picker-label[for="sh-language-select"] {
+  padding-inline-start: 4px;
+}
+.shadowing-main-card .sh-language-picker-label svg {
+  stroke-width: 2.2;
+}
+.shadowing-main-card #sh-translation-language-global + .unused { display: none; }
+.shadowing-main-card #sh-auto-translate-toggle {
+  flex: 0 0 48px;
+  width: 48px;
+  min-width: 48px;
+  padding: 5px;
+}
+.shadowing-main-card #sh-auto-translate-toggle svg {
+  display: block;
+  width: 34px;
+  height: 34px;
+  max-width: 100%;
+  max-height: 100%;
+  stroke-width: 2.2;
+}
+.shadowing-main-card .sh-translation-actions {
+  gap: 8px;
+  align-items: stretch;
+}
+.shadowing-main-card .sh-translation-actions > .sh-translate-btn,
+.shadowing-main-card .sh-translation-actions > .sh-grammar-button-group {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.shadowing-main-card .sh-grammar-button-group {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 45px;
+  min-height: 45px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #e4e9e2;
+  box-sizing: border-box;
+}
+.shadowing-main-card .sh-grammar-button-group > button {
+  height: 45px;
+  min-height: 45px;
+  margin: 0;
+  border: 0;
+  border-radius: 0 !important;
+  background: transparent;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-inline: 12px;
+  border-radius: 14px 0 0 14px !important;
+  text-align: center;
+  white-space: nowrap;
+}
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle {
+  flex: 0 0 48px;
+  width: 48px;
+  min-width: 48px;
+  padding: 0;
+  border-left: 1px solid rgba(35, 48, 39, .28);
+  border-radius: 0 14px 14px 0 !important;
+  opacity: 1;
+  outline: 0;
+}
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle.is-on {
+  color: var(--accent);
+  background: rgba(8, 17, 11, .07);
+}
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle.is-off {
+  color: var(--text-secondary);
+  background: transparent;
+}
+.shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle svg {
+  width: 25px;
+  height: 25px;
+  stroke-width: 2.2;
+}
+.shadowing-main-card .sh-translation-actions > .sh-translate-btn {
+  min-height: 45px;
+  height: 45px;
+}
+.shadowing-main-card .sh-grammar-chat-compose {
+  align-items: stretch;
+}
+.shadowing-main-card .sh-grammar-chat-compose textarea {
+  min-height: 60px;
+  height: auto;
+  resize: vertical;
+}
+.shadowing-main-card .sh-grammar-chat-compose button {
+  align-self: stretch;
+  min-height: 60px;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.shadowing-main-card .sh-grammar-result {
+  position: relative;
+}
+.shadowing-main-card .sh-grammar-scroll-body {
+  position: relative;
+  padding-bottom: 24px;
+  background-image:
+    linear-gradient(135deg, transparent 0 42%, var(--text-muted) 44% 49%, transparent 51%),
+    linear-gradient(135deg, transparent 0 62%, var(--text-muted) 64% 69%, transparent 71%),
+    linear-gradient(135deg, transparent 0 82%, var(--text-muted) 84% 89%, transparent 91%);
+  background-repeat: no-repeat;
+  background-position: right 4px bottom 4px, right 4px bottom 9px, right 4px bottom 14px;
+  background-size: 13px 13px;
+}
+@media (max-width: 380px) {
+  .shadowing-main-card .sh-grammar-chat-compose {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .shadowing-main-card .sh-grammar-chat-compose button {
+    min-height: 60px;
+  }
+}
