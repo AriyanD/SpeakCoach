@@ -195,6 +195,7 @@ let shadowingPrefetchQueue: Promise<void> = Promise.resolve();
 let shadowingViewGeneration = 0;
 const shadowingTranslationRequests = new Set<string>();
 const shadowingTranslationFailures = new Set<string>();
+let shadowingSettingsSaveQueue: Promise<void> = Promise.resolve();
 
 function clearShadowingRecordingTimer(): void {
   if (shadowingRecordingTimeout) clearTimeout(shadowingRecordingTimeout);
@@ -465,7 +466,17 @@ export function renderShadowingView(
     state.grammarScrollTop = 0;
     state.grammarChatScrollTop = 0;
   }
-  const persistShadowingSettings = (settings: Partial<AppSettings> = {}): Promise<AppSettings> => saveAppSettings({ ...settings, autoPlayNextShadowing: state.autoPlayNextShadowing, autoTranslateSentenceSets: state.autoTranslateSentenceSets, explainGrammarInTranslationLanguage: state.explainGrammarInTranslationLanguage });
+  const persistShadowingSettings = (settings: Partial<AppSettings> = {}): Promise<AppSettings> => {
+    const snapshot = {
+      ...settings,
+      autoPlayNextShadowing: state.autoPlayNextShadowing,
+      autoTranslateSentenceSets: state.autoTranslateSentenceSets,
+      explainGrammarInTranslationLanguage: state.explainGrammarInTranslationLanguage
+    };
+    const save = shadowingSettingsSaveQueue.then(() => saveAppSettings(snapshot));
+    shadowingSettingsSaveQueue = save.then(() => undefined, () => undefined);
+    return save;
+  };
   const targetExpectedDurationMs = state.customDrillText
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
