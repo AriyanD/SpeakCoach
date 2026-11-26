@@ -597,7 +597,7 @@ export function renderShadowingView(
           <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1 : 0} of ${activeHistory.sets.length}</span>
           <div class="sh-history-arrows">
             <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
-            <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) >= activeHistory.sets.length - 1 ? 'disabled' : ''}>→</button>
+            <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${isRec || isStopping ? 'disabled' : ''}  >→</button>
           </div>
         </div>
         
@@ -636,6 +636,7 @@ export function renderShadowingView(
           ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
         </button>
       </div>
+      ${state.autoTranslateSentenceSets && hasSentence && !state.customDrillText ? `<div class="sh-auto-translation-card" id="sh-auto-translation-card" dir="auto">${escapeHtml(sentence?.translations?.[state.translationTargetLanguage] ?? 'Translation will appear here after it is available.')}</div>` : ''}
       ${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
 
       <div class="btn-row sh-record-controls">
@@ -901,6 +902,17 @@ export function renderShadowingView(
       const generated = await generateAiShadowingSentenceBatch(state.difficulty, 20, state.topicInput.trim(), undefined, state.languageCode);
       sentenceSetHistory = appendShadowingSet(sentenceSetHistory!, state.difficulty, generated);
       await persistCurrentShadowingHistory();
+      if (state.autoTranslateSentenceSets) {
+        try {
+          const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === state.translationTargetLanguage)?.label ?? state.translationTargetLanguage;
+          const translations = await translateShadowingSentenceBatch(generated.map(item => item.text), targetLanguage);
+          const savedSet = getActiveShadowingSet(sentenceSetHistory, state.difficulty);
+          savedSet.sentences = savedSet.sentences.map((item, index) => ({ ...item, translations: { ...(item.translations ?? {}), [state.translationTargetLanguage]: translations[index] } }));
+          await persistCurrentShadowingHistory();
+        } catch (translationError) {
+          state.statusMessage = `Sentences saved. Translation failed: ${translationError instanceof Error ? translationError.message : String(translationError)}`;
+        }
+      }
       state.index = 0;
       state.customDrillText = null;
       clearAttemptState();
@@ -930,6 +942,17 @@ export function renderShadowingView(
 
   container.querySelector<HTMLButtonElement>('#sh-history-next-btn')?.addEventListener('click', async () => {
     if (!sentenceSetHistory || isAudioCaptureBusy() || isAudioPlaybackActive()) return;
+    const entry = sentenceSetHistory[state.difficulty];
+    const currentSetIndex = entry.sets.findIndex(set => set.id === entry.activeSetId);
+    if (currentSetIndex >= entry.sets.length - 1) {
+      state.navigationNotice = \"You've reached the end of your generated sets. Generate a new set to continue.\";
+      renderShadowingView(container, summary);
+      const generate = container.querySelector<HTMLButtonElement>('#sh-generate-ai-btn');
+      generate?.classList.add('sh-attention');
+      generate?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+      window.setTimeout(() => generate?.classList.remove('sh-attention'), 2000);
+      return;
+    }
     state.navigationNotice = null;
     sentenceSetHistory = moveShadowingSet(sentenceSetHistory, state.difficulty, 1);
     state.index = 0;
@@ -958,8 +981,30 @@ export function renderShadowingView(
   container.querySelector<HTMLButtonElement>('#sh-next-btn')?.addEventListener('click', async () => {
     if (isAudioCaptureBusy() || isAudioPlaybackActive()) return;
     if (!state.customDrillText && state.index >= (activeSet?.sentences.length ?? 0) - 1) {
-      state.navigationNotice = "You've reached the end of this sentence set. Generate a new set, or go back through your history to practice a previous one.";
+      const entry = sentenceSetHistory?.[state.difficulty];
+      const currentSetIndex = entry?.sets.findIndex(set => set.id === entry.activeSetId) ?? -1;
+      if (entry && currentSetIndex >= 0 && currentSetIndex < entry.sets.length - 1) {
+        sentenceSetHistory = moveShadowingSet(sentenceSetHistory!, state.difficulty, 1);
+        state.index = 0;
+        state.customDrillText = null;
+        state.drillWords = [];
+        state.drillPreviousStatuses = {};
+        clearAttemptState();
+        await persistCurrentShadowingHistory();
+        startShadowingPrefetch();
+        renderShadowingView(container, summary);
+        if (state.autoPlayNextShadowing) window.setTimeout(() => container.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.click(), 0);
+        const markers = container.querySelectorAll('#sh-history-position, .sh-sentence-set-summary');
+        markers.forEach(marker => marker.classList.add('sh-set-flash'));
+        window.setTimeout(() => markers.forEach(marker => marker.classList.remove('sh-set-flash')), 1200);
+        return;
+      }
+      state.navigationNotice = \"You've reached the end of your generated sets. Generate a new set to continue.\";
       renderShadowingView(container, summary);
+      const generate = container.querySelector<HTMLButtonElement>('#sh-generate-ai-btn');
+      generate?.classList.add('sh-attention');
+      generate?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+      window.setTimeout(() => generate?.classList.remove('sh-attention'), 2000);
       return;
     }
     state.navigationNotice = null;
@@ -974,6 +1019,7 @@ export function renderShadowingView(
     clearAttemptState();
     startShadowingPrefetch();
     renderShadowingView(container, summary);
+    if (state.autoPlayNextShadowing) window.setTimeout(() => container.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.click(), 0);
   });
 
   container.querySelector<HTMLButtonElement>('#sh-exit-drill-btn')?.addEventListener('click', () => {
