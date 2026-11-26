@@ -124,7 +124,7 @@ npm run cap:sync    # build and sync to Android
 cd android && ./gradlew assembleDebug
 ```
 
-Pushing a `v*` tag runs the GitHub Actions workflow and publishes a signed `SpeakCoach-vX.Y.Z.apk` release. Signing secrets, version syncing, in-app update rules, backup semantics and dependency notes are documented in [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md).
+Create a GitHub draft release for a `vX.Y.Z` tag. GitHub Actions validates the version, runs tests, builds and signs `SpeakCoach-vX.Y.Z.apk`, and attaches it to the draft. The release stays unpublished until you click **Publish release**. Signing secrets, version syncing, in-app update rules, backup semantics and dependency notes are documented in [docs/TECHNICAL_NOTES.md](docs/TECHNICAL_NOTES.md).
 
 ## Tech stack
 

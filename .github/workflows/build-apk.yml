@@ -6,8 +6,10 @@ on:
       - main
       - refine/settings-ielts-dark-palette
       - tts
-    tags:
-      - 'v*'
+    
+  release:
+    types:
+      - created
   pull_request:
     branches:
       - main
@@ -56,18 +58,19 @@ jobs:
         run: npm run check:android-compat
 
       - name: Require persistent signing key for version releases
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'release' && github.event.action == 'created' && github.event.release.draft == true
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.SPEAKCOACH_RELEASE_KEYSTORE_BASE64 }}
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.SPEAKCOACH_RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.SPEAKCOACH_RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.SPEAKCOACH_RELEASE_KEY_PASSWORD }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           if [ -z "$RELEASE_KEYSTORE_BASE64" ] || [ -z "$RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$RELEASE_KEY_ALIAS" ] || [ -z "$RELEASE_KEY_PASSWORD" ]; then
             echo "A stable release keystore and all four signing secrets are required before publishing a version tag."
             exit 1
           fi
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_VERSION="${RELEASE_TAG#v}"
           VERSION_NAME=$(grep 'versionName' android/app/build.gradle | head -n 1 | cut -d '"' -f 2)
           if [ "$TAG_VERSION" != "$VERSION_NAME" ]; then
             echo "Release tag v$TAG_VERSION does not match Android versionName $VERSION_NAME."
@@ -206,9 +209,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: SpeakCoach ${{ github.ref_name }}
+          tag_name: ${{ github.event.release.tag_name }}
+          name: ${{ github.event.release.name }}
           generate_release_notes: true
+          draft: true
           make_latest: true
           files: android/app/build/outputs/apk/release/SpeakCoach-v*.apk
 
