@@ -4484,3 +4484,23 @@ body {
 .sh-grammar-scroll-body::-webkit-scrollbar-thumb,.sh-grammar-chat-messages::-webkit-scrollbar-thumb { background:var(--accent); border-radius:8px; }
 .sh-grammar-scroll-body::-webkit-scrollbar-track,.sh-grammar-chat-messages::-webkit-scrollbar-track { background:var(--bg-secondary); }
 .sh-grammar-chat-compose button { min-height:44px; }
+
+/* Shadowing control refinements: paired language fields, compact playback row and resizable grammar output. */
+.shadowing-main-card .sh-language-picker-field { gap: 12px; }
+.shadowing-main-card .sh-language-picker-label { flex: 1 1 0; white-space: nowrap; gap: 8px; font-size: .9rem; }
+.shadowing-main-card .sh-language-select { flex: 0 1 46%; width: 46%; max-width: 46%; }
+@media (max-width: 520px) {
+  .shadowing-main-card .sh-language-picker-field { gap: 8px; }
+  .shadowing-main-card .sh-language-picker-label { flex: 1 1 0; min-width: 0; white-space: nowrap; font-size: .76rem; gap: 5px; }
+  .shadowing-main-card .sh-language-picker-label svg { width: 19px; height: 19px; flex-basis: 19px; }
+  .shadowing-main-card .sh-language-select { flex: 0 0 46%; width: 46%; max-width: 46%; padding: 8px 6px; font-size: .76rem; }
+}
+.shadowing-main-card .sh-generate-actions { display: flex; align-items: stretch; gap: 8px; }
+.shadowing-main-card #sh-generate-ai-btn { flex: 1 1 auto; min-width: 0; }
+.shadowing-main-card #sh-auto-translate-toggle { flex: 0 0 48px; }
+.shadowing-main-card .sh-player-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.shadowing-main-card .sh-player-controls .sh-player-icon-btn { min-width: 0; min-height: 46px; padding: 5px 2px; }
+.shadowing-main-card .sh-autoplay-toggle { display: inline-flex; align-items: center; justify-content: center; }
+.shadowing-main-card .sh-autoplay-toggle svg { display: block; width: 28px; height: 16px; }
+.shadowing-main-card .sh-autoplay-notice { margin: 8px 0 0; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 8%, var(--bg-primary)); color: var(--text-secondary); font-size: .82rem; line-height: 1.5; }
+.shadowing-main-card .sh-grammar-scroll-body { width: 100%; min-width: 0; min-height: 130px; max-height: 380px; overflow-y: auto; resize: vertical; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-primary); line-height: 1.65; white-space: normal; user-select: text; scrollbar-width: thin; overflow-wrap: anywhere; }

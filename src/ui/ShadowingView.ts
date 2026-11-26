@@ -149,6 +149,17 @@ let sentenceSetHistory: ShadowingSetHistory | null = null;
 let sentenceSetHistoryPromise: Promise<ShadowingSetHistory> | null = null;
 let sentenceLanguageHistories: ShadowingLanguageHistories = {};
 const SPEECH_API_NOTICE_DISMISSED_KEY = 'speakcoach_speech_api_notice_dismissed_v1';
+const AUTOPLAY_NOTICE_DISMISSED_KEY = 'speakcoach_shadowing_autoplay_notice_dismissed_v1';
+let autoPlayNoticeDismissedInSession = false;
+function isAutoPlayNoticeDismissed(): boolean {
+  if (autoPlayNoticeDismissedInSession) return true;
+  try { return localStorage.getItem(AUTOPLAY_NOTICE_DISMISSED_KEY) === 'true'; }
+  catch { return false; }
+}
+function dismissAutoPlayNotice(): void {
+  autoPlayNoticeDismissedInSession = true;
+  try { localStorage.setItem(AUTOPLAY_NOTICE_DISMISSED_KEY, 'true'); } catch { /* Keep it dismissed for this session if storage is unavailable. */ }
+}
 function isSpeechApiNoticeDismissed(): boolean {
   try { return localStorage.getItem(SPEECH_API_NOTICE_DISMISSED_KEY) === 'true'; }
   catch { return false; }
@@ -629,10 +640,10 @@ export function renderShadowingView(
           <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
         </div>
         <div class="btn-row sh-generate-actions">
-          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9"/><path d="M14.4 17.5h4.8"/></svg></button>
           <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''}>
             ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
           </button>
+          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m13 20.5 3.8-9 3.8 9"/><path d="M14.4 17.5h4.8"/></svg></button>
         </div>
         <div class="sh-history-controls" aria-label="Sentence set history">
           <span class="sh-history-caption">From history</span>
@@ -673,11 +684,23 @@ export function renderShadowingView(
           ${state.activeModelPlayback ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
         </button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" ${isCaptureBusy ? 'disabled' : ''} title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
-        <button type="button" class="btn btn-secondary sh-player-icon-btn sh-autoplay-toggle ${state.autoPlayNextShadowing ? 'is-on' : 'is-off'}" id="sh-autoplay-next-btn" aria-label="Auto-play next sentence" title="Auto-play next sentence" aria-pressed="${state.autoPlayNextShadowing}" ${isCaptureBusy || isStopping ? 'disabled' : ''}><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 5 10 7-10 7z"/><path d="M19 8a7 7 0 0 1-1 10M19 8v4h-4"/></svg></button>
+        <button type="button" class="btn btn-secondary sh-player-icon-btn sh-autoplay-toggle" id="sh-autoplay-next-btn" aria-label="Auto-play" title="Auto-play" aria-pressed="${state.autoPlayNextShadowing}" ${isCaptureBusy || isStopping ? "disabled" : ""}>
+  <svg class="icon-on" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 16" width="28" height="16" aria-hidden="true" ${state.autoPlayNextShadowing ? "" : "style=\"display:none\""}>
+    <rect width="28" height="16" rx="8" fill="currentColor"/>
+    <circle cx="8" cy="8" r="6" fill="var(--bg-primary, #fff)"/>
+    <path d="M6.5 5.5v5l4-2.5z" fill="currentColor"/>
+  </svg>
+  <svg class="icon-off" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 16" width="28" height="16" aria-hidden="true" opacity="0.55" ${state.autoPlayNextShadowing ? "style=\"display:none\"" : ""}>
+    <rect x="0.75" y="0.75" width="26.5" height="14.5" rx="7.25" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <circle cx="20" cy="8" r="6" fill="currentColor"/>
+    <path d="M18.5 5.5v5l4-2.5z" fill="var(--bg-primary, #fff)"/>
+  </svg>
+</button>
         <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'slow') && !isCaptureBusy && (!isPlaybackActive || state.audioActivity === 'playingModel(slow)') ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
           ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
         </button>
       </div>
+      ${!isAutoPlayNoticeDismissed() ? "<p class='sh-autoplay-notice' id='sh-autoplay-notice' role='note'>When Auto-play is on, the next sentence plays automatically as soon as you move to it. Tap the Auto-play button to dismiss this tip.</p>" : ''}
       ${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
 
       <div class="btn-row sh-record-controls">
@@ -739,8 +762,7 @@ export function renderShadowingView(
         </div>
       </div>
       ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
-      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div class="sh-grammar-scroll-row"><button type="button" class="sh-grammar-scroll-btn" id="sh-grammar-scroll-up" aria-label="Scroll explanation up" disabled>↑</button><div class="sh-grammar-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, '<br>')}</div><button type="button" class="sh-grammar-scroll-btn" id="sh-grammar-scroll-down" aria-label="Scroll explanation down">↓</button></div></div>
-      <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="form-label">Ask a follow-up</div><div class="sh-grammar-chat-messages" id="sh-grammar-chat-messages" role="log" aria-live="polite" aria-relevant="additions">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status">Thinking…</div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" aria-label="Ask a follow-up" rows="2" maxlength="500" placeholder="Ask about a specific part of this explanation…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="btn btn-secondary" id="sh-grammar-chat-send" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}>Send</button></div></div>` : ''}
+      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div class="sh-grammar-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, "<br>")}</div></div>      <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="form-label">Ask a follow-up</div><div class="sh-grammar-chat-messages" id="sh-grammar-chat-messages" role="log" aria-live="polite" aria-relevant="additions">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status">Thinking…</div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" aria-label="Ask a follow-up" rows="2" maxlength="500" placeholder="Ask about a specific part of this explanation…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="btn btn-secondary" id="sh-grammar-chat-send" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}>Send</button></div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
       <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
@@ -878,6 +900,7 @@ export function renderShadowingView(
     renderShadowingView(container, summary);
   });
   container.querySelector<HTMLButtonElement>('#sh-autoplay-next-btn')?.addEventListener('click', () => {
+    dismissAutoPlayNotice();
     state.autoPlayNextShadowing = !state.autoPlayNextShadowing;
     void persistShadowingSettings();
     renderShadowingView(container, summary);
@@ -1011,18 +1034,7 @@ export function renderShadowingView(
   };
   container.querySelector<HTMLButtonElement>('#sh-grammar-chat-send')?.addEventListener('click', () => { void sendGrammarFollowUp(); });
   const grammarScrollBody = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
-  const updateGrammarScrollButtons = (): void => {
-    const body = container.querySelector<HTMLElement>('#sh-grammar-scroll-body');
-    const up = container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up');
-    const down = container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down');
-    if (body && up && down) { up.disabled = body.scrollTop <= 0; down.disabled = body.scrollTop + body.clientHeight >= body.scrollHeight - 2; body.parentElement?.classList.toggle('has-more', !down.disabled); }
-  };
-  grammarScrollBody?.addEventListener('scroll', () => { state.grammarScrollTop = grammarScrollBody.scrollTop; updateGrammarScrollButtons(); });
-  updateGrammarScrollButtons();
-  const prefersReducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const scrollBehavior: ScrollBehavior = prefersReducedMotion ? 'auto' : 'smooth';
-  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-up')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: -grammarScrollBody.clientHeight * 0.8, behavior: scrollBehavior }));
-  container.querySelector<HTMLButtonElement>('#sh-grammar-scroll-down')?.addEventListener('click', () => grammarScrollBody?.scrollBy({ top: grammarScrollBody.clientHeight * 0.8, behavior: scrollBehavior }));
+  grammarScrollBody?.addEventListener('scroll', () => { state.grammarScrollTop = grammarScrollBody.scrollTop; });
 
   container.querySelectorAll<HTMLButtonElement>('[data-word-replay]').forEach(button => {
     button.addEventListener('click', async () => {
