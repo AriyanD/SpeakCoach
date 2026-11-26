@@ -45,6 +45,15 @@ describe('Shadowing sentence-set history', () => {
     expect(createEmptyShadowingSetHistory().ielts.sets).toHaveLength(0);
   });
 
+  it('round-trips optional per-sentence translations without changing saved sentence data', async () => {
+    const history = makeSeedHistory('en');
+    const sentence = history.easy.sets[0].sentences[0];
+    sentence.translations = { fa: 'ترجمه', sv: 'Översättning' };
+    await saveShadowingSetHistory(history);
+    const loaded = await loadShadowingSetHistory();
+    expect(loaded.easy.sets[0].sentences[0].translations).toEqual({ fa: 'ترجمه', sv: 'Översättning' });
+  });
+
   it('upgrades a legacy v2 history with no IELTS bucket without losing saved sets', async () => {
     const legacy = makeSeedHistory('en') as any;
     delete legacy.ielts;

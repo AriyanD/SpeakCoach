@@ -63,6 +63,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     await bootstrapApp(root, 'shadowing');
     root.querySelector<HTMLButtonElement>('#sh-autoplay-next-btn')?.click();
     root.querySelector<HTMLButtonElement>('#sh-auto-translate-toggle')?.click();
+    await new Promise(resolve => setTimeout(resolve, 30));
     const { loadAppSettings } = await import('../src/storage/appSettings');
     await expect(loadAppSettings()).resolves.toMatchObject({ autoPlayNextShadowing: true, autoTranslateSentenceSets: true });
   });

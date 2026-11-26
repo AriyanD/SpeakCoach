@@ -17,7 +17,7 @@ import {
   type ShadowingScoreReport
 } from '../services/shadowingScorer';
 import { recordLastShadowingAttempt } from '../services/shadowingTelemetry';
-import { loadAppSettings, saveAppSettings } from '../storage/appSettings';
+import { loadAppSettings, saveAppSettings, type AppSettings } from '../storage/appSettings';
 import type { GlobalTierSummary } from '../services/tierManager';
 import { clearPreloadedSentenceAudio, playAudioDataUrl, preloadSentenceAudio, speakSentenceWithTierFallback, stopAllTts } from '../services/ttsService';
 import { activateShadowingAudioSet } from '../services/shadowingAudioStore';
@@ -465,6 +465,7 @@ export function renderShadowingView(
     state.grammarScrollTop = 0;
     state.grammarChatScrollTop = 0;
   }
+  const persistShadowingSettings = (settings: Partial<AppSettings> = {}): Promise<AppSettings> => saveAppSettings({ ...settings, autoPlayNextShadowing: state.autoPlayNextShadowing, autoTranslateSentenceSets: state.autoTranslateSentenceSets, explainGrammarInTranslationLanguage: state.explainGrammarInTranslationLanguage });
   const targetExpectedDurationMs = state.customDrillText
     ? Math.max(1200, countShadowingLanguageUnits(state.customDrillText, state.languageCode) * 480)
     : sentence?.expectedTotalDurationMs ?? 3500;
@@ -820,7 +821,7 @@ export function renderShadowingView(
     if (!SHADOWING_LANGUAGES.some(language => language.code === nextCode) || nextCode === state.languageCode) return;
     await persistCurrentShadowingHistory();
     state.languageCode = nextCode;
-    if (nextCode !== 'en' && state.difficulty === 'ielts') { state.difficulty = 'easy'; await saveAppSettings({ shadowingDifficulty: 'easy' }); }
+    if (nextCode !== 'en' && state.difficulty === 'ielts') { state.difficulty = 'easy'; await persistShadowingSettings({ shadowingDifficulty: 'easy' }); }
     await saveSelectedShadowingLanguage(nextCode);
     const nextHistory = getShadowingHistoryForLanguage(sentenceLanguageHistories, nextCode);
     sentenceSetHistory = nextHistory ?? createShadowingHistoryForLanguage(nextCode);
@@ -852,7 +853,7 @@ export function renderShadowingView(
   });
   container.querySelector<HTMLSelectElement>('#sh-translation-language-global')?.addEventListener('change', event => {
     state.translationTargetLanguage = (event.target as HTMLSelectElement).value;
-    void saveAppSettings({ translationTargetLanguage: state.translationTargetLanguage }).catch(error => {
+    void persistShadowingSettings({ translationTargetLanguage: state.translationTargetLanguage }).catch(error => {
       console.warn('[SpeakCoach] Could not save translation language preference.', error);
     });
     state.translationResult = '';
@@ -867,17 +868,17 @@ export function renderShadowingView(
   });
   container.querySelector<HTMLButtonElement>('#sh-autoplay-next-btn')?.addEventListener('click', () => {
     state.autoPlayNextShadowing = !state.autoPlayNextShadowing;
-    void saveAppSettings({ autoPlayNextShadowing: state.autoPlayNextShadowing });
+    void persistShadowingSettings();
     renderShadowingView(container, summary);
   });
   container.querySelector<HTMLButtonElement>('#sh-auto-translate-toggle')?.addEventListener('click', () => {
     state.autoTranslateSentenceSets = !state.autoTranslateSentenceSets;
-    void saveAppSettings({ autoTranslateSentenceSets: state.autoTranslateSentenceSets });
+    void persistShadowingSettings();
     renderShadowingView(container, summary);
   });
   container.querySelector<HTMLButtonElement>('#sh-grammar-language-toggle')?.addEventListener('click', () => {
     state.explainGrammarInTranslationLanguage = !state.explainGrammarInTranslationLanguage;
-    void saveAppSettings({ explainGrammarInTranslationLanguage: state.explainGrammarInTranslationLanguage });
+    void persistShadowingSettings();
     renderShadowingView(container, summary);
   });
   const runTranslationAction = async (mode: 'translate' | 'grammar'): Promise<void> => {
@@ -927,6 +928,8 @@ export function renderShadowingView(
   container.querySelector<HTMLButtonElement>('#sh-translate-btn')?.addEventListener('click', () => { void runTranslationAction('translate'); });
   container.querySelector<HTMLButtonElement>('#sh-grammar-btn')?.addEventListener('click', () => { void runTranslationAction('grammar'); });
   const grammarChatInput = container.querySelector<HTMLTextAreaElement>('#sh-grammar-chat-input');
+  const grammarChatMessages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages');
+  grammarChatMessages?.addEventListener('scroll', () => { state.grammarChatScrollTop = grammarChatMessages.scrollTop; });
   grammarChatInput?.addEventListener('scroll', () => { const messages = container.querySelector<HTMLElement>('#sh-grammar-chat-messages'); if (messages) state.grammarChatScrollTop = messages.scrollTop; });
   grammarChatInput?.addEventListener('input', () => {
     state.grammarChatDraft = grammarChatInput.value.slice(0, 500);
@@ -1058,7 +1061,7 @@ export function renderShadowingView(
       const requestedDifficulty = (btn.dataset.diff as ShadowingDifficulty) || 'easy';
       if (requestedDifficulty === 'ielts' && state.languageCode !== 'en') return;
       state.difficulty = requestedDifficulty;
-      void saveAppSettings({ shadowingDifficulty: state.difficulty }).catch(error => {
+      void persistShadowingSettings({ shadowingDifficulty: state.difficulty }).catch(error => {
         console.warn('[SpeakCoach] Could not save Shadowing difficulty preference.', error);
       });
       state.index = sentenceSetHistory?.[state.difficulty].activeSentenceIndex ?? 0;

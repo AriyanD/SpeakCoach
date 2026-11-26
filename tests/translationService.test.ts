@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildGrammarFollowUpPrompt,
   buildShadowingTranslationPrompt,
   extractShadowingTranslationText
 } from '../src/services/translationService';
@@ -24,6 +25,15 @@ describe('Shadowing translation helpers', () => {
 
   it('builds a JSON-only prompt for sentence translation batches', () => {
     expect(buildShadowingTranslationPrompt('[\\"hello\\"]', 'Persian', 'batch')).toContain('valid JSON array of strings');
+  });
+
+  it('keeps only the latest six turns in a grammar follow-up prompt and includes sentence context', () => {
+    const history = Array.from({ length: 8 }, (_, index) => ({ role: index % 2 ? 'assistant' as const : 'user' as const, content: `turn-${index}` }));
+    const prompt = JSON.parse(buildGrammarFollowUpPrompt({ sentence: 'I have been working here.', practiceLanguage: 'English', explanationLanguage: 'Persian', explanation: 'Present perfect continuous.', history, question: 'Why this tense?' }));
+    expect(prompt.recentConversation).toHaveLength(6);
+    expect(prompt.recentConversation[0].content).toBe('turn-2');
+    expect(prompt.sentence).toContain('working here');
+    expect(prompt.question).toBe('Why this tense?');
   });
 
   it('rejects text beyond the safe request size', () => {
