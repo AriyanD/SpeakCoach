@@ -4676,3 +4676,9 @@ body {
 #nav-settings > svg { display:block; width:23px; height:23px; margin:0 auto; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 @media (prefers-reduced-motion:reduce) { .shadowing-main-card .sh-grammar-chat-thinking span { animation:none; } }
 @media (max-width:380px) { .shadowing-main-card .sh-grammar-button-group > .sh-grammar-language-toggle { flex-basis:36px; width:36px; min-width:36px; height:36px; min-height:36px; } .shadowing-main-card .sh-grammar-chat-message { max-width:94%; } }
+
+/* Remove the generic inline-icon offset from centered translation controls. */
+.shadowing-main-card #sh-auto-translate-toggle { display:inline-flex; align-items:center; justify-content:center; }
+.shadowing-main-card #sh-auto-translate-toggle svg { display:block; margin:0; vertical-align:middle; transform:none; }
+.shadowing-main-card .sh-grammar-language-toggle { display:inline-flex; align-items:center; justify-content:center; }
+.shadowing-main-card .sh-grammar-language-toggle svg { display:block; margin:0; vertical-align:middle; transform:none; }
