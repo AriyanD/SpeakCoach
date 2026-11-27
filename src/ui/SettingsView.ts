@@ -60,6 +60,33 @@ export async function renderSettingsView(
   _onSettingsUpdated: () => Promise<void>,
   onOpenDiagnostics?: () => void
 ): Promise<void> {
+  let pendingImportScrollSnapshot: { windowY: number; containerTop: number; overflowAnchor: string } | null = null;
+  const captureImportScrollPosition = (): void => {
+    pendingImportScrollSnapshot = {
+      windowY: window.scrollY,
+      containerTop: container.scrollTop,
+      overflowAnchor: container.style.overflowAnchor
+    };
+    container.style.overflowAnchor = 'none';
+  };
+  const restoreImportScrollPosition = (): void => {
+    const snapshot = pendingImportScrollSnapshot;
+    if (!snapshot) return;
+    const restore = (): void => {
+      window.scrollTo(0, snapshot.windowY);
+      container.scrollTop = snapshot.containerTop;
+    };
+    restore();
+    requestAnimationFrame(() => {
+      restore();
+      requestAnimationFrame(() => {
+        restore();
+        container.style.overflowAnchor = snapshot.overflowAnchor;
+        pendingImportScrollSnapshot = null;
+      });
+    });
+  };
+
   const appSettings = await loadAppSettings();
   const keyStorageLabel = Capacitor.isNativePlatform() ? 'Securely stored on this device' : 'Browser storage (not encrypted)';
   const browserKeyStorageNoticeHtml = Capacitor.isNativePlatform()
@@ -729,12 +756,12 @@ export async function renderSettingsView(
     </section>
     <section class="card settings-shadowing-performance-card">
       <div class="card-header"><h2 class="card-title">Shadowing performance</h2></div>
-      <div class="appearance-setting">
+      <div class="appearance-setting shadowing-prefetch-setting">
         <div class="appearance-setting-copy">
           <label class="form-label" for="shadowing-prefetch-enabled">Prepare upcoming model audio in advance</label>
           <p class="card-subtitle">When enabled, SpeakCoach prepares up to four upcoming sentences in the background to reduce waiting. This uses your configured TTS provider's quota, even if you do not reach every sentence. Turn it off to avoid background TTS requests.</p>
         </div>
-        <label class="form-label" for="shadowing-prefetch-enabled">
+        <label class="form-label shadowing-prefetch-toggle" for="shadowing-prefetch-enabled">
           <input type="checkbox" id="shadowing-prefetch-enabled" ${appSettings.prefetchShadowingAudio ? 'checked' : ''} />
           Enable audio prefetch
         </label>
@@ -1539,7 +1566,10 @@ export async function renderSettingsView(
       cancelLabel: 'Cancel',
       tone: 'danger'
     });
-    if (!confirmed) return;
+    if (!confirmed) {
+      restoreImportScrollPosition();
+      return;
+    }
 
     const importButton = container.querySelector<HTMLButtonElement>(
       kind === 'ai-settings' ? '#import-ai-backup' : '#import-test-backup'
@@ -1572,6 +1602,7 @@ export async function renderSettingsView(
     } finally {
       if (importButton) importButton.disabled = false;
       if (testAllApisButton) testAllApisButton.disabled = settingsProviderTestRunning || !hasConfiguredOnlineAccount;
+      restoreImportScrollPosition();
     }
   };
 
@@ -1633,6 +1664,7 @@ export async function renderSettingsView(
       } finally { if (exportButton) exportButton.disabled = false; }
     });
     importButton?.addEventListener('click', () => {
+      captureImportScrollPosition();
       if (isNativeBackupImportAvailable()) {
         void restoreSelectedBackup(kind, async () => {
           const selected = await selectNativeBackupFile();
@@ -1644,7 +1676,11 @@ export async function renderSettingsView(
     });
     fileInput?.addEventListener('change', async () => {
       const file = fileInput.files?.[0];
-      if (!file) return;
+      fileInput.blur();
+      if (!file) {
+        restoreImportScrollPosition();
+        return;
+      }
       await restoreSelectedBackup(kind, () => readBackupFile(file));
       fileInput.value = '';
     });

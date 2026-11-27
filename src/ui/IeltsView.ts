@@ -286,7 +286,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
               <button type="button" class="btn btn-secondary" id="ielts-random-topic-btn">Random topic</button>
             </div>
             <div class="ielts-topic-generate-action">
-              <button type="button" class="btn btn-primary ielts-refresh-btn" id="ielts-refresh-sets-btn" ${isRegeneratingQuestions ? 'disabled' : ''}>${isRegeneratingQuestions ? 'Generating…' : 'Get new question sets'}</button>
+              <button type="button" class="btn btn-primary ielts-refresh-btn" id="ielts-refresh-sets-btn" ${isRegeneratingQuestions ? 'disabled aria-busy="true"' : 'aria-busy="false"'}>${isRegeneratingQuestions ? '<span class="ielts-loading-spinner" aria-hidden="true"></span><span>Generating…</span>' : 'Get new question sets'}</button>
             </div>
             <div id="ielts-set-notice" class="ielts-library-notice" role="status" aria-live="polite" hidden></div>
           </div>
@@ -429,7 +429,11 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         }
         isRegeneratingQuestions = true;
         const button = container.querySelector<HTMLButtonElement>('#ielts-refresh-sets-btn');
-        if (button) { button.disabled = true; button.textContent = 'Generating five sets…'; }
+        if (button) {
+          button.disabled = true;
+          button.setAttribute('aria-busy', 'true');
+          button.innerHTML = '<span class="ielts-loading-spinner" aria-hidden="true"></span><span>Generating five sets…</span>';
+        }
         if (notice) { notice.hidden = false; notice.textContent = 'Generating five new AI question sets. Your current unfinished sets will be replaced only after the new batch is saved.'; notice.classList.remove('error', 'is-visible'); }
         try {
           const requestedTopic = requestedTopicInput.trim();
