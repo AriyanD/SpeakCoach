@@ -931,7 +931,7 @@ export function renderShadowingView(
     try {
       const targetLanguage = mode === 'grammar' && !state.explainGrammarInTranslationLanguage
         ? selectedLanguage.label
-        : TRANSLATION_LANGUAGES.find(language => language.code === requestTargetLanguage)?.label ?? requestTargetLanguage;
+        : getTranslationLanguageLabel(requestTargetLanguage);
       const result = await translateShadowingText(textToTranslate, targetLanguage, undefined, mode);
       if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
         if (mode === 'grammar') {
@@ -979,7 +979,7 @@ export function renderShadowingView(
     const sentenceText = state.translationSourceText ?? state.translationText;
     const explanation = state.grammarResult;
     const explanationLanguage = state.explainGrammarInTranslationLanguage
-      ? (TRANSLATION_LANGUAGES.find(language => language.code === state.translationTargetLanguage)?.label ?? state.translationTargetLanguage)
+      ? (getTranslationLanguageLabel(state.translationTargetLanguage))
       : selectedLanguage.label;
     state.grammarChatMessages = [...state.grammarChatMessages, { role: 'user', content: question }];
     state.grammarChatDraft = '';
@@ -1123,7 +1123,7 @@ export function renderShadowingView(
         const setIdForBatch = savedSetForBatch.id;
         const batchKeys = savedSetForBatch.sentences.map(item => `${setIdForBatch}:${item.id}:${targetCodeForBatch}`);
         batchKeys.forEach(key => shadowingTranslationRequests.add(key));
-        const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === targetCodeForBatch)?.label ?? targetCodeForBatch;
+        const targetLanguage = getTranslationLanguageLabel(targetCodeForBatch);
         void translateShadowingSentenceBatch(savedSetForBatch.sentences.map(item => item.text), targetLanguage).then(async translations => {
           const savedSet = historyForBatch[difficultyForBatch].sets.find(set => set.id === setIdForBatch);
           if (!savedSet) return;
