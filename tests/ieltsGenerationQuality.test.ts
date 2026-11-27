@@ -57,8 +57,8 @@ describe('IELTS question generation quality', () => {
     expect(prompt.system.length).toBeLessThan(2200);
     expect(prompt.system).toContain('Do not claim this is official');
     expect(prompt.system).toContain(context.cueCardSubject);
-    expect(prompt.system).toContain(context.part1Forms.join(', '));
-    expect(prompt.system).toContain(context.part3Forms.join(', '));
+    expect(prompt.system).toContain((context.part1Forms ?? []).join(', '));
+    expect(prompt.system).toContain((context.part3Forms ?? []).join(', '));
   });
 
   it('rotates three compact system-prompt variants without adding history text', () => {

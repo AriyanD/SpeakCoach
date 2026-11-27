@@ -489,7 +489,7 @@ export async function generateIeltsPlanWithTierFallback(options?: {
   let fallbackReason: string | undefined;
   let configuredProviderName: string | undefined;
   let configuredModelName: string | undefined;
-  const generationMemory = options?.generationMemory ?? getCompactLlmGenerationMemory();
+  const generationMemory: { topics: string[]; questions: string[]; titles?: string[]; part1Topics?: string[] } = options?.generationMemory ?? getCompactLlmGenerationMemory();
   const generationContext = options?.generationContext ?? createIeltsGenerationContext(generationMemory.topics, options?.requestedTopic ?? '', generationMemory.part1Topics ?? getRecentLlmPart1Topics());
   // IELTS question sets must be AI-generated. Keep the option in the public
   // signature for compatibility with older callers, but never use the legacy bank.
