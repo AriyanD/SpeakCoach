@@ -4,7 +4,7 @@ import type { ResolvedSlotTier, SlotConfig, SlotId, TierLabel } from '../config/
 import { loadApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { nativeHttpRequest } from './httpClient';
-import { CONNECTION_VERIFICATION_TTL_MS, executeWithTierFallback } from './tierManager';
+import { CONNECTION_VERIFICATION_TTL_MS, executeWithTierFallback, getProviderVerificationInstructions } from './tierManager';
 import { clearProviderAccountHealth, createProviderVerificationFingerprint, getProviderAccountHealth, markProviderAccountFailure } from './providerHealth';
 import { buildSpokenTokensFromTranscript, type SpokenWordToken } from './wordAlignment';
 import { buildCustomEndpointRequest, buildGeminiEndpointRequest, resolveWireFormat } from './customEndpointHelper';
@@ -597,7 +597,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
       ? ` Wait about ${Math.max(1, Math.ceil((primaryHealth.cooldownUntil - Date.now()) / 1000))} seconds.` : '';
     verificationNotices.push(`API 1 (${primaryProviderName}) is ${primaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${primaryHealth.reason}.${wait}`);
   } else if (getPreset(requestedSlotId, primary.providerId).requiresKey && !primaryKey.trim()) {
-    verificationNotices.push(`API 1 (${primaryProviderName}) has no API key configured. Add the key in Settings → Voice/TTS and test the provider.`);
+    verificationNotices.push(`API 1 (${primaryProviderName}) has no API key configured. ${getProviderVerificationInstructions(requestedSlotId)}`);
   } else if (!primaryVerified) {
     verificationNotices.push(`API 1 (${primaryProviderName}) needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.`);
   }
@@ -625,7 +625,7 @@ export async function transcribeWithTier2WhisperOrFallback(params: {
         ? ` Wait about ${Math.max(1, Math.ceil((secondaryHealth.cooldownUntil - Date.now()) / 1000))} seconds.` : '';
       secondaryVerificationNotice = `API 2 (${secondaryProviderName}) is ${secondaryHealth.state === 'needs-retest' ? 'marked for re-test' : 'cooling down'}: ${secondaryHealth.reason}.${wait}`;
     } else if (getPreset(requestedSlotId, secondary.providerId).requiresKey && !secondaryKey.trim()) {
-      secondaryVerificationNotice = `API 2 (${secondaryProviderName}) has no API key configured. Add the key in Settings → Voice/TTS and test the provider.`;
+      secondaryVerificationNotice = `API 2 (${secondaryProviderName}) has no API key configured. ${getProviderVerificationInstructions(requestedSlotId)}`;
     } else if (!secondaryVerified) {
       secondaryVerificationNotice = `API 2 (${secondaryProviderName}) needs a fresh connection test; its verification is missing, expired, or no longer matches the saved key/provider configuration.`;
     }
