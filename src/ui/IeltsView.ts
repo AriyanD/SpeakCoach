@@ -347,19 +347,6 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
 
       const modeSelect = container.querySelector<HTMLSelectElement>('#ielts-set-mode');
       const modeButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-mode-choice]'));
-      const updateSetMetadata = (selectedMode: string): void => {
-        container.querySelectorAll<HTMLElement>('.ielts-set-meta[data-part1-count][data-part3-count]').forEach((meta) => {
-          const part1Count = Number(meta.dataset.part1Count || 0);
-          const part3Count = Number(meta.dataset.part3Count || 0);
-          meta.textContent = selectedMode === 'part1'
-            ? `${part1Count} Part 1 prompts`
-            : selectedMode === 'part2'
-              ? '1 Part 2 cue card'
-              : selectedMode === 'part3'
-                ? `${part3Count} Part 3 prompts`
-                : `${part1Count} Part 1 prompts · 1 Part 2 cue card · ${part3Count} Part 3 prompts`;
-        });
-      };
       const syncModeButtons = (selectedMode: string): void => {
         modeButtons.forEach((button) => {
           const active = button.dataset.modeChoice === selectedMode;
@@ -367,7 +354,6 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
           button.setAttribute('aria-checked', String(active));
           button.tabIndex = active ? 0 : -1;
         });
-        updateSetMetadata(selectedMode);
       };
       modeButtons.forEach((button, index) => {
         button.addEventListener('click', () => {
