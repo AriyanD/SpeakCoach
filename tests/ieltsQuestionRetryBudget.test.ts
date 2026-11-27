@@ -91,6 +91,7 @@ describe('IELTS question retry budget', () => {
     expect(calls).toBe(10);
     expect(sets).toHaveLength(5);
     expect(retryPrompts).toHaveLength(5);
-    expect(retryPrompts.every(prompt => prompt.includes('IMPORTANT CORRECTION'))).toBe(true);
+    expect(retryPrompts[0]).toContain('IMPORTANT CORRECTION');
+    expect(retryPrompts.slice(1).every(prompt => !prompt.includes('IMPORTANT CORRECTION'))).toBe(true);
   });
 });
