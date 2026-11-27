@@ -254,10 +254,17 @@ export async function renderSettingsView(
     const visibleProviders = slotId === 'voice_tts'
       ? def.providers.filter((provider) => !['android_native_tts', 'groq_tts', 'openai_tts'].includes(provider.id))
       : def.providers;
-    const optionsHtml = visibleProviders
+    const hasUnrecognizedProvider = slotCfg.providerId !== preset.id;
+    const providerDisplayName = hasUnrecognizedProvider
+      ? `Unrecognized saved provider: ${slotCfg.providerId}`
+      : preset.name;
+    const unknownProviderOption = hasUnrecognizedProvider
+      ? `<option value="${escapeHtml(slotCfg.providerId)}" selected disabled>Unrecognized saved provider: ${escapeHtml(slotCfg.providerId)} (temporarily offline)</option>`
+      : '';
+    const optionsHtml = unknownProviderOption + visibleProviders
       .map(
         (p) =>
-          `<option value="${escapeHtml(p.id)}" ${p.id === preset.id ? 'selected' : ''} ${(slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3 ? 'disabled' : ''}>${escapeHtml(
+          `<option value="${escapeHtml(p.id)}" ${p.id === slotCfg.providerId ? 'selected' : ''} ${(slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3 ? 'disabled' : ''}>${escapeHtml(
             p.name
           )}</option>`
       )
@@ -367,11 +374,12 @@ export async function renderSettingsView(
             </select>
             <div class="provider-picker" id="provider-picker-${slotId}">
               <button type="button" class="provider-picker-trigger" id="provider-trigger-${slotId}" aria-expanded="false">
-                <span>${escapeHtml(preset.name)}</span><span class="provider-picker-chevron">⌄</span>
+                <span>${escapeHtml(providerDisplayName)}</span><span class="provider-picker-chevron">⌄</span>
               </button>
               <div class="provider-picker-options" id="provider-options-${slotId}" hidden>
                 <details class="settings-info-help"><summary aria-label="Provider setup information">i</summary><p>After selecting a provider and adding its API key, tap <strong>Test API 1</strong> below. Wait for a successful result before using online features. Test API 2 separately for a secondary provider.</p></details>
-                ${def.providers.filter((p) => slotId !== 'voice_tts' || (!['android_native_tts', 'groq_tts', 'openai_tts'].includes(p.id))).map((p) => `<button type="button" class="provider-picker-option ${p.id === preset.id ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
+                ${hasUnrecognizedProvider ? `<button type="button" class="provider-picker-option active" data-provider-id="${escapeHtml(slotCfg.providerId)}" disabled>Unrecognized saved provider: ${escapeHtml(slotCfg.providerId)} (temporarily offline)</button>` : ''}
+                ${def.providers.filter((p) => slotId !== 'voice_tts' || (!['android_native_tts', 'groq_tts', 'openai_tts'].includes(p.id))).map((p) => `<button type="button" class="provider-picker-option ${p.id === slotCfg.providerId ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
               </div>
             </div>
           </div>
