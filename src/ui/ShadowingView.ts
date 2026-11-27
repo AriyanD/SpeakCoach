@@ -1,4 +1,6 @@
 import type { ShadowingDifficulty, ShadowingSentence } from '../data/shadowingBank';
+import { renderTranslationLanguageOptions } from './shadowing/translationOptions';
+import { escapeHtml } from './shared/html';
 import {
   appendShadowingSet,
   getActiveShadowingSet,
@@ -123,29 +125,6 @@ const state: ShadowingState = {
   forceSpeechApiNotice: false
 };
 
-const TRANSLATION_LANGUAGES = [
-  { code: 'fa', label: 'Persian (فارسی)' },
-  { code: 'ar', label: 'Arabic (العربية)' },
-  { code: 'de', label: 'German (Deutsch)' },
-  { code: 'es', label: 'Spanish (Español)' },
-  { code: 'fr', label: 'French (Français)' },
-  { code: 'it', label: 'Italian (Italiano)' },
-  { code: 'nl', label: 'Dutch (Nederlands)' },
-  { code: 'pt', label: 'Portuguese (Português)' },
-  { code: 'ru', label: 'Russian (Русский)' },
-  { code: 'sv', label: 'Swedish (Svenska)' },
-  { code: 'tr', label: 'Turkish (Türkçe)' },
-  { code: 'zh', label: 'Chinese (简体中文)' },
-  { code: 'ja', label: 'Japanese (日本語)' },
-  { code: 'ko', label: 'Korean (한국어)' }
-];
-
-function renderTranslationLanguageOptions(selected: string): string {
-  return TRANSLATION_LANGUAGES.map(language =>
-    `<option value="${language.code}" ${language.code === selected ? 'selected' : ''}>${escapeHtml(language.label)}</option>`
-  ).join('');
-}
-
 let sentenceSetHistory: ShadowingSetHistory | null = null;
 let sentenceSetHistoryPromise: Promise<ShadowingSetHistory> | null = null;
 let sentenceLanguageHistories: ShadowingLanguageHistories = {};
@@ -249,14 +228,6 @@ function clearAttemptState(): void {
   state.emptyAttemptError = null;
   state.lastRecording = null;
   state.lastReport = null;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function renderVadWaveformSection(vad?: WavVadAnalysisResult): string {
