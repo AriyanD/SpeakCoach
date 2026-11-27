@@ -623,8 +623,8 @@ export function renderShadowingView(
           <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
         </div>
         <div class="btn-row sh-generate-actions">
-          <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''}>
-            ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
+          <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''} aria-busy="${state.isGeneratingAi}">
+            ${state.isGeneratingAi ? '<span class="ielts-loading-spinner" aria-hidden="true"></span><span>Generating sentence set…</span>' : 'Get new sentence set'}
           </button>
           <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m12.2 20.5 3.8-9 3.8 9"/><path d="M13.6 17.5h4.8"/></svg></button>
         </div>
