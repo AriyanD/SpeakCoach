@@ -19,7 +19,7 @@ import type {
 } from '../data/ieltsQuestionTypes';
 import { markQuestionsSeen, markLlmTopicsSeen, markLlmQuestionsSeen, markLlmTitlesSeen, markLlmPart1TopicsSeen, getCompactLlmGenerationMemory, getRecentLlmPart1Topics } from './ieltsQuestionTracker';
 import { CUE_CARD_SEEDS, IELTS_PART1_FORMS, IELTS_PART3_FORMS, takePersistedIeltsDeck } from './ieltsGenerationQuality';
-import { sharedTextSimilarity } from './generationVariety';
+import { sharedTextSimilarity, lemmatizedTokenJaccard } from './generationVariety';
 import type { IeltsTestMode } from './ieltsSessionEngine';
 import { replaceUncompletedIeltsQuestionSets, type StoredIeltsQuestionSet } from './ieltsQuestionSetStore';
 
@@ -165,7 +165,7 @@ export function hasRecentQuestionOverlap(question: string, recentQuestions: stri
   if (!normalized) return false;
   for (const recent of recentQuestions) {
     if (normalized === normalizeGenerationText(recent)) return true;
-    if (sharedTextSimilarity(question, recent, 'en') >= (isTitle ? 0.55 : 0.68)) return true;
+    if (isTitle ? lemmatizedTokenJaccard(question, recent) >= 0.55 : sharedTextSimilarity(question, recent, 'en') >= 0.68) return true;
   }
   return false;
 }
