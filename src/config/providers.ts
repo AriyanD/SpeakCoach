@@ -162,7 +162,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         requiresKey: true,
         defaultBaseUrl: 'https://api.openai.com/v1',
         defaultModelOrVoice: 'whisper-1',
-        modelSuggestions: ['whisper-1', 'whisper-large-v3-turbo', 'whisper-large-v3'],
+        modelSuggestions: ['whisper-1'],
         modelFieldLabel: 'OpenAI Whisper Model (whisper-1)',
         baseUrlPlaceholder: 'https://api.openai.com/v1',
         description: 'Word-timestamp STT aligned to reference text to score word accuracy & timing.'
@@ -222,7 +222,7 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         requiresKey: true,
         defaultBaseUrl: 'https://api.openai.com/v1',
         defaultModelOrVoice: 'whisper-1',
-        modelSuggestions: ['whisper-1', 'whisper-large-v3-turbo', 'whisper-large-v3'],
+        modelSuggestions: ['whisper-1'],
         modelFieldLabel: 'OpenAI Whisper Model (whisper-1)',
         baseUrlPlaceholder: 'https://api.openai.com/v1',
         description: 'Online Whisper transcription for IELTS answer text; pronunciation timing is not used here.'
@@ -313,9 +313,6 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
         description: 'Custom OpenAI-compatible /chat/completions endpoint with free-text model and selectable auth.'
       },
-
-
-
       {
         id: 'offline_rule_eval',
         name: 'Offline IELTS Evaluator (Unavailable — online API required)',
@@ -376,9 +373,6 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
         description: 'Custom OpenAI-compatible /chat/completions endpoint with free-text model and selectable auth.'
       },
-
-
-
       {
         id: 'offline_bank_gen',
         name: 'Offline Shadowing Sentence Library',
@@ -439,9 +433,6 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
         description: 'Custom OpenAI-compatible /chat/completions endpoint with selectable authentication.'
       },
-
-
-
       {
         id: 'offline_translation',
         name: 'Translation unavailable offline',

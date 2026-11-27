@@ -71,13 +71,13 @@ describe('16 kHz Mono PCM WAV Recorder & Mode-Based Capture (A2-3)', () => {
     // 2. Online Whisper STT configured with key -> Mode A (useOfflineRecognizer: false)
     await saveSlotConfig({
       slotId: 'ielts_stt',
-      providerId: 'whisper_stt',
+      providerId: 'custom_openai_stt',
       baseUrl: 'https://api.groq.com/openai/v1',
       modelOrVoice: 'whisper-large-v3-turbo'
     });
-    await saveApiKey('ielts_stt', 'whisper_stt', 'gsk-live-key');
+    await saveApiKey('ielts_stt', 'custom_openai_stt', 'gsk-live-key');
     await saveSlotConnectionTestResult('ielts_stt', {
-      ok: true, slotId: 'ielts_stt', providerId: 'whisper_stt', tier: 2,
+      ok: true, slotId: 'ielts_stt', providerId: 'custom_openai_stt', tier: 2,
       label: 'Online AI', latencyMs: 1, message: 'PASS — test fixture'
     });
 

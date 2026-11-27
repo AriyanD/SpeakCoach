@@ -398,7 +398,12 @@ describe('Functional Deep Connection Tester', () => {
   });
 
   it('deep tests the independent Translation API slot with a plain-text translation probe', async () => {
-    const translationCfg = createDefaultSlotConfig('llm_translation');
+    const translationCfg = {
+      ...createDefaultSlotConfig('llm_translation'),
+      providerId: 'openai_compat_translation',
+      baseUrl: 'https://api.openai.com/v1',
+      modelOrVoice: 'gpt-4o-mini'
+    };
     const result = await testSlotConnection(translationCfg, {
       apiKeyOverride: 'translation-key',
       transport: async opts => {
@@ -423,7 +428,7 @@ describe('Functional Deep Connection Tester', () => {
   it('deep tests STT slot with bundled WAV and validates transcription response', async () => {
     const sttCfg = {
       slotId: 'ielts_stt' as const,
-      providerId: 'whisper_stt',
+      providerId: 'custom_openai_stt',
       baseUrl: 'https://api.groq.com/openai/v1',
       modelOrVoice: 'whisper-large-v3-turbo'
     };
@@ -620,6 +625,10 @@ describe('Functional Deep Connection Tester', () => {
       message: 'PASS — OpenAI (Tier 1) test passed (142 ms).'
     };
 
+    await saveSlotConfig({
+      slotId: 'llm_evaluator', providerId: 'openai_compat_eval',
+      baseUrl: 'https://api.openai.com/v1', modelOrVoice: 'gpt-4o-mini'
+    });
     await saveApiKey('llm_evaluator', 'openai_compat_eval', 'persist-test-key');
     await saveSlotConnectionTestResult('llm_evaluator', testResult);
 
