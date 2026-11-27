@@ -215,11 +215,9 @@ export async function renderSettingsView(
       const statusClass = health?.state === 'cooldown' ? 'info' : 'fail';
       return `<div class="status-box ${statusClass}" id="${account === 'primary' ? `status-${slotId}` : `secondary-status-${slotId}`}">${label} (${escapeHtml(providerName)}): ${escapeHtml(healthText)}</div>`;
     };
-    const secondaryStatusHtml = bothConfiguredApisReady
-      ? ''
-      : mixedApiReadiness && secondaryPreset
-        ? renderAccountStatus('secondary', secondaryPreset.name, secondaryAccountReady, secondaryTestResult, accountHealth?.secondary ?? null)
-        : `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
+    const secondaryStatusHtml = mixedApiReadiness && secondaryPreset
+      ? renderAccountStatus('secondary', secondaryPreset.name, secondaryAccountReady, secondaryTestResult, accountHealth?.secondary ?? null)
+      : `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
     const showVoiceInput = slotId === 'voice_tts' && preset.id !== 'android_native_tts';
     const mismatchInfo = detectProviderUrlMismatch(slotCfg);
     const secondaryMismatchInfo = secondaryPreset ? detectProviderUrlMismatch({ slotId, providerId: secondaryPreset.id, baseUrl: slotCfg.secondary?.baseUrl || secondaryPreset.defaultBaseUrl, endpointPathOverride: slotCfg.secondary?.endpointPathOverride }) : { mismatch: false, reason: undefined as string | undefined };
