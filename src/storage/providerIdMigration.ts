@@ -1,5 +1,4 @@
-import { normalizeBaseUrl } from '../config/providers';
-import { SLOT_DEFINITIONS } from '../config/providers';
+import { normalizeBaseUrl, SLOT_DEFINITIONS } from '../config/providers';
 import type { SlotId } from '../config/types';
 
 export interface ProviderIdMigrationRule {
