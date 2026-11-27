@@ -429,9 +429,9 @@ describe('IELTS Question Generator (Slot 5 Online AI + Deduplication + Tier Fall
     markLlmQuestionsSeen(Array.from({ length: 60 }, (_, index) => `A unique generated question number ${index}?`));
     const localMemory = getRecentLlmQuestions();
     const promptMemory = getCompactLlmGenerationMemory();
-    expect(localMemory).toHaveLength(48);
-    expect(promptMemory.questions).toHaveLength(24);
-    expect(promptMemory.questions[23]).toContain('59');
+    expect(localMemory).toHaveLength(60);
+    expect(promptMemory.questions).toHaveLength(60);
+    expect(promptMemory.questions[59]).toContain('59');
     expect(promptMemory.questions.every(question => question.length > 0)).toBe(true);
   });
 
