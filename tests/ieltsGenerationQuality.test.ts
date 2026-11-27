@@ -44,10 +44,10 @@ describe('IELTS question generation quality', () => {
       'A place where you can relax',
       'A book you enjoyed reading'
     ]);
-    const avoidLine = prompt.system.split('\\n').find(line => line.startsWith('Recent questions and cue-card titles'));
+    const avoidLine = prompt.system.split('\n').find(line => line.startsWith('Recent questions and cue-card titles'));
     expect(avoidLine).toBeTruthy();
     expect(avoidLine).toContain('environment');
-    expect(avoidLine).not.toMatch(/\\b(what|when|where|which|does|have|think|like|enjoy|often|usually|much|many|more|most|some|other|people|would|could|should|about|their|there|you|your)\\b/i);
+    expect(avoidLine).not.toMatch(/\b(what|when|where|which|does|have|think|like|enjoy|often|usually|much|many|more|most|some|other|people|would|could|should|about|their|there|you|your)\b/i);
   });
 
   it('persists shuffled decks and does not repeat before exhaustion', () => {
