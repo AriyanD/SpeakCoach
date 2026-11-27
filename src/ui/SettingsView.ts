@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
-import { QUICK_SETUP_PLAN, QUICK_SETUP_REUSABLE_PROVIDER_IDS } from '../config/quickSetup';
+import { QUICK_SETUP_PLAN, QUICK_SETUP_REUSABLE_PROVIDER_IDS, type QuickSetupProvider } from '../config/quickSetup';
 import { APP_VERSION } from '../config/appVersion';
 import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
@@ -1024,7 +1024,7 @@ export async function renderSettingsView(
     let passed = 0;
     let skipped = 0;
 
-    const resolveKey = async (slotId: SlotId, provider: import('../config/quickSetup').QuickSetupProvider, account: 'primary' | 'secondary'): Promise<string> => {
+    const resolveKey = async (slotId: SlotId, provider: QuickSetupProvider, account: 'primary' | 'secondary'): Promise<string> => {
       const supplied = suppliedKeys[provider.source];
       if (supplied) return supplied;
       try {
