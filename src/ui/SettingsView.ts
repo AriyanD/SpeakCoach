@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { escapeHtml } from './shared/html';
 import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { QUICK_SETUP_PLAN, QUICK_SETUP_REUSABLE_PROVIDER_IDS, type QuickSetupProvider } from '../config/quickSetup';
 import { APP_VERSION } from '../config/appVersion';
@@ -45,14 +46,6 @@ import {
 const lastTestResults = new Map<SlotId, ConnectionTestResult>();
 const dismissedVerificationErrors = new Set<SlotId>();
 let settingsProviderTestRunning = false;
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 export async function renderSettingsView(
   container: HTMLElement,
