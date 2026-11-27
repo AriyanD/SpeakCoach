@@ -539,8 +539,8 @@ export async function evaluateIeltsWithTierFallback(params: {
     logIeltsSessionEvent({
       event: 'LLM Evaluation',
       status: 'error',
-      error: rawMsg,
-      details: rawSnippet ? `Snippet: ${rawSnippet} | Reason: ${formattedReason}` : `Reason: ${formattedReason}`
+      error: 'LLM evaluation failed; provider response omitted.',
+      details: `Provider: ${preset.name}; ${err instanceof SpeakCoachHttpError ? `HTTP ${err.status}` : 'evaluation response validation'}; response omitted`
     });
 
     throw new LlmEvaluationFailureError(formattedReason, rawMsg, rawSnippet);
