@@ -4,6 +4,8 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.Context;
 import android.media.AudioManager;
+import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
@@ -53,6 +55,7 @@ public class SpeakCoachSpeechPlugin extends Plugin {
     private volatile String recorderError = "";
     private AudioManager audioManager;
     private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener;
+    private AudioFocusRequest audioFocusRequest;
     private boolean hasAudioFocus = false;
 
     private SpeechRecognizer speechRecognizer;
@@ -229,30 +232,56 @@ public class SpeakCoachSpeechPlugin extends Plugin {
         };
 
         try {
-            // The legacy focus API remains available on the app's minimum SDK (22).
-            hasAudioFocus = audioManager.requestAudioFocus(
-                    audioFocusChangeListener,
-                    AudioManager.STREAM_VOICE_CALL,
-                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
-            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                AudioAttributes attributes = new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build();
+                audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                        .setAudioAttributes(attributes)
+                        .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                        .build();
+                hasAudioFocus = audioManager.requestAudioFocus(audioFocusRequest)
+                        == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+            } else {
+                hasAudioFocus = requestLegacyAudioFocus(audioFocusChangeListener);
+            }
         } catch (Exception e) {
             // Audio focus is best-effort; a denied request must not block microphone capture.
             hasAudioFocus = false;
+            audioFocusRequest = null;
         }
+    }
+
+    @SuppressWarnings("deprecation")
+    private boolean requestLegacyAudioFocus(AudioManager.OnAudioFocusChangeListener listener) {
+        return audioManager.requestAudioFocus(
+                listener,
+                AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+        ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
     }
 
     private void abandonCaptureAudioFocus() {
         if (audioManager != null && hasAudioFocus) {
             try {
-                if (audioFocusChangeListener != null) {
-                    audioManager.abandonAudioFocus(audioFocusChangeListener);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
+                    audioManager.abandonAudioFocusRequest(audioFocusRequest);
+                } else if (audioFocusChangeListener != null) {
+                    abandonLegacyAudioFocus(audioFocusChangeListener);
                 }
             } catch (Exception ignored) {
             }
         }
         hasAudioFocus = false;
+        audioFocusRequest = null;
         audioFocusChangeListener = null;
         audioManager = null;
+    }
+
+    @SuppressWarnings("deprecation")
+    private void abandonLegacyAudioFocus(AudioManager.OnAudioFocusChangeListener listener) {
+        audioManager.abandonAudioFocus(listener);
     }
 
     private void releaseAudioRecord() {
