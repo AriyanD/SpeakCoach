@@ -105,7 +105,7 @@ describe('IELTS question generation quality', () => {
   it('broadens cue-card subjects and keeps repair/community/volunteer themes below one quarter', () => {
     const subjects = Object.values(CUE_CARD_SEEDS).flat();
     const focused = subjects.filter(subject =>
-      /\\b(repair|volunteer|community|neighbourhood|neighborhood|clean-up|organiser|organizer)\\b/i.test(subject)
+      /\b(repair|volunteer|community|neighbourhood|neighborhood|clean-up|organiser|organizer)\b/i.test(subject)
     );
     expect(focused.length).toBeLessThanOrEqual(Math.ceil(subjects.length * 0.25));
     const allSubjects = subjects.join(' ').toLocaleLowerCase();

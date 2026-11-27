@@ -67,7 +67,7 @@ export const CUE_CARD_SEEDS: Record<string, readonly string[]> = {
   ],
   activity: [
     'hiking in the countryside','camping with friends','cooking for your family','reading a novel',
-    'visiting a museum independently','cycling through a city','playing a team sport','taking photographs outdoors',
+    'visiting a museum independently','cycling through a city','playing a team sport','doing a regular exercise routine','taking photographs outdoors',
     'exploring an unfamiliar city','attending a concert','learning a new language','gardening at home',
     'playing board games with friends','volunteering at a local event','travelling by train'
   ],
