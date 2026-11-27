@@ -127,7 +127,7 @@ export function buildGeneratorPrompt(
   const requested = requestedTopic.trim() ? requestedTopic.trim().slice(0, 72) : subject;
   const variant = takePersistedIeltsDeck('system-prompt-variants', PROMPT_VARIANTS, 1)[0];
   const themeLine = requestedTopic.trim()
-    ? `USER-SELECTED THEME FOR PARTS 2 & 3: "${requestedTopic.trim().slice(0, 72)}". This theme wins and must not be forced into Part 1.`
+    ? `USER-SELECTED THEME FOR PARTS 2 & 3: "${requestedTopic.trim().slice(0, 72)}". Do not force this theme into Part 1.`
     : `CREATIVE DIVERSITY LENSES: ${context.preferredAngles.join('; ')}. Use one as inspiration for the concrete Part 2 subject.`;
   const system = `${variant} Do not claim this is official or from a real exam.
 ASSIGN: Part 1 topic A: "${context.part1Topics[0]}"; Part 1 topic B: "${context.part1Topics[1]}". Part 1 forms in order: ${p1Forms.join(', ')}.
