@@ -275,6 +275,7 @@ export async function bootstrapApp(
 
     if (currentTab === 'shadowing') {
       const shadowingView = await import('./ui/ShadowingView');
+      if (generation !== refreshGeneration) return;
       if (!shadowingViewInitialized) {
         shadowingView.resetShadowingViewState();
         shadowingViewInitialized = true;
@@ -282,6 +283,7 @@ export async function bootstrapApp(
       activeCleanup = shadowingView.renderShadowingView(viewContainer, summary);
     } else if (currentTab === 'ielts') {
       const { renderIeltsView } = await import('./ui/IeltsView');
+      if (generation !== refreshGeneration) return;
       activeCleanup = renderIeltsView(viewContainer, summary, {
         onComplete: (record) => {
           activeIeltsResult = record;
@@ -294,6 +296,7 @@ export async function bootstrapApp(
       });
     } else if (currentTab === 'ielts-result' && activeIeltsResult) {
       const { renderIeltsResultView } = await import('./ui/IeltsResultView');
+      if (generation !== refreshGeneration) return;
       renderIeltsResultView(viewContainer, activeIeltsResult, {
         onRetake: () => {
           stopAllTts();
@@ -315,6 +318,7 @@ export async function bootstrapApp(
       });
     } else if (currentTab === 'ielts-history') {
       const { renderIeltsHistoryView } = await import('./ui/IeltsHistoryView');
+      if (generation !== refreshGeneration) return;
       activeCleanup = await renderIeltsHistoryView(viewContainer, {
         onSelectResult: (record) => {
           activeIeltsResult = record;
@@ -336,6 +340,7 @@ export async function bootstrapApp(
       });
     } else if (currentTab === 'settings') {
       const { renderSettingsView } = await import('./ui/SettingsView');
+      if (generation !== refreshGeneration) return;
       await renderSettingsView(viewContainer, configs, summary, async () => {
         void import('./ui/DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
         await refreshUI();
@@ -344,6 +349,7 @@ export async function bootstrapApp(
       });
     } else {
       const { renderDiagnosticsView } = await import('./ui/DiagnosticsView');
+      if (generation !== refreshGeneration) return;
       await renderDiagnosticsView(viewContainer, getAppVersion(), refreshUI);
     }
   };
