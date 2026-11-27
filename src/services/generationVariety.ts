@@ -118,7 +118,7 @@ function compactWords(text: string, language: string): string[] {
 }
 export function openingKey(text: string, language: string): string {
   const clean = text.normalize('NFKC').toLocaleLowerCase().replace(/^[\p{P}\p{S}\s]+/u, '');
-  if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\s+/g, '')).filter(ch => /[\p{L}\p{N}]/u.test(ch)).slice(1, 5);
+  if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\s+/g, '')).slice(0, 3).join('');
   return clean.split(/\s+/u).slice(0, 2).join(' ');
 }
 function grams(text: string): Set<string> {
@@ -186,7 +186,12 @@ export function lemmatizedTokenJaccard(a: string, b: string): number {
   return jaccard(tokens(a), tokens(b));
 }
 export function sharedTextSimilarity(a: string, b: string, language = 'en'): number {
-  return Math.max(sentenceSimilarity(a, b, language), lemmatizedTokenJaccard(a, b));
+  // Keep the established IELTS/topic-overlap metric stable; sentenceSimilarity is
+  // intentionally the richer Shadowing-specific metric.
+  const char = jaccard(grams(a), grams(b));
+  const tokensA = new Set(compactWords(a, language));
+  const tokensB = new Set(compactWords(b, language));
+  return Math.max(char, jaccard(tokensA, tokensB), lemmatizedTokenJaccard(a, b));
 }
 export function makeMemoryEntry(text: string, language: string): VarietyMemoryEntry {
   return { openingKey: openingKey(text, language), keyWords: compactWords(text, language), text: text.replace(/\s+/g, ' ').trim() };
