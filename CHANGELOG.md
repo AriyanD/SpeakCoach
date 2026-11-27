@@ -2,6 +2,15 @@
 
 Notable user-facing changes are recorded here. A version tag triggers creation of a draft release; it stays unpublished until intentionally published.
 
+## 1.2.1 — 2026-11-27
+
+### Security
+- IELTS technical diagnostics now omit raw LLM evaluation responses and provider error bodies. Existing stored LLM evaluation diagnostic entries are redacted when read.
+
+### Compatibility
+- AI provider settings changed in this release. Export an API-key backup before updating; after updating, review and re-enter provider settings if needed, then test each configured API account.
+
+
 ## 1.2.0 — 2026-11-27
 
 ### Added
