@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
+import { QUICK_SETUP_PLAN, QUICK_SETUP_REUSABLE_PROVIDER_IDS } from '../config/quickSetup';
 import { APP_VERSION } from '../config/appVersion';
 import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
@@ -1008,18 +1009,7 @@ export async function renderSettingsView(
       gemini: geminiInput?.value.trim() ?? '',
       groq: groqInput?.value.trim() ?? ''
     };
-    type QuickProvider = { providerId: string; source: 'gemini' | 'groq'; baseUrl?: string; model?: string };
-    type QuickPlanItem = { slotId: SlotId; primary: QuickProvider; secondary?: QuickProvider };
-    const groqBaseUrl = 'https://api.groq.com/openai/v1';
-    const groqLlmModel = 'openai/gpt-oss-120b';
-    const plan: QuickPlanItem[] = [
-      { slotId: 'voice_tts', primary: { providerId: 'gemini_tts', source: 'gemini' } },
-      { slotId: 'pronunciation_scoring', primary: { providerId: 'gemini_pronunciation', source: 'gemini' }, secondary: { providerId: 'whisper_alignment', source: 'groq' } },
-      { slotId: 'ielts_stt', primary: { providerId: 'gemini_stt', source: 'gemini' }, secondary: { providerId: 'whisper_stt', source: 'groq' } },
-      { slotId: 'llm_evaluator', primary: { providerId: 'custom_openai_eval', source: 'groq', baseUrl: groqBaseUrl, model: groqLlmModel }, secondary: { providerId: 'gemini_eval', source: 'gemini' } },
-      { slotId: 'llm_generator', primary: { providerId: 'gemini_gen', source: 'gemini' }, secondary: { providerId: 'custom_openai_gen', source: 'groq', baseUrl: groqBaseUrl, model: groqLlmModel } },
-      { slotId: 'llm_translation', primary: { providerId: 'gemini_translation', source: 'gemini' }, secondary: { providerId: 'custom_openai_translation', source: 'groq', baseUrl: groqBaseUrl, model: groqLlmModel } }
-    ];
+    const plan = QUICK_SETUP_PLAN;
 
     quickSetupButton.disabled = true;
     settingsProviderTestRunning = true;
@@ -1034,7 +1024,7 @@ export async function renderSettingsView(
     let passed = 0;
     let skipped = 0;
 
-    const resolveKey = async (slotId: SlotId, provider: QuickProvider, account: 'primary' | 'secondary'): Promise<string> => {
+    const resolveKey = async (slotId: SlotId, provider: import('../config/quickSetup').QuickSetupProvider, account: 'primary' | 'secondary'): Promise<string> => {
       const supplied = suppliedKeys[provider.source];
       if (supplied) return supplied;
       try {
@@ -1042,10 +1032,7 @@ export async function renderSettingsView(
         if (localKey.trim()) return localKey;
       } catch { /* Try another saved key from the same provider family. */ }
 
-      const reusableProviderIds: Record<'gemini' | 'groq', string[]> = {
-        gemini: ['gemini_tts', 'gemini_pronunciation', 'gemini_stt', 'gemini_eval', 'gemini_gen', 'gemini_translation'],
-        groq: ['whisper_alignment', 'whisper_stt', 'custom_openai_eval', 'custom_openai_gen', 'custom_openai_translation']
-      };
+      const reusableProviderIds = QUICK_SETUP_REUSABLE_PROVIDER_IDS;
       for (const otherSlotId of SLOT_ORDER) {
         for (const providerId of reusableProviderIds[provider.source]) {
           if (!SLOT_DEFINITIONS[otherSlotId].providers.some((preset) => preset.id === providerId)) continue;
@@ -1060,7 +1047,7 @@ export async function renderSettingsView(
       return '';
     };
 
-    const makeConfig = (slotId: SlotId, provider: QuickProvider, account: 'primary' | 'secondary', previous?: SlotConfig['secondary'] | SlotConfig): SlotConfig => {
+    const makeConfig = (slotId: SlotId, provider: import('../config/quickSetup').QuickSetupProvider, account: 'primary' | 'secondary', previous?: SlotConfig['secondary'] | SlotConfig): SlotConfig => {
       const preset = getPreset(slotId, provider.providerId);
       const sameProvider = previous?.providerId === provider.providerId;
       const config: SlotConfig = {
