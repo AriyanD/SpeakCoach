@@ -13,13 +13,13 @@ describe('provider ID migration registry', () => {
     ]);
   });
 
-  it('migrates only the matching Groq endpoint and known Whisper models', () => {
+  it('keeps current IDs intact until the credential-aware migration can inspect their keys', () => {
     expect(resolveMigratedProviderId(
       'ielts_stt',
       'whisper_stt',
       'https://api.groq.com/openai/v1/',
       'whisper-large-v3-turbo'
-    )).toBe('custom_openai_stt');
+    )).toBe('whisper_stt');
 
     expect(resolveMigratedProviderId(
       'ielts_stt',
