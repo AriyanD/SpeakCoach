@@ -9,6 +9,7 @@ import {
 } from '../config/providers';
 import type { AllSlotsConfig, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
 import { migrateLegacyGroqWhisperConfigs } from './providerConfigMigration';
+import { isKnownProviderId, resolveMigratedProviderId } from './providerIdMigration';
 import { clearAllRuntimeFailures, clearSlotRuntimeFailure } from '../services/runtimeFailureStore';
 import { clearProviderAccountHealth, createProviderVerificationFingerprint } from '../services/providerHealth';
 
@@ -16,6 +17,14 @@ const SLOTS_CONFIG_KEY = 'speakcoach.slots.config.v1';
 const CONNECTION_TESTS_KEY = 'speakcoach.slots.connection_tests.v1';
 const RECOVERY_PREFIX = 'speakcoach.storage_recovery.v1.';
 const recoveryNotices: string[] = [];
+const providerMigrationNoticeIds = new Set<string>();
+
+function addUnknownProviderNotice(slotId: SlotId, providerId: string, account: 'primary' | 'secondary'): void {
+  const noticeId = `${slotId}|${providerId}|${account}`;
+  if (providerMigrationNoticeIds.has(noticeId)) return;
+  providerMigrationNoticeIds.add(noticeId);
+  recoveryNotices.push(`The saved ${account === 'primary' ? 'API 1' : 'API 2'} provider ID "${providerId}" for ${slotId} is not recognized by this app version. Its saved ID and API key have been preserved; the slot is temporarily treated as offline until you select a supported provider or a matching migration is added.`);
+}
 const preservedCorruptValues = new Map<string, string>();
 
 async function preserveCorruptValue(key: string, raw: string): Promise<void> {
@@ -86,7 +95,12 @@ async function setRawItem(key: string, value: string): Promise<void> {
 export function sanitizeSlotConfig(slotId: SlotId, partial?: Partial<SlotConfig>): SlotConfig {
   const fallback = createDefaultSlotConfig(slotId);
   if (!partial) return fallback;
-  const preset = getPreset(slotId, partial.providerId ?? fallback.providerId);
+  const storedProviderId = partial.providerId ?? fallback.providerId;
+  const requestedBaseUrl = typeof partial.baseUrl === 'string' ? partial.baseUrl : '';
+  const requestedModel = typeof partial.modelOrVoice === 'string' ? partial.modelOrVoice : '';
+  const providerId = resolveMigratedProviderId(slotId, storedProviderId, requestedBaseUrl, requestedModel);
+  if (!isKnownProviderId(slotId, providerId)) addUnknownProviderNotice(slotId, providerId, 'primary');
+  const preset = getPreset(slotId, providerId);
   const rawBaseUrl =
     typeof partial.baseUrl === 'string' && partial.baseUrl.trim().length > 0
       ? partial.baseUrl
@@ -98,7 +112,7 @@ export function sanitizeSlotConfig(slotId: SlotId, partial?: Partial<SlotConfig>
 
   return {
     slotId,
-    providerId: preset.id,
+    providerId,
     baseUrl: normalizeBaseUrl(rawBaseUrl),
     modelOrVoice: rawModel,
     speechRate:
@@ -130,9 +144,17 @@ export function sanitizeSlotConfig(slotId: SlotId, partial?: Partial<SlotConfig>
     ...(partial.secondary && typeof partial.secondary === 'object'
       ? {
           secondary: (() => {
-            const secondaryPreset = getPreset(slotId, partial.secondary!.providerId);
+            const secondaryStoredId = partial.secondary!.providerId;
+            const secondaryProviderId = resolveMigratedProviderId(
+              slotId,
+              secondaryStoredId,
+              partial.secondary!.baseUrl ?? '',
+              partial.secondary!.modelOrVoice ?? ''
+            );
+            if (!isKnownProviderId(slotId, secondaryProviderId)) addUnknownProviderNotice(slotId, secondaryProviderId, 'secondary');
+            const secondaryPreset = getPreset(slotId, secondaryProviderId);
             return {
-              providerId: secondaryPreset.id,
+              providerId: secondaryProviderId,
               baseUrl: normalizeBaseUrl(partial.secondary!.baseUrl || secondaryPreset.defaultBaseUrl),
               modelOrVoice: (partial.secondary!.modelOrVoice || secondaryPreset.defaultModelOrVoice).trim(),
               authStyle: partial.secondary!.authStyle === 'custom_header' || partial.secondary!.authStyle === 'query_param'
