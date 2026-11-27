@@ -30,7 +30,6 @@ import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttServ
 import { getCachedModelWordTimings } from '../services/modelTimingService';
 import { generateAiShadowingSentenceBatch } from '../services/shadowingAiGenerator';
 import { ShadowingPrefetchScheduler, runShadowingPrefetchBatch } from '../services/shadowingPrefetch';
-import { clearDiagnosticsCache } from './DiagnosticsView';
 import { attachScrollRail } from './scrollRail';
 import { SHADOWING_LANGUAGES, getShadowingLanguage, countShadowingLanguageUnits, type ShadowingLanguageCode } from '../data/shadowingLanguages';
 import { loadShadowingLanguageHistories, saveShadowingLanguageHistories, getShadowingHistoryForLanguage, createShadowingHistoryForLanguage, setShadowingHistoryForLanguage, loadSelectedShadowingLanguage, saveSelectedShadowingLanguage, type ShadowingLanguageHistories } from '../services/shadowingLanguageHistory';
@@ -1473,7 +1472,7 @@ export function renderShadowingView(
         sttActiveTierLabel: sttOutcome.activeTier.detailLabel,
         report: null
       });
-      clearDiagnosticsCache();
+      void import('./DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
       shadowingIsStopping = false;
       state.audioActivity = 'idle';
       renderShadowingView(container, summary);
@@ -1523,7 +1522,7 @@ export function renderShadowingView(
       sttActiveTierLabel: sttOutcome.activeTier.detailLabel,
       report: state.lastReport
     });
-    clearDiagnosticsCache();
+    void import('./DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
 
     state.statusMessage = `${sttOutcome.error ? `${sttOutcome.error} ` : ''}Scored recognizer output ("${rawRecognized}") against reference.`;
     shadowingIsStopping = false;
