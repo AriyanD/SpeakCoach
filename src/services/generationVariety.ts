@@ -268,10 +268,17 @@ export function getPromptVariantLine(id: string): string {
 }
 
 export async function exportGenerationVarietySnapshot(): Promise<Record<string, unknown>> {
-  const snapshot: Record<string, unknown> = { version: VERSION, memory: {} };
+  const snapshot: Record<string, unknown> = { version: VERSION, memory: {}, decks: {} };
   const memory = snapshot.memory as Record<string, unknown>;
+  const decks = snapshot.decks as Record<string, unknown>;
   for (const language of SHADOWING_LANGUAGES) for (const level of ['easy','medium','hard','ielts'] as const) {
-    memory[`${language.code}:${level}`] = await getVarietyMemory(language.code, level);
+    const id = `${language.code}:${level}`;
+    memory[id] = await getVarietyMemory(language.code, level);
+    const levelDecks: Record<string, unknown> = {};
+    for (const kind of ['situations','acts','grammar','foci','prompt']) {
+      levelDecks[kind] = await readJson(key(kind, language.code, level), { deck: [], cursor: 0 });
+    }
+    decks[id] = levelDecks;
   }
   return snapshot;
 }

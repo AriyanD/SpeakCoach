@@ -3,8 +3,8 @@ import { SHADOWING_LANGUAGES } from '../src/data/shadowingLanguages';
 import { SHADOWING_LANGUAGE_PROFILES } from '../src/data/shadowingLanguageProfiles';
 import { buildShadowingPrompt, estimatePromptTokens } from '../src/services/shadowingPromptBuilder';
 import {
-  buildVarietySlots, getVarietyMemory, makeMemoryEntry, openingKey, sentenceSimilarity,
-  seedVarietyMemory, validateVarietyBatch
+  buildVarietySlots, exportGenerationVarietySnapshot, getVarietyMemory, importGenerationVarietySnapshot,
+  makeMemoryEntry, openingKey, sentenceSimilarity, seedVarietyMemory, validateVarietyBatch
 } from '../src/services/generationVariety';
 
 const store = vi.hoisted(() => new Map<string, string>());
@@ -51,6 +51,24 @@ describe('Shadowing generation variety', () => {
     const result = await buildVarietySlots('en', 'easy', 1, SHADOWING_LANGUAGE_PROFILES.en.foci);
     expect(result.promptVariantId).toBe('v2');
     expect(JSON.parse(store.get(key) ?? '{}').deck).toEqual(['v1', 'v2', 'v3', 'v4']);
+  });
+
+
+  it('exports and restores selection decks additively while accepting old memory-only snapshots', async () => {
+    const first = await buildVarietySlots('en', 'easy', 1, SHADOWING_LANGUAGE_PROFILES.en.foci);
+    const snapshot = await exportGenerationVarietySnapshot();
+    const levelDecks = (snapshot.decks as Record<string, Record<string, { deck: string[]; cursor: number }>>)['en:easy'];
+    expect(levelDecks.prompt.deck).toHaveLength(4);
+    const expectedNext = levelDecks.prompt.deck[levelDecks.prompt.cursor];
+
+    store.clear();
+    localStorage.clear();
+    await importGenerationVarietySnapshot(snapshot);
+    const next = await buildVarietySlots('en', 'easy', 1, SHADOWING_LANGUAGE_PROFILES.en.foci);
+    expect(next.promptVariantId).toBe(expectedNext);
+    expect(next.promptVariantId).not.toBe(first.promptVariantId);
+
+    await expect(importGenerationVarietySnapshot({ version: 1, memory: { 'en:easy': [] } })).resolves.toBeUndefined();
   });
 
   it('keeps memory isolated by language and level and stores compact entries', async () => {
