@@ -102,7 +102,7 @@ describe('IELTS Question Generator (Slot 5 Online AI + Deduplication + Tier Fall
     expect(secondPrompt.system).not.toContain(second.id);
     expect(firstPrompt.user).toBe(secondPrompt.user);
     expect(firstPrompt.system).toContain('Avoid close semantic equivalents, not merely identical wording.');
-    expect(firstPrompt.system).toContain('shared theme anchor');
+    expect(firstPrompt.system).toContain('rooted in the Part 2 cue card');
     expect(firstPrompt.system).toContain('broader social, cultural, economic, environmental, educational or policy perspectives');
   });
 
