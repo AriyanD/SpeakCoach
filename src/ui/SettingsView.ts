@@ -3,7 +3,7 @@ import { escapeHtml } from './shared/html';
 import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { QUICK_SETUP_PLAN, QUICK_SETUP_REUSABLE_PROVIDER_IDS, type QuickSetupProvider } from '../config/quickSetup';
 import { APP_VERSION } from '../config/appVersion';
-import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
+import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, shouldShowApiSettingsUpdateWarning, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
 import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult, testSlotAccountsSequentially, describeConnectionTestFailure } from '../services/connectionTester';
 import { networkMonitor } from '../services/networkMonitor';
@@ -1431,7 +1431,13 @@ export async function renderSettingsView(
       }
       availableUpdate = update;
       if (updateVersionLabel) updateVersionLabel.textContent = `Version ${update.version} is available`;
-      if (updateNotesLabel) updateNotesLabel.textContent = update.releaseNotes || 'No release notes were provided.';
+      if (updateNotesLabel) {
+        const releaseNotes = update.releaseNotes || 'No release notes were provided.';
+        const apiSettingsWarning = shouldShowApiSettingsUpdateWarning(update.version)
+          ? '\n\nImportant: Since SpeakCoach v1.2.1, API settings have changed. Older provider settings and saved API keys may not be read correctly. After updating, re-enter your API keys in Settings and test each provider.'
+          : '';
+        updateNotesLabel.textContent = `${releaseNotes}${apiSettingsWarning}`;
+      }
       if (updateReleaseLink) updateReleaseLink.href = update.releaseUrl;
       if (updateAvailablePanel) updateAvailablePanel.hidden = false;
       setUpdateStatus('A newer version is available. Download it when you are ready.', 'pass');
@@ -1591,7 +1597,11 @@ export async function renderSettingsView(
       if (operationStatus) {
         operationStatus.hidden = false;
         operationStatus.className = 'status-box fail';
-        operationStatus.textContent = error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const apiSettingsWarning = kind === 'ai-settings'
+          ? ' Note: Since SpeakCoach v1.2.1, API settings have changed. Older provider settings or saved API keys may not be read correctly. Please re-enter your API keys in Settings and test each provider.'
+          : '';
+        operationStatus.textContent = `${errorMessage}${apiSettingsWarning}`;
       }
     } finally {
       if (importButton) importButton.disabled = false;
