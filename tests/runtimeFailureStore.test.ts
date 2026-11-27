@@ -7,6 +7,7 @@ import {
   RUNTIME_FAILURE_TTL_MS
 } from '../src/services/runtimeFailureStore';
 import { getProviderVerificationInstructions } from '../src/services/tierManager';
+import { IeltsSessionController } from '../src/services/ieltsSessionEngine';
 
 describe('runtime failure store', () => {
   beforeEach(() => clearAllRuntimeFailures());
@@ -47,5 +48,13 @@ describe('slot-specific STT setup guidance', () => {
     const instructions = getProviderVerificationInstructions('pronunciation_scoring');
     expect(instructions).toContain('Shadowing');
     expect(instructions).not.toContain('Voice/TTS');
+  });
+});
+
+describe('retired IELTS built-in question fallback', () => {
+  it('cannot be re-enabled through the legacy controller method', () => {
+    const controller = new IeltsSessionController();
+    controller.setAllowBuiltinFallback(true);
+    expect(controller.getState().allowBuiltinFallback).toBe(false);
   });
 });
