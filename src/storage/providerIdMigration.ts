@@ -46,6 +46,9 @@ export function resolveMigratedProviderId(
   baseUrl: string,
   modelOrVoice: string
 ): string {
+  // Current IDs stay intact so credential-aware migrations can inspect and
+  // move their API keys before changing the stored provider selection.
+  if (isKnownProviderId(slotId, providerId)) return providerId;
   const rule = PROVIDER_ID_MIGRATIONS.find((entry) =>
     entry.slotId === slotId &&
     entry.from === providerId &&
