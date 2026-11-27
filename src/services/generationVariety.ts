@@ -30,9 +30,16 @@ const grammarFrames: Record<ShadowingDifficulty, string[]> = {
   hard: ['mixed conditional','concession clause','inversion','embedded question','precise passive','modal perfect','subordinate clause','qualified claim','contrastive emphasis','complex comparison'],
   ielts: ['reason plus example','concession plus view','past-to-present link','qualified opinion','hypothetical reflection','comparison with reason','personal anecdote','cause and consequence','balanced judgement','future implication']
 };
-const lengthBands: Record<ShadowingDifficulty, string> = {
-  easy: '8-16w', medium: '12-22w', hard: '14-28w', ielts: '18-30w'
+export const SHADOWING_LENGTH_BANDS: Record<ShadowingDifficulty, { min: number; max: number }> = {
+  easy: { min: 8, max: 16 },
+  medium: { min: 12, max: 22 },
+  hard: { min: 14, max: 28 },
+  ielts: { min: 18, max: 30 }
 };
+export function getShadowingLengthBandLabel(level: ShadowingDifficulty): string {
+  const { min, max } = SHADOWING_LENGTH_BANDS[level];
+  return `${min}-${max}w`;
+}
 const promptVariants = [
   { id: 'v1', wording: 'Write natural speech; follow every slot.' },
   { id: 'v2', wording: 'Use idiomatic speech; follow every slot.' },
@@ -88,7 +95,7 @@ export async function buildVarietySlots(language: ShadowingLanguageCode, level: 
     takeDeck('prompt', promptVariants, 1, language, level)
   ]);
   const slots = scenarioRows.map((situation, i) => ({
-    situation, speechAct: acts[i], grammar: grammar[i], length: lengthBands[level],
+    situation, speechAct: acts[i], grammar: grammar[i], length: getShadowingLengthBandLabel(level),
     focus: focusRows[i], promptVariantId: variants[0].id
   }));
   return { slots, promptVariantId: variants[0].id };

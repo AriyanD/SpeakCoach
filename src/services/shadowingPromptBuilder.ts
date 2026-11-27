@@ -1,7 +1,7 @@
 import type { ShadowingDifficulty } from '../data/shadowingBank';
 import { getShadowingLanguage, type ShadowingLanguageCode } from '../data/shadowingLanguages';
 import { SHADOWING_LANGUAGE_PROFILES } from '../data/shadowingLanguageProfiles';
-import { getPromptVariantLine, type VarietySlot } from './generationVariety';
+import { getPromptVariantLine, SHADOWING_LENGTH_BANDS, type VarietySlot } from './generationVariety';
 
 function levelRubric(level: ShadowingDifficulty): string {
   switch (level) {
@@ -21,6 +21,7 @@ export function buildShadowingPrompt(params: {
   const rows = params.slots.map((slot, index) =>
     `${params.rowNumbers?.[index] ?? index + 1}|${slot.situation}|${slot.speechAct}|${slot.grammar}|${slot.length}|${slot.focus}`
   ).join('\n');
+  const { min: minWords, max: maxWords } = SHADOWING_LENGTH_BANDS[params.difficulty];
   const topicValue = params.requestedTopic?.trim().slice(0, 48);
   const topic = topicValue ? `Topic: ${topicValue}.` : '';
   const avoid = `AVOID openings: ${params.avoidOpenings.slice(-8).join(', ') || 'none'}; recent key words: ${params.avoidWords.slice(-8).join(', ') || 'none'}.`;
@@ -35,7 +36,7 @@ export function buildShadowingPrompt(params: {
     'Batch: distinct first two words; ≤3 first-person subjects; spoken, one idea.',
     avoid,
     'Focus cites an in-sentence word/sound.',
-    `JSON only: {"sentences":[{"n":1,"topic":"...","text":"...","phoneticFocus":"..."}]}; length ${params.difficulty === 'ielts' ? '18–30' : '8–28'}w.`
+    `JSON only: {"sentences":[{"n":1,"topic":"...","text":"...","phoneticFocus":"..."}]}; length ${minWords}–${maxWords}w.`
   ].filter(Boolean).join('\n');
 }
 export function estimatePromptTokens(prompt: string): number { return Math.ceil(prompt.length / 4); }

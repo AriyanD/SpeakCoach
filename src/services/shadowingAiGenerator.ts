@@ -12,7 +12,7 @@ import { buildShadowingPrompt } from './shadowingPromptBuilder';
 import { loadShadowingLanguageHistories } from './shadowingLanguageHistory';
 import {
   buildVarietySlots, getVarietyMemory, rememberVarietySentences,
-  seedVarietyMemory, validateVarietyBatch, openingKey
+  seedVarietyMemory, validateVarietyBatch, openingKey, SHADOWING_LENGTH_BANDS
 } from './generationVariety';
 import { buildIeltsShadowingSlots, buildIeltsShadowingPrompt, validateIeltsShadowingCandidates, type IeltsShadowingCandidate } from './ieltsShadowingQuality';
 
@@ -48,10 +48,11 @@ function parseSentence(raw: string, difficulty: ShadowingDifficulty, languageCod
   const topic = String(parsed.topic ?? `General ${language.label}`).trim();
   const phoneticFocus = String(parsed.phoneticFocus ?? parsed.phonetic_focus ?? '').trim();
   const wordCount = countShadowingLanguageUnits(text, language.code);
-  const minimumWords = difficulty === 'ielts' ? 18 : 8;
-  const maximumWords = difficulty === 'ielts' ? 30 : 28;
+  const band = SHADOWING_LENGTH_BANDS[difficulty];
+  const minimumWords = Math.max(0, band.min - 2);
+  const maximumWords = band.max + 2;
   if (wordCount < minimumWords || wordCount > maximumWords) {
-    throw new Error(`The AI response contained ${wordCount} words; the practice sentence must contain ${minimumWords}–${maximumWords} words.`);
+    throw new Error(`length: The AI response contained ${wordCount} units; this level allows ${minimumWords}–${maximumWords} units (target ${band.min}–${band.max}).`);
   }
   return {
     id: `ai-shadowing-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -280,8 +281,9 @@ async function generateAiShadowingSentences(
           sentence: { ...sentence, providerName, modelName, promptVariantId: deck.promptVariantId },
           slotIndex: slotIndices[rowIndex]
         });
-      } catch {
-        rejectionCounts.set('invalid', (rejectionCounts.get('invalid') ?? 0) + 1);
+      } catch (error) {
+        const reason = error instanceof Error && error.message.startsWith('length:') ? 'length' : 'invalid';
+        rejectionCounts.set(reason, (rejectionCounts.get(reason) ?? 0) + 1);
       }
     }
     const variety = validateVarietyBatch(candidates.map(item => item.sentence.text), language.code, [
@@ -348,7 +350,7 @@ async function generateAiShadowingSentences(
       const missing = count - collected.length;
       const unused = deck.slots.map((slot, index) => ({ slot, index }))
         .filter(item => !usedSlots.has(item.index)).slice(0, missing);
-      const reasonCodes: Record<string, string> = { invalid: 'bad', focus: 'focus', opening: 'open', similar: 'near', 'focus-slot': 'slot' };
+      const reasonCodes: Record<string, string> = { invalid: 'bad', length: 'length', row: 'row', focus: 'focus', opening: 'open', similar: 'near', 'focus-slot': 'slot' };
       const reasons = Array.from(rejectionCounts.entries())
         .map(([reason, total]) => `${reasonCodes[reason] ?? reason}${total}`).join(' ') || 'short';
       const repairPrompt = buildShadowingPrompt({
