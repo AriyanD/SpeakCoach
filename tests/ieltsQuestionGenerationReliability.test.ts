@@ -193,4 +193,89 @@ describe('IELTS generation reliability validation', () => {
     expect(getRecentLlmQuestions().length).toBeGreaterThan(0);
   });
 
+
+  it('keeps enough retry headroom to complete five sets after repeated invalid model responses', async () => {
+    await saveSlotConfig({
+      slotId: 'llm_generator',
+      providerId: 'gemini_gen',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      modelOrVoice: 'gemini-3.5-flash-lite',
+      authStyle: 'query_param'
+    });
+    await saveApiKey('llm_generator', 'gemini_gen', 'test-generator-key');
+    await saveSlotConnectionTestResult('llm_generator', {
+      ok: true,
+      slotId: 'llm_generator',
+      providerId: 'gemini_gen',
+      tier: 1,
+      label: 'Online AI',
+      latencyMs: 1,
+      message: 'PASS — five-set retry fixture'
+    });
+
+    const subjects = [
+      'a volunteer-run repair café',
+      'an outdoor science festival',
+      'a neighbourhood food library',
+      'a small independent cinema',
+      'a community bicycle workshop'
+    ];
+    let calls = 0;
+    const retryPrompts: string[] = [];
+    const transport = async (opts: HttpOptions): Promise<HttpResponse> => {
+      calls++;
+      const payload = typeof opts.data === 'string' ? JSON.parse(opts.data) : opts.data;
+      const prompt = payload.contents[0].parts[0].text as string;
+      if (calls <= 5) {
+        return {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+          url: opts.url,
+          data: { candidates: [{ content: { parts: [{ text: 'not valid JSON' }] } }] }
+        };
+      }
+      retryPrompts.push(prompt);
+      const topicA = prompt.match(/Part 1 topic A: "([^"]+)"/)?.[1];
+      const topicB = prompt.match(/Part 1 topic B: "([^"]+)"/)?.[1];
+      if (!topicA || !topicB) throw new Error('Could not read the assigned Part 1 topics from the prompt.');
+      const subject = subjects[calls - 6];
+      const part1Questions = [
+        { topic: topicA, question: `Which features of ${topicA} make it especially useful in daily life?` },
+        { topic: topicA, question: `How did you first become interested in ${topicA}?` },
+        { topic: topicA, question: `Would you spend more time exploring ${topicA} in the future?` },
+        { topic: topicB, question: `What do you find most convenient about ${topicB}?` },
+        { topic: topicB, question: `Have your views about ${topicB} changed since childhood?` },
+        { topic: topicB, question: `How could ${topicB} become more accessible in your area?` }
+      ];
+      const plan = {
+        part1Topics: [topicA, topicB],
+        part1Questions,
+        part2CueCard: {
+          topic: subject,
+          title: subject,
+          prompt: `Describe ${subject} and explain what makes it useful to the people nearby.`,
+          bullets: ['Where it is located', 'Who usually visits it', 'What people can do there', 'And explain why it is valuable to the community']
+        },
+        part3Questions: [
+          { topic: subject, question: `How can local communities make ${subject} more accessible?` },
+          { topic: subject, question: `What economic factors affect the long-term success of ${subject}?` },
+          { topic: subject, question: `In what ways might technology change how people experience ${subject}?` },
+          { topic: subject, question: `Who should help fund services connected with ${subject}?` }
+        ]
+      };
+      return {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        url: opts.url,
+        data: { candidates: [{ content: { parts: [{ text: JSON.stringify(plan) }] } }] }
+      };
+    };
+
+    const sets = await generateIeltsQuestionSets(5, { transport });
+    expect(calls).toBe(10);
+    expect(sets).toHaveLength(5);
+    expect(retryPrompts).toHaveLength(5);
+    expect(retryPrompts.every(prompt => prompt.includes('IMPORTANT CORRECTION'))).toBe(true);
+  });
+
 });
