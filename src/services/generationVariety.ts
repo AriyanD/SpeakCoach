@@ -71,16 +71,26 @@ function shuffle<T>(values: readonly T[]): T[] {
   }
   return result;
 }
+function deckItemId(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string') {
+    return (value as { id: string }).id;
+  }
+  return '';
+}
 async function takeDeck<T>(name: string, values: readonly T[], count: number, language: string, level: string): Promise<T[]> {
   const storageKey = key(name, language, level);
-  const state = await readJson<{ deck: T[]; cursor: number }>(storageKey, { deck: [], cursor: 0 });
-  let deck = Array.isArray(state.deck) && state.deck.every(item => values.includes(item)) ? state.deck : [];
+  const state = await readJson<{ deck: unknown[]; cursor: number }>(storageKey, { deck: [], cursor: 0 });
+  const valuesById = new Map(values.map(value => [deckItemId(value), value]));
+  const storedDeck = Array.isArray(state.deck) ? state.deck.map(deckItemId) : [];
+  let deck = storedDeck.length > 0 && storedDeck.every(id => valuesById.has(id)) ? storedDeck : [];
   let cursor = Number.isInteger(state.cursor) && state.cursor >= 0 && state.cursor <= deck.length ? state.cursor : 0;
   const result: T[] = [];
   while (result.length < count) {
-    if (cursor >= deck.length) { deck = shuffle(values); cursor = 0; }
+    if (cursor >= deck.length) { deck = shuffle(Array.from(valuesById.keys())); cursor = 0; }
     if (!deck.length) break;
-    result.push(deck[cursor++]);
+    const selected = valuesById.get(deck[cursor++]);
+    if (selected !== undefined) result.push(selected);
   }
   await writeJson(storageKey, { deck, cursor });
   return result;

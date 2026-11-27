@@ -31,6 +31,28 @@ describe('Shadowing generation variety', () => {
     expect(situations).toContain(afterExhaustion.slots[0].situation);
   });
 
+
+  it('rotates all four object-backed prompt variants without replacement across reloads', async () => {
+    const variants: string[] = [];
+    for (let index = 0; index < 4; index++) {
+      const result = await buildVarietySlots('en', 'easy', 1, SHADOWING_LANGUAGE_PROFILES.en.foci);
+      variants.push(result.promptVariantId);
+      if (index === 1) localStorage.clear(); // Preferences survives a WebView reload.
+    }
+    expect(new Set(variants).size).toBe(4);
+  });
+
+  it('migrates legacy object-backed prompt decks to stored IDs', async () => {
+    const key = 'speakcoach_generation_variety_v1.prompt.en.easy';
+    store.set(key, JSON.stringify({
+      deck: [{ id: 'v1' }, { id: 'v2' }, { id: 'v3' }, { id: 'v4' }],
+      cursor: 1
+    }));
+    const result = await buildVarietySlots('en', 'easy', 1, SHADOWING_LANGUAGE_PROFILES.en.foci);
+    expect(result.promptVariantId).toBe('v2');
+    expect(JSON.parse(store.get(key) ?? '{}').deck).toEqual(['v1', 'v2', 'v3', 'v4']);
+  });
+
   it('keeps memory isolated by language and level and stores compact entries', async () => {
     await seedVarietyMemory('en', 'easy', ['The train arrived late after the heavy rain.']);
     expect(await getVarietyMemory('en', 'easy')).toHaveLength(1);
