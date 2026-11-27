@@ -49,6 +49,16 @@ function parseVersion(value: string): [number, number, number] | null {
   return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
+export function shouldShowApiSettingsUpdateWarning(version: string): boolean {
+  const parsed = parseVersion(version);
+  if (!parsed) return false;
+  const minimum: [number, number, number] = [1, 2, 1];
+  for (let index = 0; index < 3; index += 1) {
+    if (parsed[index] !== minimum[index]) return parsed[index] > minimum[index];
+  }
+  return true;
+}
+
 function isNewerVersion(candidate: string, current: string): boolean {
   const next = parseVersion(candidate);
   const installed = parseVersion(current);
