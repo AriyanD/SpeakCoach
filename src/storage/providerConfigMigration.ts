@@ -1,3 +1,4 @@
+import { normalizeBaseUrl } from '../config/providers';
 import type { AllSlotsConfig, SlotConfig, SlotId } from '../config/types';
 import { PROVIDER_ID_MIGRATIONS } from './providerIdMigration';
 
@@ -9,10 +10,22 @@ const GROQ_WHISPER_MODELS = new Set([
   'distil-whisper-large-v3-en'
 ]);
 
+const providerMigrationNotices: string[] = [];
+const seenProviderMigrationNotices = new Set<string>();
+
+function addProviderMigrationNotice(message: string): void {
+  if (seenProviderMigrationNotices.has(message)) return;
+  seenProviderMigrationNotices.add(message);
+  providerMigrationNotices.push(message);
+}
+
+export function getProviderConfigMigrationNotices(): string[] {
+  return [...providerMigrationNotices];
+}
+
 /**
- * Copy legacy provider credentials only after verifying the destination slot.
- * Existing Custom credentials are never overwritten, and legacy credentials
- * are never deleted by this migration.
+ * Move only known legacy Groq Whisper selections after safely checking both
+ * credential IDs. Never overwrite or delete an existing Custom key.
  */
 export async function migrateLegacyGroqWhisperConfigs(
   configs: AllSlotsConfig
@@ -31,8 +44,8 @@ export async function migrateLegacyGroqWhisperConfigs(
     for (const entry of accounts) {
       const current = entry.config;
       if (
-        current.providerId !== migration.to ||
-        current.baseUrl.replace(/\/+$/, '') !== 'https://api.groq.com/openai/v1' ||
+        current.providerId !== migration.from ||
+        normalizeBaseUrl(current.baseUrl) !== 'https://api.groq.com/openai/v1' ||
         !GROQ_WHISPER_MODELS.has(current.modelOrVoice.trim())
       ) continue;
 
@@ -42,22 +55,32 @@ export async function migrateLegacyGroqWhisperConfigs(
         oldKey = await loadApiKeyStrict(migration.slotId, migration.from, entry.account);
         customKey = await loadApiKeyStrict(migration.slotId, migration.to, entry.account);
       } catch {
-        // Do not switch to the new ID when the old secure key could not be checked.
-        current.providerId = migration.from;
+        addProviderMigrationNotice(
+          `Could not verify the saved ${entry.account === 'primary' ? 'API 1' : 'API 2'} key for ${migration.slotId}. The original provider ID and key were kept active; no credential was deleted.`
+        );
         continue;
       }
 
-      if (customKey && customKey !== oldKey) continue;
+      if ((oldKey && customKey && customKey !== oldKey) || (!oldKey && customKey)) {
+        addProviderMigrationNotice(
+          `Both legacy and Custom credentials exist for ${migration.slotId} (${entry.account === 'primary' ? 'API 1' : 'API 2'}). The original provider remains active and both saved keys were preserved; choose the intended provider manually in Settings.`
+        );
+        continue;
+      }
+
       if (oldKey && !customKey) {
         try {
           await saveApiKey(migration.slotId, migration.to, oldKey, entry.account);
         } catch {
-          // Keep the old provider ID active if copying its key cannot be verified.
-          current.providerId = migration.from;
+          addProviderMigrationNotice(
+            `The legacy key for ${migration.slotId} could not be copied safely. The original provider ID and key remain active; no credential was deleted.`
+          );
           continue;
         }
-        changed.push({ slotId: migration.slotId, account: entry.account });
       }
+
+      current.providerId = migration.to;
+      changed.push({ slotId: migration.slotId, account: entry.account });
     }
   }
 
