@@ -286,7 +286,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
               <button type="button" class="btn btn-secondary" id="ielts-random-topic-btn">Random topic</button>
             </div>
             <div class="ielts-topic-generate-action">
-              <button type="button" class="btn btn-primary ielts-refresh-btn" id="ielts-refresh-sets-btn" ${isRegeneratingQuestions ? 'disabled aria-busy="true"' : 'aria-busy="false"'}>${isRegeneratingQuestions ? '<span class="ielts-loading-spinner" aria-hidden="true"></span><span>Generating…</span>' : 'Get new question sets'}</button>
+              <button type="button" class="btn btn-primary ielts-refresh-btn" id="ielts-refresh-sets-btn" ${isRegeneratingQuestions ? 'disabled aria-busy="true"' : 'aria-busy="false"'}>${isRegeneratingQuestions ? '<span class="ielts-loading-spinner" aria-hidden="true"></span><span class="ielts-loading-copy"><span>Generating five sets…</span><small class="ielts-loading-hint">This may take a while.</small></span>' : 'Get new question sets'}</button>
             </div>
             <div id="ielts-set-notice" class="ielts-library-notice" role="status" aria-live="polite" hidden></div>
           </div>
@@ -432,9 +432,9 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         if (button) {
           button.disabled = true;
           button.setAttribute('aria-busy', 'true');
-          button.innerHTML = '<span class="ielts-loading-spinner" aria-hidden="true"></span><span>Generating five sets…</span>';
+          button.innerHTML = '<span class="ielts-loading-spinner" aria-hidden="true"></span><span class="ielts-loading-copy"><span>Generating five sets…</span><small class="ielts-loading-hint">This may take a while.</small></span>';
         }
-        if (notice) { notice.hidden = false; notice.textContent = 'Generating five new AI question sets. Your current unfinished sets will be replaced only after the new batch is saved.'; notice.classList.remove('error', 'is-visible'); }
+        if (notice) { notice.hidden = false; notice.textContent = 'Generating five new AI question sets. This may take a while. Your current unfinished sets will be replaced only after the new batch is saved.'; notice.classList.remove('error', 'is-visible'); }
         try {
           const requestedTopic = requestedTopicInput.trim();
           const added = await generateIeltsQuestionSets(5, { requestedTopic });
