@@ -111,8 +111,8 @@ type SimilaritySets = { grams: Set<string>; tokens: Set<string> };
 const similarityCache = new Map<string, SimilaritySets>();
 
 function compactWords(text: string, language: string): string[] {
-  const clean = text.normalize('NFKC').toLocaleLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ');
-  const words = clean.split(/\\s+/u).filter(word => word.length > 2);
+  const clean = text.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ');
+  const words = clean.split(/\s+/u).filter(word => word.length > 2);
   if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\\s+/g, '')).filter(ch => /[\\p{L}\\p{N}]/u.test(ch)).slice(1, 5);
   return words.filter(word => !SHADOWING_STOP_WORDS.has(word)).slice(0, 4);
 }
