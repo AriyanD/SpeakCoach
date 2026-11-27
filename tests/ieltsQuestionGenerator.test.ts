@@ -102,6 +102,8 @@ describe('IELTS Question Generator (Slot 5 Online AI + Deduplication + Tier Fall
     expect(secondPrompt.system).not.toContain(second.id);
     expect(firstPrompt.user).toBe(secondPrompt.user);
     expect(firstPrompt.system).toContain('Avoid close semantic equivalents, not merely identical wording.');
+    expect(firstPrompt.system).toContain('shared theme anchor');
+    expect(firstPrompt.system).toContain('broader social, cultural, economic, environmental, educational or policy perspectives');
   });
 
   it('assigns fresh Part 1 topics, cue-card type and distinct Part 3 angles before generation', () => {
@@ -163,6 +165,19 @@ describe('IELTS Question Generator (Slot 5 Online AI + Deduplication + Tier Fall
       ]
     };
     expect(() => parseLlmSessionPlanResponse(JSON.stringify(duplicatePart3))).toThrow(/duplicate question wording/i);
+  });
+
+  it('rejects Part 3 questions that drift away from the Part 2 cue-card theme', () => {
+    const unrelatedPlan = {
+      ...validPlanJson,
+      part3Questions: [
+        { topic: 'Cooking', question: 'Why do people enjoy trying unfamiliar recipes?' },
+        { topic: 'Cooking', question: 'Should schools teach children how to prepare healthy meals?' },
+        { topic: 'Cooking', question: 'How have food delivery services changed family routines?' },
+        { topic: 'Cooking', question: 'Will traditional cooking skills become less common in the future?' }
+      ]
+    };
+    expect(() => parseLlmSessionPlanResponse(JSON.stringify(unrelatedPlan))).toThrow(/Part 3 questions must remain connected to the Part 2 cue-card theme/i);
   });
 
   it('accepts variable but bounded IELTS question counts across sessions', () => {
