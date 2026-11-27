@@ -32,6 +32,24 @@ describe('IELTS question generation quality', () => {
     expect(hasRecentQuestionOverlap(question, olderMemory)).toBe(false);
   });
 
+
+  it('uses informative IELTS avoid keywords instead of question words and auxiliaries', () => {
+    const context = createIeltsGenerationContext([], '');
+    const prompt = buildGeneratorPrompt([], [
+      'Where do you usually go when you want to relax after work?',
+      'How often do you think about the environment when you shop?',
+      'What kind of books do you enjoy reading in your free time?',
+      'Would you like to travel more often in the future?'
+    ], '', context, [
+      'A place where you can relax',
+      'A book you enjoyed reading'
+    ]);
+    const avoidLine = prompt.system.split('\\n').find(line => line.startsWith('Recent questions and cue-card titles'));
+    expect(avoidLine).toBeTruthy();
+    expect(avoidLine).toContain('environment');
+    expect(avoidLine).not.toMatch(/\\b(what|when|where|which|does|have|think|like|enjoy|often|usually|much|many|more|most|some|other|people|would|could|should|about|their|there|you|your)\\b/i);
+  });
+
   it('persists shuffled decks and does not repeat before exhaustion', () => {
     const values = ['a', 'b', 'c', 'd', 'e', 'f'];
     const first = takePersistedIeltsDeck('test-persistence', values, 2);

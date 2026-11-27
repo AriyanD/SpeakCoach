@@ -19,7 +19,7 @@ import type {
 } from '../data/ieltsQuestionTypes';
 import { markQuestionsSeen, markLlmTopicsSeen, markLlmQuestionsSeen, markLlmTitlesSeen, markLlmPart1TopicsSeen, getCompactLlmGenerationMemory, getRecentLlmPart1Topics } from './ieltsQuestionTracker';
 import { CUE_CARD_SEEDS, IELTS_PART1_FORMS, IELTS_PART3_FORMS, takePersistedIeltsDeck } from './ieltsGenerationQuality';
-import { sharedTextSimilarity, lemmatizedTokenJaccard } from './generationVariety';
+import { sharedTextSimilarity, lemmatizedTokenJaccard, lemmaToken } from './generationVariety';
 import type { IeltsTestMode } from './ieltsSessionEngine';
 import { replaceUncompletedIeltsQuestionSets, type StoredIeltsQuestionSet } from './ieltsQuestionSetStore';
 
@@ -119,10 +119,20 @@ export function buildGeneratorPrompt(
   const p1Forms = context.part1Forms ?? ['habit','past','preference','reason','comparison','change'];
   const p3Forms = context.part3Forms ?? ['past vs present','causes','effects','evaluate'];
   const subject = context.cueCardSubject ?? context.cueCardType;
-  const compactAvoid = (values: string[]) => Array.from(new Set(values.slice(-12).flatMap(value =>
-    value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').split(/\s+/u)
-      .filter(word => word.length > 3 && !['which','where','would','could','about','people','their','there','should'].includes(word)).slice(0, 1)
-  ))).slice(-12).join(', ');
+  const avoidStopWords = new Set([
+    'a','an','the','and','or','but','if','then','than','so','as','at','by','for','from','in','into','of','off','on','onto','out','over','to','up','with','about','after','before','between','during','through','under','again','further',
+    'what','when','where','which','who','whom','whose','why','how','whether','whatever','whenever','wherever','whichever',
+    'do','does','did','doing','done','have','has','had','having','be','am','is','are','was','were','being','been','can','could','may','might','must','shall','should','will','would',
+    'think','like','enjoy','often','usually','much','many','more','most','some','other','others','people','person','thing','things','there','their','they','them','these','those','this','that','you','your','yours','we','our','ours','i','me','my','mine','he','him','his','she','her','hers','it','its','they','them','theirs',
+    'not','no','yes','very','really','just','also','ever','never','always','often','sometimes','usually','rather','quite','still','already','yet','own','same','different'
+  ]);
+  const compactAvoid = (values: string[]) => Array.from(new Set(values.slice(-12).map(value => {
+    const tokens = value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').split(/\s+/u)
+      .map(lemmaToken).filter(word => word.length > 2 && !avoidStopWords.has(word));
+    let longest = '';
+    for (const token of tokens) if (token.length >= longest.length) longest = token;
+    return longest;
+  }).filter(Boolean))).slice(-12).join(', ');
   const avoid = compactAvoid([...recentTitles.slice(-6), ...recentQuestions.slice(-6)]);
   const topicAvoid = excludedTopics.slice(-12).join(', ');
   const requested = requestedTopic.trim() ? requestedTopic.trim().slice(0, 72) : subject;

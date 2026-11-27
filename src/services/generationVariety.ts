@@ -126,7 +126,7 @@ export function sentenceSimilarity(a: string, b: string, language: string): numb
   return Math.max(char, token);
 }
 const TITLE_STOP_WORDS = new Set(['a','an','and','at','by','for','from','in','of','on','the','to','with','about']);
-function lemmaToken(token: string): string {
+export function lemmaToken(token: string): string {
   if (token.length > 5 && token.endsWith('ies')) return token.slice(0, -3) + 'y';
   if (token.length > 5 && token.endsWith('ing')) return token.slice(0, -3);
   if (token.length > 4 && token.endsWith('ed')) return token.slice(0, -2);
