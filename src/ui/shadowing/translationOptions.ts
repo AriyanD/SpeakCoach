@@ -17,6 +17,10 @@ const TRANSLATION_LANGUAGES = [
   { code: 'ko', label: 'Korean (한국어)' }
 ];
 
+export function getTranslationLanguageLabel(code: string): string {
+  return TRANSLATION_LANGUAGES.find(language => language.code === code)?.label ?? code;
+}
+
 export function renderTranslationLanguageOptions(selected: string): string {
   return TRANSLATION_LANGUAGES.map(language =>
     `<option value="${language.code}" ${language.code === selected ? 'selected' : ''}>${escapeHtml(language.label)}</option>`

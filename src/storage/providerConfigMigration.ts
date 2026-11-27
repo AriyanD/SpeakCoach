@@ -80,6 +80,12 @@ export async function migrateLegacyGroqWhisperConfigs(
       }
 
       current.providerId = migration.to;
+      if (entry.account === 'secondary' && slotConfig.secondary) {
+        // A provider-ID migration changes the identity used for verification.
+        // Do not carry a PASS result across that identity change.
+        slotConfig.secondary.verified = false;
+        delete slotConfig.secondary.testResult;
+      }
       changed.push({ slotId: migration.slotId, account: entry.account });
     }
   }

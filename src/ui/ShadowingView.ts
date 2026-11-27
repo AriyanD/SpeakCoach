@@ -1,5 +1,5 @@
 import type { ShadowingDifficulty, ShadowingSentence } from '../data/shadowingBank';
-import { renderTranslationLanguageOptions } from './shadowing/translationOptions';
+import { getTranslationLanguageLabel, renderTranslationLanguageOptions } from './shadowing/translationOptions';
 import { escapeHtml } from './shared/html';
 import {
   appendShadowingSet,
@@ -784,7 +784,7 @@ export function renderShadowingView(
     const requestKey = `${requestSetId}:${sentence.id}:${requestTargetCode}`;
     if (!shadowingTranslationRequests.has(requestKey) && !shadowingTranslationFailures.has(requestKey)) {
       shadowingTranslationRequests.add(requestKey);
-      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === requestTargetCode)?.label ?? requestTargetCode;
+      const targetLanguage = getTranslationLanguageLabel(requestTargetCode);
       void translateShadowingText(sentence.text, targetLanguage).then(async result => {
         const savedSet = historyForRequest?.[requestDifficulty].sets.find(set => set.id === requestSetId);
         const savedSentence = savedSet?.sentences.find(item => item.id === sentence.id);
