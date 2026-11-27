@@ -113,12 +113,12 @@ const similarityCache = new Map<string, SimilaritySets>();
 function compactWords(text: string, language: string): string[] {
   const clean = text.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ');
   const words = clean.split(/\s+/u).filter(word => word.length > 2);
-  if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\\s+/g, '')).filter(ch => /[\\p{L}\\p{N}]/u.test(ch)).slice(1, 5);
+  if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\s+/g, '')).filter(ch => /[\p{L}\p{N}]/u.test(ch)).slice(1, 5);
   return words.filter(word => !SHADOWING_STOP_WORDS.has(word)).slice(0, 4);
 }
 export function openingKey(text: string, language: string): string {
   const clean = text.normalize('NFKC').toLocaleLowerCase().replace(/^[\p{P}\p{S}\s]+/u, '');
-  if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\s+/g, '')).slice(0, 3).join('');
+  if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\s+/g, '')).filter(ch => /[\p{L}\p{N}]/u.test(ch)).slice(1, 5);
   return clean.split(/\s+/u).slice(0, 2).join(' ');
 }
 function grams(text: string): Set<string> {
