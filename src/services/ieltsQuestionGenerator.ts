@@ -602,7 +602,7 @@ export async function generateIeltsPlanWithTierFallback(options?: {
   } catch (err: any) {
     fallbackReason = err instanceof Error ? err.message : String(err);
     console.warn('[ieltsQuestionGenerator] Online AI question generation failed:', err);
-    const retryableContentError = err instanceof Error && /parse LLM question JSON|empty response|missing valid part|must generate|must contain|must include|topic mismatch|duplicate question|repeats or closely paraphrases|Part 1 must contain/i.test(err.message);
+    const retryableContentError = err instanceof Error && /parse LLM question JSON|empty response|missing valid part|must generate|must contain|must include|topic mismatch|duplicate question|repeats or closely paraphrases|Part 1 must contain|Part 2 cue card did not sufficiently reflect its assigned subject|Part 3 questions must remain connected to the Part 2 cue-card theme/i.test(err.message);
     throw new LlmQuestionGenerationError(
       `${configuredProviderName || 'AI Question Generator'}${configuredModelName ? ` (${configuredModelName})` : ''}: ${fallbackReason}`,
       configuredProviderName,
@@ -686,7 +686,7 @@ export async function generateIeltsQuestionSets(
     } catch (error) {
       if (!(error instanceof LlmQuestionGenerationError) || !error.retryable) throw error;
       if (attempts >= maxAttempts) break;
-      lastRetryReason = error.message.replace(/\\s+/gu, ' ').slice(0, 240);
+      lastRetryReason = error.message.replace(/\s+/gu, ' ').slice(0, 240);
       retryGuidance = getQuestionSetRetryGuidance(error.message);
       console.warn(`[ieltsQuestionGenerator] Retrying invalid AI question set (${attempts}/${maxAttempts}):`, error.message);
     }
