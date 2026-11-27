@@ -1,4 +1,5 @@
 import { normalizeBaseUrl } from '../config/providers';
+import { loadApiKeyStrict, saveApiKey } from './keyStore';
 import type { AllSlotsConfig, SlotConfig, SlotId } from '../config/types';
 import { PROVIDER_ID_MIGRATIONS } from './providerIdMigration';
 
@@ -31,7 +32,6 @@ export async function migrateLegacyGroqWhisperConfigs(
   configs: AllSlotsConfig
 ): Promise<Array<{ slotId: SlotId; account: ProviderAccount }>> {
   const changed: Array<{ slotId: SlotId; account: ProviderAccount }> = [];
-  const { loadApiKeyStrict, saveApiKey } = await import('./keyStore');
 
   for (const migration of PROVIDER_ID_MIGRATIONS) {
     const slotConfig = configs[migration.slotId];
