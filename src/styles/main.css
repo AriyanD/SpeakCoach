@@ -4562,37 +4562,43 @@ body {
 .shadowing-main-card #sh-auto-translate-toggle { display:inline-flex; align-items:center; justify-content:center; }
 .shadowing-main-card #sh-auto-translate-toggle svg { display:block; margin:0; vertical-align:middle; transform:none; }
 
-/* Keep all five playback controls in one row and place Play in the center. */
+/* Keep playback buttons equal in size; enlarge and center only the Play/Stop icon. */
 .shadowing-main-card .sh-player-controls {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  grid-template-areas: "prev play next autoplay slow";
   align-items: center;
+  gap: 6px;
   flex-wrap: nowrap;
 }
-.shadowing-main-card .sh-player-controls #sh-prev-btn { grid-area: prev; }
-.shadowing-main-card .sh-player-controls #sh-play-normal-btn {
-  grid-area: play;
-  justify-self: center;
-  width: min(100%, 62px);
-  min-width: 0;
-  min-height: 58px;
-  padding: 8px;
-}
-.shadowing-main-card .sh-player-controls #sh-next-btn { grid-area: next; }
-.shadowing-main-card .sh-player-controls #sh-autoplay-next-btn { grid-area: autoplay; }
-.shadowing-main-card .sh-player-controls #sh-play-slow-btn { grid-area: slow; }
 .shadowing-main-card .sh-player-controls .sh-player-icon-btn {
-  min-width: 0;
   width: 100%;
+  min-width: 0;
+  height: 46px;
+  min-height: 46px;
+  padding: 5px 2px;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+}
+.shadowing-main-card .sh-player-controls #sh-play-normal-btn {
+  justify-self: stretch;
+  height: 46px;
+  min-height: 46px;
+  padding: 5px 2px;
+  border-radius: 14px;
 }
 .shadowing-main-card .sh-player-controls #sh-play-normal-btn .sh-inline-icon {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 35px;
+  height: 35px;
+  max-width: 100%;
+  margin: 0;
+  justify-self: center;
+  align-self: center;
   fill: currentColor;
   stroke: currentColor;
   stroke-width: 1.4;
+  transform: none;
 }
 
 
