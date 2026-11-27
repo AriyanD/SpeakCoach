@@ -62,6 +62,23 @@ function parseSentence(raw: string, difficulty: ShadowingDifficulty, languageCod
 export function parseShadowingSentenceResponse(raw: string, difficulty: ShadowingDifficulty, languageCode: ShadowingLanguageCode = 'en'): Omit<GeneratedShadowingSentence, 'providerName' | 'modelName'> {
   return parseSentence(raw, difficulty, languageCode);
 }
+export function mapShadowingResponseRows(items: unknown[], rowNumbers: number[]): Array<number | null> {
+  const used = new Set<number>();
+  return items.map((item, index) => {
+    const record = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+    const supplied = record.n;
+    if (Number.isInteger(supplied) && rowNumbers.includes(supplied as number)) {
+      const row = supplied as number;
+      if (used.has(row)) return null;
+      used.add(row);
+      return rowNumbers.indexOf(row);
+    }
+    const fallbackRow = rowNumbers[index];
+    if (fallbackRow === undefined || used.has(fallbackRow)) return null;
+    used.add(fallbackRow);
+    return index;
+  });
+}
 function focusMatchesSentence(focus: string, text: string, language: ShadowingLanguageCode): boolean {
   const normalizedText = normalizeShadowingSentenceForDuplicateCheck(text);
   const quoted = [...focus.matchAll(/[“"「『‘'«]([^”"」』’'»]{1,40})[”"」』’'»]/gu)]
@@ -242,9 +259,15 @@ async function generateAiShadowingSentences(
   let calls = 0;
 
   const rejectionCounts = new Map<string, number>();
-  const consume = (items: unknown[], slotIndices: number[], providerName: string, modelName: string) => {
+  const consume = (items: unknown[], slotIndices: number[], rowNumbers: number[], providerName: string, modelName: string) => {
     const candidates: Array<{ sentence: GeneratedShadowingSentence; slotIndex: number }> = [];
+    const mappedRows = mapShadowingResponseRows(items, rowNumbers);
     for (let i = 0; i < items.length; i++) {
+      const rowIndex = mappedRows[i];
+      if (rowIndex === null) {
+        rejectionCounts.set('row', (rejectionCounts.get('row') ?? 0) + 1);
+        continue;
+      }
       try {
         const rawItem = items[i] as Record<string, unknown> | null;
         if (!rawItem || typeof rawItem.topic !== 'string' || !rawItem.topic.trim()) throw new Error('Missing localized topic.');
@@ -255,7 +278,7 @@ async function generateAiShadowingSentences(
         }
         candidates.push({
           sentence: { ...sentence, providerName, modelName, promptVariantId: deck.promptVariantId },
-          slotIndex: slotIndices[i] ?? i
+          slotIndex: slotIndices[rowIndex]
         });
       } catch {
         rejectionCounts.set('invalid', (rejectionCounts.get('invalid') ?? 0) + 1);
@@ -316,7 +339,7 @@ async function generateAiShadowingSentences(
         expectedCount: firstCount, account: fallbackAccount, transport
       });
     }
-    consume(first.items, deck.slots.map((_, index) => index), first.providerName, first.modelName);
+    consume(first.items, deck.slots.map((_, index) => index), deck.slots.map((_, index) => index + 1), first.providerName, first.modelName);
 
     // One repair request is retained for providers that under-deliver a large
     // JSON array. It uses the other verified account where possible. The total
@@ -330,6 +353,7 @@ async function generateAiShadowingSentences(
         .map(([reason, total]) => `${reasonCodes[reason] ?? reason}${total}`).join(' ') || 'short';
       const repairPrompt = buildShadowingPrompt({
         languageCode: language.code, difficulty, slots: unused.map(item => item.slot),
+        rowNumbers: unused.map(item => item.index + 1),
         avoidOpenings: [...avoidOpenings, ...collected.map(item => item.text.split(/\s+/u).slice(0, 2).join(' '))].slice(-16),
         avoidWords: Array.from(new Set([...avoidWords, ...collected.flatMap(item => item.text.split(/\s+/u))])).slice(-8),
         requestedTopic, promptVariantId: deck.promptVariantId
@@ -344,7 +368,7 @@ async function generateAiShadowingSentences(
         prompt: repairPrompt, difficulty, languageCode: language.code,
         expectedCount: missing, account: repairAccount, transport
       });
-      consume(repair.items, unused.map(item => item.index), repair.providerName, repair.modelName);
+      consume(repair.items, unused.map(item => item.index), unused.map(item => item.index + 1), repair.providerName, repair.modelName);
     }
   } catch (error) {
     lastError = error instanceof Error ? error.message : String(error);

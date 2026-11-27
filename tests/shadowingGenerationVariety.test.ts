@@ -72,6 +72,19 @@ describe('Shadowing generation variety', () => {
     expect(result.rejected).toHaveLength(3);
   });
 
+
+  it('labels row columns and preserves caller-supplied original row numbers', async () => {
+    const slots = await buildVarietySlots('en', 'easy', 2, SHADOWING_LANGUAGE_PROFILES.en.foci);
+    const prompt = buildShadowingPrompt({
+      languageCode: 'en', difficulty: 'easy', slots: slots.slots,
+      avoidOpenings: [], avoidWords: [], promptVariantId: slots.promptVariantId, rowNumbers: [3, 5]
+    });
+    expect(prompt).toContain('Row: n|situation|speech act|grammar|words|pronunciation focus.');
+    expect(prompt).toContain('3|');
+    expect(prompt).toContain('5|');
+    expect(prompt).toContain('"n":1');
+  });
+
   it('builds a compact profile-aware prompt for all 15 languages and four levels', async () => {
     for (const language of SHADOWING_LANGUAGES) {
       expect(SHADOWING_LANGUAGE_PROFILES[language.code].foci.length).toBeGreaterThanOrEqual(10);

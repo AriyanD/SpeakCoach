@@ -14,6 +14,7 @@ function levelRubric(level: ShadowingDifficulty): string {
 export function buildShadowingPrompt(params: {
   languageCode: ShadowingLanguageCode; difficulty: ShadowingDifficulty; slots: VarietySlot[];
   avoidOpenings: string[]; avoidWords: string[]; requestedTopic?: string; promptVariantId: string;
+  rowNumbers?: number[];
 }): string {
   const language = getShadowingLanguage(params.languageCode);
   const profile = SHADOWING_LANGUAGE_PROFILES[params.languageCode];
@@ -28,12 +29,13 @@ export function buildShadowingPrompt(params: {
     levelRubric(params.difficulty),
     topic,
     getPromptVariantLine(params.promptVariantId),
-    'Hard slots: sentence i follows row i.',
+    'Row: n|situation|speech act|grammar|words|pronunciation focus.',
+    'Hard slots: sentence i follows its numbered row.',
     rows,
     'Batch: distinct first two words; ≤3 first-person subjects; spoken, one idea.',
     avoid,
     'Focus cites an in-sentence word/sound.',
-    `JSON only: {"sentences":[{"topic":"...","text":"...","phoneticFocus":"..."}]}; length ${params.difficulty === 'ielts' ? '18–30' : '8–28'}w.`
+    `JSON only: {"sentences":[{"n":1,"topic":"...","text":"...","phoneticFocus":"..."}]}; length ${params.difficulty === 'ielts' ? '18–30' : '8–28'}w.`
   ].filter(Boolean).join('\n');
 }
 export function estimatePromptTokens(prompt: string): number { return Math.ceil(prompt.length / 4); }

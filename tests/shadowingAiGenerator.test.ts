@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampShadowingSentenceBatchCount, normalizeShadowingSentenceForDuplicateCheck, parseShadowingSentenceResponse } from '../src/services/shadowingAiGenerator';
+import { clampShadowingSentenceBatchCount, mapShadowingResponseRows, normalizeShadowingSentenceForDuplicateCheck, parseShadowingSentenceResponse } from '../src/services/shadowingAiGenerator';
 
 describe('AI Shadowing sentence response parsing', () => {
   it('counts whitespace-separated words correctly and accepts nested sentence fields', () => {
@@ -10,6 +10,19 @@ describe('AI Shadowing sentence response parsing', () => {
     }), 'easy');
     expect(parsed.text.split(/\s+/)).toHaveLength(14);
     expect(parsed.topic).toBe('Daily routines');
+  });
+
+
+  it('maps out-of-order indexed responses to their original rows', () => {
+    expect(mapShadowingResponseRows([{ n: 2 }, { n: 1 }], [1, 2])).toEqual([1, 0]);
+  });
+
+  it('falls back to array position when the row index is missing or invalid', () => {
+    expect(mapShadowingResponseRows([{}, { n: 99 }, { n: 3 }], [1, 2, 3])).toEqual([0, 1, 2]);
+  });
+
+  it('rejects duplicate row indexes while keeping the first valid item', () => {
+    expect(mapShadowingResponseRows([{ n: 1 }, { n: 1 }, { n: 2 }], [1, 2, 3])).toEqual([0, null, 1]);
   });
 
   it('allows a 20-sentence batch and clamps unsafe batch sizes', () => {
