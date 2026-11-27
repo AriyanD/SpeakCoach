@@ -38,10 +38,13 @@ function sanitizeSessionLogEntry(entry: IeltsSessionLogEntry): IeltsSessionLogEn
   }
   if (entry.event === 'LLM Evaluation') {
     const provider = entry.details?.match(/^Provider: ([^;|]{1,80})/i)?.[1]?.trim();
-    const httpStatus = entry.details?.match(/\bHTTP (\d{3})\b/i)?.[1];
+    const httpStatus = entry.details?.match(/\bHTTP (\d{3})\b/i)?.[1] ??
+      entry.error?.match(/\bHTTP (\d{3})\b/i)?.[1];
     return {
       ...entry,
-      error: 'LLM evaluation failed; provider response omitted.',
+      error: httpStatus
+        ? `LLM evaluation failed (HTTP ${httpStatus}); provider response omitted.`
+        : 'LLM evaluation failed; provider response omitted.',
       details: [
         provider ? `Provider: ${provider}` : 'Provider: unavailable',
         httpStatus ? `HTTP ${httpStatus}` : 'Failure stage: evaluation',
