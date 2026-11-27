@@ -4561,3 +4561,22 @@ body {
 @media (max-width:380px) { #sh-translation-card .sh-grammar-chat-message.user { max-width:94%; } }
 .shadowing-main-card #sh-auto-translate-toggle { display:inline-flex; align-items:center; justify-content:center; }
 .shadowing-main-card #sh-auto-translate-toggle svg { display:block; margin:0; vertical-align:middle; transform:none; }
+
+/* Center and emphasize the primary Shadowing play/stop control. */
+.shadowing-main-card .sh-player-controls #sh-prev-btn { grid-column: 1; }
+.shadowing-main-card .sh-player-controls #sh-next-btn { grid-column: 2; }
+.shadowing-main-card .sh-player-controls #sh-play-normal-btn {
+  grid-column: 3;
+  justify-self: center;
+  width: min(100%, 62px);
+  min-height: 58px;
+  padding: 8px;
+}
+.shadowing-main-card .sh-player-controls #sh-play-normal-btn .sh-inline-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
