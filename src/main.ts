@@ -5,12 +5,6 @@ import { networkMonitor } from './services/networkMonitor';
 import { initializeShadowingAudioStore } from './services/shadowingAudioStore';
 import { resolveGlobalTierSummary } from './services/tierManager';
 import { loadAllSlotsConfig } from './storage/localStore';
-import { clearDiagnosticsCache, renderDiagnosticsView } from './ui/DiagnosticsView';
-import { renderSettingsView } from './ui/SettingsView';
-import { renderShadowingView, resetShadowingViewState, pauseShadowingRecordingForBackground } from './ui/ShadowingView';
-import { renderIeltsView } from './ui/IeltsView';
-import { renderIeltsResultView } from './ui/IeltsResultView';
-import { renderIeltsHistoryView } from './ui/IeltsHistoryView';
 import { ieltsSessionEngine } from './services/ieltsSessionEngine';
 import { stopAllTts } from './services/ttsService';
 import { audioRecorder } from './services/audioRecorder';
@@ -184,9 +178,9 @@ export async function bootstrapApp(
   let activeCleanup: (() => void) | null = null;
   let refreshGeneration = 0;
   let lifecyclePauseInProgress = false;
+  let shadowingViewInitialized = false;
 
-  clearDiagnosticsCache();
-  resetShadowingViewState();
+  void import('./ui/DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
   root.innerHTML = `
     <main class="view-container" id="view-container"></main>
     <nav class="bottom-nav" aria-label="Main navigation">
@@ -280,8 +274,14 @@ export async function bootstrapApp(
     navSettingsBtn?.classList.toggle('active', currentTab === 'settings' || currentTab === 'diagnostics');
 
     if (currentTab === 'shadowing') {
-      activeCleanup = renderShadowingView(viewContainer, summary);
+      const shadowingView = await import('./ui/ShadowingView');
+      if (!shadowingViewInitialized) {
+        shadowingView.resetShadowingViewState();
+        shadowingViewInitialized = true;
+      }
+      activeCleanup = shadowingView.renderShadowingView(viewContainer, summary);
     } else if (currentTab === 'ielts') {
+      const { renderIeltsView } = await import('./ui/IeltsView');
       activeCleanup = renderIeltsView(viewContainer, summary, {
         onComplete: (record) => {
           activeIeltsResult = record;
@@ -293,6 +293,7 @@ export async function bootstrapApp(
         onOpenSettings: () => navigateTo('settings')
       });
     } else if (currentTab === 'ielts-result' && activeIeltsResult) {
+      const { renderIeltsResultView } = await import('./ui/IeltsResultView');
       renderIeltsResultView(viewContainer, activeIeltsResult, {
         onRetake: () => {
           stopAllTts();
@@ -313,6 +314,7 @@ export async function bootstrapApp(
         }
       });
     } else if (currentTab === 'ielts-history') {
+      const { renderIeltsHistoryView } = await import('./ui/IeltsHistoryView');
       activeCleanup = await renderIeltsHistoryView(viewContainer, {
         onSelectResult: (record) => {
           activeIeltsResult = record;
@@ -333,13 +335,15 @@ export async function bootstrapApp(
         }
       });
     } else if (currentTab === 'settings') {
+      const { renderSettingsView } = await import('./ui/SettingsView');
       await renderSettingsView(viewContainer, configs, summary, async () => {
-        clearDiagnosticsCache();
+        void import('./ui/DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
         await refreshUI();
       }, () => {
         navigateTo('diagnostics');
       });
     } else {
+      const { renderDiagnosticsView } = await import('./ui/DiagnosticsView');
       await renderDiagnosticsView(viewContainer, getAppVersion(), refreshUI);
     }
   };
@@ -494,7 +498,7 @@ export async function bootstrapApp(
 
   await networkMonitor.init();
   networkMonitor.subscribe((online) => {
-    clearDiagnosticsCache();
+    void import('./ui/DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
     // Publish connectivity without rebuilding the active view. Rebuilding it
     // can cancel an IELTS session and interrupt a Shadowing recording.
     document.documentElement.dataset.networkStatus = online ? 'online' : 'offline';
@@ -522,7 +526,7 @@ export async function bootstrapApp(
     } else if (currentTab === 'shadowing' || audioRecorder.isRecording()) {
       lifecyclePauseInProgress = true;
       const stopActiveCapture = currentTab === 'shadowing'
-        ? pauseShadowingRecordingForBackground()
+        ? import('./ui/ShadowingView').then(({ pauseShadowingRecordingForBackground }) => pauseShadowingRecordingForBackground())
         : audioRecorder.stop().then(() => undefined);
       void stopActiveCapture.finally(() => {
         lifecyclePauseInProgress = false;
