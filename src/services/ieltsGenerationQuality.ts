@@ -89,14 +89,15 @@ function expandedTopicWords(value: string): Set<string> {
   }
   return words;
 }
-function weightedOrder<T extends { id: string; freq: number }>(items: readonly T[], lastUsed: Record<string, number>, clock: number): T[] {
-  return [...items].sort((a, b) => {
-    const ageA = Math.max(0, clock - (lastUsed[a.id] ?? -1000));
-    const ageB = Math.max(0, clock - (lastUsed[b.id] ?? -1000));
-    const scoreA = -Math.log(Math.max(Number.EPSILON, Math.random())) / (a.freq * (1 + Math.min(ageA, 100) / 30));
-    const scoreB = -Math.log(Math.max(Number.EPSILON, Math.random())) / (b.freq * (1 + Math.min(ageB, 100) / 30));
-    return scoreA - scoreB;
+export function weightedOrder<T extends { id: string; freq: number }>(items: readonly T[], lastUsed: Record<string, number>, clock: number): T[] {
+  const scored = items.map(item => {
+    const age = Math.max(0, clock - (lastUsed[item.id] ?? -1000));
+    const weight = item.freq * (1 + Math.min(age, 100) / 30);
+    const score = -Math.log(Math.max(Number.EPSILON, Math.random())) / weight;
+    return { item, score };
   });
+  scored.sort((a, b) => a.score - b.score);
+  return scored.map(entry => entry.item);
 }
 export function takeWeightedQuestionSeeds(part: 1 | 2 | 3, count: number, requestedTopic = ''): IeltsFrequentQuestionSeed[] {
   const key = deckKey('questions-p' + part);

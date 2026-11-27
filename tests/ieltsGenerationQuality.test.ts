@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IELTS_FREQUENT_QUESTIONS } from '../src/data/ieltsFrequentQuestions';
-import { CUE_CARD_SEEDS, IELTS_PART1_FORMS, IELTS_PART3_FORMS, getIeltsQualityMemorySnapshot, restoreIeltsQualityMemorySnapshot, takePersistedIeltsDeck, takeWeightedQuestionSeeds } from '../src/services/ieltsGenerationQuality';
+import { CUE_CARD_SEEDS, IELTS_PART1_FORMS, IELTS_PART3_FORMS, getIeltsQualityMemorySnapshot, restoreIeltsQualityMemorySnapshot, takePersistedIeltsDeck, takeWeightedQuestionSeeds, weightedOrder } from '../src/services/ieltsGenerationQuality';
 import { buildGeneratorPrompt, createIeltsGenerationContext, getRecentQuestionOverlapTier, hasRecentQuestionOverlap } from '../src/services/ieltsQuestionGenerator';
 
 describe('IELTS question generation quality', () => {
@@ -67,6 +67,27 @@ describe('IELTS question generation quality', () => {
     localStorage.clear();
     restoreIeltsQualityMemorySnapshot(snapshot);
     expect(localStorage.getItem('speakcoach_ielts_quality_v1.questions-p2')).toBeTruthy();
+  });
+
+
+  it('scores each weighted seed once and deterministically favours older or higher-frequency items', () => {
+    const items = [
+      { id: 'recent', freq: 1 },
+      { id: 'older', freq: 1 },
+      { id: 'frequent', freq: 2 }
+    ];
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    try {
+      const first = weightedOrder(items, { recent: 9, older: 0, frequent: 9 }, 10);
+      expect(random).toHaveBeenCalledTimes(items.length);
+      expect(first.map(item => item.id)).toEqual(['frequent', 'older', 'recent']);
+      random.mockClear();
+      const second = weightedOrder(items, { recent: 9, older: 0, frequent: 9 }, 10);
+      expect(second.map(item => item.id)).toEqual(first.map(item => item.id));
+      expect(random).toHaveBeenCalledTimes(items.length);
+    } finally {
+      random.mockRestore();
+    }
   });
 
   it('lets an explicitly requested theme override the random cue-card type and subject', () => {
