@@ -168,13 +168,6 @@ describe('IELTS generation reliability validation', () => {
       const plan = {
         part1Topics: [topicA, topicB],
         part1Questions,
-          { topic: topicA, question: `What do you enjoy about ${topicA}?` },
-          { topic: topicA, question: `How often do you take part in ${topicA}?` },
-          { topic: topicA, question: `Has your interest in ${topicA} changed over time?` },
-          { topic: topicB, question: `What do you find interesting about ${topicB}?` },
-          { topic: topicB, question: `When did you last experience ${topicB}?` },
-          { topic: topicB, question: `Would you like to learn more about ${topicB}?` }
-        ],
         part2CueCard: {
           topic: topicB,
           title: `An experience related to ${topicB}`,
