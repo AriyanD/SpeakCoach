@@ -81,7 +81,7 @@ function deckItemId(value: unknown): string {
 async function takeDeck<T>(name: string, values: readonly T[], count: number, language: string, level: string): Promise<T[]> {
   const storageKey = key(name, language, level);
   const state = await readJson<{ deck: unknown[]; cursor: number }>(storageKey, { deck: [], cursor: 0 });
-  const valuesById = new Map(values.map(value => [deckItemId(value), value]));
+  const valuesById = new Map<string, T>(values.map(value => [deckItemId(value), value] as const));
   const storedDeck = Array.isArray(state.deck) ? state.deck.map(deckItemId) : [];
   let deck = storedDeck.length > 0 && storedDeck.every(id => valuesById.has(id)) ? storedDeck : [];
   let cursor = Number.isInteger(state.cursor) && state.cursor >= 0 && state.cursor <= deck.length ? state.cursor : 0;
