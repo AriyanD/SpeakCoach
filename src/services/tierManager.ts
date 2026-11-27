@@ -10,7 +10,7 @@ import type {
 import { hasConfiguredApiKey, loadApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { networkMonitor } from './networkMonitor';
-import { clearAllRuntimeFailures, clearSlotRuntimeFailure, getActiveSlotRuntimeFailure, markSlotRuntimeFailure } from './runtimeFailureStore';
+import { clearSlotRuntimeFailure, getActiveSlotRuntimeFailure, markSlotRuntimeFailure } from './runtimeFailureStore';
 export { clearAllRuntimeFailures, clearSlotRuntimeFailure, getActiveSlotRuntimeFailure, markSlotRuntimeFailure } from './runtimeFailureStore';
 import { createProviderVerificationFingerprint, getProviderAccountHealth } from './providerHealth';
 
