@@ -11,7 +11,7 @@ vi.mock('../src/storage/keyStore', () => ({
   })
 }));
 
-import { migrateLegacyGroqWhisperConfigs } from '../src/storage/providerConfigMigration';
+import { getProviderConfigMigrationNotices, migrateLegacyGroqWhisperConfigs } from '../src/storage/providerConfigMigration';
 
 describe('legacy Groq Whisper credential migration', () => {
   beforeEach(() => keys.clear());
@@ -45,6 +45,7 @@ describe('legacy Groq Whisper credential migration', () => {
     expect(keys.get('pronunciation_scoring|custom_openai_pronunciation|primary')).toBe('existing-custom-secret');
     expect(keys.get('pronunciation_scoring|whisper_alignment|primary')).toBe('legacy-secret');
     expect(changed).toEqual([]);
+    expect(getProviderConfigMigrationNotices().some(message => message.includes('both legacy and Custom credentials'))).toBe(true);
   });
 
   it('copies secondary-account keys independently', async () => {
