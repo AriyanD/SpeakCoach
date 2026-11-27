@@ -4483,7 +4483,6 @@ body {
 .shadowing-main-card .sh-language-picker-label svg {
   stroke-width: 2.2;
 }
-.shadowing-main-card #sh-translation-language-global + .unused { display: none; }
 .shadowing-main-card #sh-auto-translate-toggle {
   flex: 0 0 48px;
   width: 48px;
