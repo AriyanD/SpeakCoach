@@ -18,7 +18,7 @@ export async function migrateLegacyGroqWhisperConfigs(
   configs: AllSlotsConfig
 ): Promise<Array<{ slotId: SlotId; account: ProviderAccount }>> {
   const changed: Array<{ slotId: SlotId; account: ProviderAccount }> = [];
-  const { loadApiKey, saveApiKey } = await import('./keyStore');
+  const { loadApiKeyStrict, saveApiKey } = await import('./keyStore');
 
   for (const migration of PROVIDER_ID_MIGRATIONS) {
     const slotConfig = configs[migration.slotId];
@@ -39,8 +39,8 @@ export async function migrateLegacyGroqWhisperConfigs(
       let oldKey = '';
       let customKey = '';
       try {
-        oldKey = await loadApiKey(migration.slotId, migration.from, entry.account);
-        customKey = await loadApiKey(migration.slotId, migration.to, entry.account);
+        oldKey = await loadApiKeyStrict(migration.slotId, migration.from, entry.account);
+        customKey = await loadApiKeyStrict(migration.slotId, migration.to, entry.account);
       } catch {
         // Do not switch to the new ID when the old secure key could not be checked.
         current.providerId = migration.from;
