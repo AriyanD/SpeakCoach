@@ -9,7 +9,7 @@ import {
 } from '../config/providers';
 import type { AllSlotsConfig, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
 import { migrateLegacyGroqWhisperConfigs } from './providerConfigMigration';
-import { clearAllRuntimeFailures, clearSlotRuntimeFailure } from '../services/tierManager';
+import { clearAllRuntimeFailures, clearSlotRuntimeFailure } from '../services/runtimeFailureStore';
 import { clearProviderAccountHealth, createProviderVerificationFingerprint } from '../services/providerHealth';
 
 const SLOTS_CONFIG_KEY = 'speakcoach.slots.config.v1';
