@@ -19,7 +19,7 @@ export function buildShadowingPrompt(params: {
   const language = getShadowingLanguage(params.languageCode);
   const profile = SHADOWING_LANGUAGE_PROFILES[params.languageCode];
   const rows = params.slots.map((slot, index) =>
-    `${index + 1}|${slot.situation}|${slot.speechAct}|${slot.grammar}|${slot.length}|${slot.focus}`
+    `${params.rowNumbers?.[index] ?? index + 1}|${slot.situation}|${slot.speechAct}|${slot.grammar}|${slot.length}|${slot.focus}`
   ).join('\n');
   const topicValue = params.requestedTopic?.trim().slice(0, 48);
   const topic = topicValue ? `Topic: ${topicValue}.` : '';
