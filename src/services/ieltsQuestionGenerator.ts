@@ -113,7 +113,8 @@ export function buildGeneratorPrompt(
   recentQuestions: string[] = [],
   requestedTopic = '',
   context: IeltsGenerationContext = createIeltsGenerationContext(excludedTopics, requestedTopic),
-  recentTitles: string[] = []
+  recentTitles: string[] = [],
+  retryGuidance = ''
 ): { system: string; user: string } {
   const p1Forms = context.part1Forms ?? ['habit','past','preference','reason','comparison','change'];
   const p3Forms = context.part3Forms ?? ['past vs present','causes','effects','evaluate'];
@@ -138,7 +139,11 @@ Recent topics already used (keywords): ${topicAvoid || 'none'}.
 Recent questions and cue-card titles (keywords only): ${avoid || 'none'}.
 RULES: Part 1 exactly 6 questions, 3 per assigned topic; follow each assigned form and use distinct openings within the part. Part 2 one concrete Describe cue card with exactly four useful bullets. Part 3 exactly 4 distinct discussion questions rooted in the Part 2 cue card’s underlying theme. Broaden from the candidate’s personal experience to wider social, cultural, economic, environmental, educational or policy implications. Do not switch to an unrelated subject or repeat the cue-card bullets. Use assigned angles and forms for varied perspectives within that shared theme; keep topic labels on the same broad theme or closely related facets. Avoid semantic repeats and clichés. Avoid close semantic equivalents, not merely identical wording. Keep spoken questions concise and accessible.
 JSON ONLY: {"part1Topics":["A","B"],"part1Questions":[{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."}],"part2CueCard":{"topic":"...","title":"...","prompt":"Describe ...","bullets":["...","...","...","..."]},"part3Questions":[{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."}]}`;
-  return { system, user: 'Generate one complete IELTS Speaking test set. Follow every assignment and return only the requested JSON.' };
+  const baseUser = 'Generate one complete IELTS Speaking test set. Follow every assignment and return only the requested JSON.';
+  const user = retryGuidance
+    ? `${baseUser} IMPORTANT CORRECTION: ${retryGuidance}`
+    : baseUser;
+  return { system, user };
 }
 function normalizeGenerationText(value: string): string {
   return value.toLocaleLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -391,6 +396,7 @@ export async function requestLlmSessionPlan(params: {
   generationMemory?: { topics: string[]; questions: string[]; titles?: string[]; part1Topics?: string[] };
   strictValidation?: boolean;
   deferMemoryCommit?: boolean;
+  retryGuidance?: string;
 }): Promise<IeltsTestSessionPlan> {
   const baseUrl = normalizeBaseUrl(params.slotConfig.baseUrl);
   // Only AI-generated topic/question memory is used. The retired built-in
@@ -398,7 +404,7 @@ export async function requestLlmSessionPlan(params: {
   const compactMemory = params.generationMemory ?? getCompactLlmGenerationMemory();
   const excludedTopics = compactMemory.topics;
   const generationContext = params.generationContext ?? createIeltsGenerationContext(excludedTopics, params.requestedTopic ?? '', getRecentLlmPart1Topics());
-  const prompt = buildGeneratorPrompt(excludedTopics, compactMemory.questions, params.requestedTopic ?? '', generationContext, compactMemory.titles ?? []);
+  const prompt = buildGeneratorPrompt(excludedTopics, compactMemory.questions, params.requestedTopic ?? '', generationContext, compactMemory.titles ?? [], params.retryGuidance ?? '');
   const wireFormat = resolveWireFormat({ ...params.slotConfig, baseUrl });
 
   let rawResponseText = '';
@@ -430,7 +436,7 @@ export async function requestLlmSessionPlan(params: {
           }
         },
         timeoutMs: 45000,
-        maxRetries: 0
+        maxRetries: 1
       },
       params.transport
     );
@@ -469,7 +475,7 @@ export async function requestLlmSessionPlan(params: {
           response_format: { type: 'json_object' }
         },
         timeoutMs: 45000,
-        maxRetries: 0
+        maxRetries: 1
       },
       params.transport
     );
@@ -486,6 +492,25 @@ export async function requestLlmSessionPlan(params: {
   });
 }
 
+function getQuestionSetRetryGuidance(message: string): string {
+  if (/Part 2 cue card did not sufficiently reflect its assigned subject/i.test(message)) {
+    return 'Make the Part 2 title, prompt and all four bullets clearly about the assigned concrete subject; do not replace it with a merely related idea.';
+  }
+  if (/Part 3 questions must remain connected/i.test(message)) {
+    return 'Keep at least three Part 3 questions visibly anchored to the same Part 2 cue-card theme while exploring wider social implications.';
+  }
+  if (/repeats or closely paraphrases|duplicate question wording/i.test(message)) {
+    return 'Use genuinely different question ideas and examples; do not reuse or lightly reword questions from earlier sets.';
+  }
+  if (/topic mismatch|Part 1 must contain exactly two/i.test(message)) {
+    return 'Use exactly the two assigned Part 1 topic labels and provide three distinct questions under each topic.';
+  }
+  if (/parse LLM question JSON|empty response|missing valid part/i.test(message)) {
+    return 'Return one complete, compact, valid JSON object only; include every required array and field, with no prose or code fences.';
+  }
+  return 'Return one complete set that follows every assigned topic, question count, cue-card subject, and JSON field exactly.';
+}
+
 export async function generateIeltsPlanWithTierFallback(options?: {
   mode?: IeltsTestMode;
   transport?: (opts: any) => Promise<any>;
@@ -496,6 +521,7 @@ export async function generateIeltsPlanWithTierFallback(options?: {
   generationMemory?: { topics: string[]; questions: string[]; titles?: string[]; part1Topics?: string[] };
   strictValidation?: boolean;
   deferMemoryCommit?: boolean;
+  retryGuidance?: string;
 }): Promise<LlmQuestionPlanResult> {
   let fallbackReason: string | undefined;
   let configuredProviderName: string | undefined;
@@ -546,7 +572,8 @@ export async function generateIeltsPlanWithTierFallback(options?: {
           generationContext,
           generationMemory,
           strictValidation: options?.strictValidation,
-          deferMemoryCommit: true
+          deferMemoryCommit: true,
+          retryGuidance: options?.retryGuidance
         })
       );
       const plan = attempt.result;
@@ -613,14 +640,16 @@ export async function generateIeltsQuestionSets(
   const batchTitles: string[] = [];
   const batchPart1Topics: string[] = [];
   let attempts = 0;
-  const maxAttempts = target + 2;
+  let retryGuidance = '';
+  let lastRetryReason = '';
+  const maxAttempts = target + 5;
 
   while (generated.length < target && attempts < maxAttempts) {
     attempts++;
     const generationMemory = {
       topics: [...baseMemory.topics, ...batchTopics].slice(-40),
-      questions: [...baseMemory.questions, ...batchQuestions].slice(-80),
-      titles: [...(baseMemory.titles ?? []), ...batchTitles].slice(-40),
+      questions: [...baseMemory.questions, ...batchQuestions].slice(-24),
+      titles: [...(baseMemory.titles ?? []), ...batchTitles].slice(-24),
       part1Topics: [...getRecentLlmPart1Topics(), ...batchPart1Topics].slice(-40)
     };
     const generationContext = createIeltsGenerationContext(generationMemory.topics, options?.requestedTopic ?? '', generationMemory.part1Topics ?? getRecentLlmPart1Topics());
@@ -632,7 +661,8 @@ export async function generateIeltsQuestionSets(
         generationContext,
         generationMemory,
         strictValidation: true,
-        deferMemoryCommit: true
+        deferMemoryCommit: true,
+        retryGuidance
       });
       if (result.source !== 'online_ai' || !result.plan.id.includes('llm')) {
         throw new LlmQuestionGenerationError(
@@ -641,6 +671,8 @@ export async function generateIeltsQuestionSets(
           result.modelName
         );
       }
+      retryGuidance = '';
+      lastRetryReason = '';
       generated.push({
         plan: result.plan,
         providerName: result.providerName,
@@ -654,12 +686,14 @@ export async function generateIeltsQuestionSets(
     } catch (error) {
       if (!(error instanceof LlmQuestionGenerationError) || !error.retryable) throw error;
       if (attempts >= maxAttempts) break;
+      lastRetryReason = error.message.replace(/\\s+/gu, ' ').slice(0, 240);
+      retryGuidance = getQuestionSetRetryGuidance(error.message);
       console.warn(`[ieltsQuestionGenerator] Retrying invalid AI question set (${attempts}/${maxAttempts}):`, error.message);
     }
   }
   if (generated.length < target) {
     throw new LlmQuestionGenerationError(
-      `The AI generated only ${generated.length} of ${target} requested sets. Your current unfinished sets have been kept; refresh again to try another batch.`
+      `The AI generated only ${generated.length} of ${target} requested sets after ${attempts} attempts. Last issue: ${lastRetryReason || 'The provider could not complete a valid set.'} Your current unfinished sets have been kept; refresh again to try another batch.`
     );
   }
   // Save the complete batch first. Only after the store verifies its write do
