@@ -643,7 +643,7 @@ export class IeltsSessionController {
         status: 'transcribing',
         stepIndex: this.currentStepIndex,
         questionId: step?.questionId,
-        details: `Raw system-recognizer transcript: "${rec.offlineTranscript || ''}" | confidence: ${rec.offlineConfidence ?? 'N/A'} | duration: ${Math.round(rec.durationMs / 1000)}s`
+        details: `System recognizer completed; transcriptLength=${(rec.offlineTranscript || '').length}; confidence=${rec.offlineConfidence ?? 'N/A'}; duration=${Math.round(rec.durationMs / 1000)}s`
       });
 
       let finalTranscript = (rec.offlineTranscript || '').trim();
@@ -669,7 +669,7 @@ export class IeltsSessionController {
               status: 'transcribing',
               stepIndex: this.currentStepIndex,
               questionId: step?.questionId,
-              details: `Recovered transcript via Tier 2 STT: "${finalTranscript}"`
+              details: 'Recovered transcript via Tier 2 STT; transcript omitted from technical logs.'
             });
           }
         } catch (whisperErr: any) {
