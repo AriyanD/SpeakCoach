@@ -196,8 +196,6 @@ export class IeltsSessionController {
   private recordedWavs = new Map<number, { wavBase64: string; durationMs: number }>();
   private onStateChange?: (state: IeltsSessionStateSnapshot) => void;
   private listeners: Set<(state: IeltsSessionStateSnapshot) => void> = new Set();
-  /** Legacy compatibility flag; always false because IELTS question fallback is retired. */
-  private cachedAllowBuiltinFallback = false;
 
   constructor(options?: {
     mode?: IeltsTestMode;
@@ -218,17 +216,9 @@ export class IeltsSessionController {
 
   }
 
-  private async readAllowBuiltinFallback(): Promise<boolean> {
-    // The built-in IELTS question bank is retired; never re-enable it from legacy settings.
-    this.cachedAllowBuiltinFallback = false;
-    return false;
-  }
-
+  /** @deprecated Built-in IELTS question fallback is retired; kept as a no-op for older callers. */
   public setAllowBuiltinFallback(_allow: boolean): void {
-    this.cachedAllowBuiltinFallback = false;
-    this.preparedPlan = null;
-    this.preparedPlanResult = null;
-    this.notify();
+    // Legacy callers may still invoke this method; it cannot enable the retired question bank.
   }
 
   public subscribe(fn: (state: IeltsSessionStateSnapshot) => void): () => void {
@@ -410,7 +400,7 @@ export class IeltsSessionController {
       evaluationError: this.evaluationError,
       errorMessage: this.errorMessage,
       isPreloadingPlan: this.isPreloadingPlan,
-      allowBuiltinFallback: this.cachedAllowBuiltinFallback,
+      allowBuiltinFallback: false,
       questionSource: qSource,
       questionSourceDetails: this.currentPlanResult
         ? {
@@ -925,7 +915,7 @@ export class IeltsSessionController {
 
     const execute = async (): Promise<LlmQuestionPlanResult | null> => {
       try {
-        const allowBuiltinFallback = await this.readAllowBuiltinFallback();
+        const allowBuiltinFallback = false;
         this.notify();
 
         const genResult = await generateIeltsPlanWithTierFallback({
@@ -933,7 +923,7 @@ export class IeltsSessionController {
           transport: options?.transport,
           allowBuiltinFallback
         });
-        if (!this.cachedAllowBuiltinFallback && genResult.source !== 'online_ai') {
+        if (!false && genResult.source !== 'online_ai') {
           throw new LlmQuestionGenerationError(
             'AI-only mode was enabled while question generation was running. The offline plan was discarded.',
             genResult.providerName,
@@ -1007,7 +997,7 @@ export class IeltsSessionController {
 
     const execute = async (): Promise<LlmQuestionPlanResult | null> => {
       try {
-        const allowBuiltinFallback = await this.readAllowBuiltinFallback();
+        const allowBuiltinFallback = false;
         this.notify();
 
         const genResult = await generateIeltsPlanWithTierFallback({
@@ -1015,7 +1005,7 @@ export class IeltsSessionController {
           transport: options?.transport,
           allowBuiltinFallback
         });
-        if (!this.cachedAllowBuiltinFallback && genResult.source !== 'online_ai') {
+        if (!false && genResult.source !== 'online_ai') {
           throw new LlmQuestionGenerationError(
             'AI-only mode was enabled while question generation was running. The offline plan was discarded.',
             genResult.providerName,
@@ -1243,7 +1233,7 @@ export class IeltsSessionController {
     mode: IeltsTestMode = 'full',
     options?: { transport?: IeltsTransport }
   ): Promise<void> {
-    const allowBuiltinFallback = await this.readAllowBuiltinFallback();
+    const allowBuiltinFallback = false;
     const genResult = await generateIeltsPlanWithTierFallback({
       mode,
       transport: options?.transport,
@@ -1288,7 +1278,7 @@ export class IeltsSessionController {
     // Always read the persisted preference before accepting any plan. This
     // prevents stale constructor defaults or direct-plan entry points from
     // bypassing the user's AI-only setting.
-    const allowBuiltinFallback = await this.readAllowBuiltinFallback();
+    const allowBuiltinFallback = false;
     if (this.stepRunToken !== token) return;
     this.notify();
 
@@ -1338,7 +1328,7 @@ export class IeltsSessionController {
       return;
     }
 
-    if (this.preparedPlanResult && this.preparedPlanResult.source === 'offline_bank' && !this.cachedAllowBuiltinFallback) {
+    if (this.preparedPlanResult && this.preparedPlanResult.source === 'offline_bank' && !false) {
       const providerName = this.preparedPlanResult.providerName || 'AI Question Generator';
       this.preparedPlan = null;
       this.preparedPlanResult = null;
@@ -1352,7 +1342,7 @@ export class IeltsSessionController {
     }
 
     if (this.preparedPlan) {
-      if (!this.cachedAllowBuiltinFallback && (!this.preparedPlan.id.includes('llm') || this.preparedPlanResult?.source === 'offline_bank')) {
+      if (!false && (!this.preparedPlan.id.includes('llm') || this.preparedPlanResult?.source === 'offline_bank')) {
         this.preparedPlan = null;
         this.preparedPlanResult = null;
         this.isSessionActive = false;
@@ -1380,7 +1370,7 @@ export class IeltsSessionController {
       return;
     }
 
-    if (!this.cachedAllowBuiltinFallback && !this.activePreloadPromise && !options?.transport) {
+    if (!false && !this.activePreloadPromise && !options?.transport) {
       this.isSessionActive = false;
       this.setStatus(
         'error',
@@ -1406,7 +1396,7 @@ export class IeltsSessionController {
           const genResult = await generateIeltsPlanWithTierFallback({
             mode,
             transport: options.transport,
-            allowBuiltinFallback: this.cachedAllowBuiltinFallback
+            allowBuiltinFallback: false
           });
           this.preparedPlan = genResult.plan;
           this.preparedPlanResult = genResult;
@@ -1434,7 +1424,7 @@ export class IeltsSessionController {
           if (isConfiguredOnline) {
             const genResult = await generateIeltsPlanWithTierFallback({
               mode,
-              allowBuiltinFallback: this.cachedAllowBuiltinFallback
+              allowBuiltinFallback: false
             });
             this.preparedPlan = genResult.plan;
             this.preparedPlanResult = genResult;
@@ -1469,7 +1459,7 @@ export class IeltsSessionController {
           'Slot 5 AI generation error'
         );
         return;
-      } else if (this.preparedPlanResult && this.preparedPlanResult.source === 'offline_bank' && !this.cachedAllowBuiltinFallback) {
+      } else if (this.preparedPlanResult && this.preparedPlanResult.source === 'offline_bank' && !false) {
         const providerName = this.preparedPlanResult.providerName || 'AI Question Generator';
         this.preparedPlan = null;
         this.preparedPlanResult = null;
@@ -1481,7 +1471,7 @@ export class IeltsSessionController {
         );
         return;
       } else if (this.preparedPlan) {
-        if (!this.cachedAllowBuiltinFallback && (!this.preparedPlan.id.includes('llm') || this.preparedPlanResult?.source === 'offline_bank')) {
+        if (!false && (!this.preparedPlan.id.includes('llm') || this.preparedPlanResult?.source === 'offline_bank')) {
           this.preparedPlan = null;
           this.preparedPlanResult = null;
           this.isSessionActive = false;
@@ -1497,7 +1487,7 @@ export class IeltsSessionController {
         this.currentPlanResult = this.preparedPlanResult;
         this.preparedPlan = null;
         this.preparedPlanResult = null;
-      } else if (!this.cachedAllowBuiltinFallback) {
+      } else if (!false) {
         this.isSessionActive = false;
         this.setStatus(
           'error',
@@ -1621,7 +1611,7 @@ export class IeltsSessionController {
     };
   }): void {
     if (
-      !this.cachedAllowBuiltinFallback &&
+      !false &&
       snapshot.plan &&
       snapshot.questionSource !== 'AI' &&
       !snapshot.plan.id.includes('llm')
