@@ -134,9 +134,9 @@ describe('Provider Slots Configuration & Storage', () => {
     await saveApiKey('ielts_stt', 'whisper_stt', 'gsk-secondary-legacy', 'secondary');
     localStorage.setItem('speakcoach.slots.config.v1', JSON.stringify({
       ielts_stt: {
-        providerId: 'gemini_stt',
-        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-        modelOrVoice: 'gemini-3.5-transcribe',
+        providerId: 'whisper_stt',
+        baseUrl: 'https://api.groq.com/openai/v1',
+        modelOrVoice: 'whisper-large-v3-turbo',
         secondary: {
           providerId: 'whisper_stt',
           baseUrl: 'https://api.groq.com/openai/v1',
@@ -154,7 +154,7 @@ describe('Provider Slots Configuration & Storage', () => {
     }));
 
     const loaded = await loadAllSlotsConfig();
-    expect(loaded.ielts_stt.providerId).toBe('gemini_stt');
+    expect(loaded.ielts_stt.providerId).toBe('custom_openai_stt');
     expect(loaded.ielts_stt.secondary).toMatchObject({
       providerId: 'custom_openai_stt',
       baseUrl: 'https://api.groq.com/openai/v1',
