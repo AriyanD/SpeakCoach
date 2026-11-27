@@ -9,7 +9,7 @@ import {
   SLOT_ORDER
 } from '../config/providers';
 import type { AllSlotsConfig, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
-import { migrateLegacyGroqWhisperConfigs } from './providerConfigMigration';
+import { getProviderConfigMigrationNotices, migrateLegacyGroqWhisperConfigs } from './providerConfigMigration';
 import { isKnownProviderId, resolveMigratedProviderId } from './providerIdMigration';
 import { clearAllRuntimeFailures, clearSlotRuntimeFailure } from '../services/runtimeFailureStore';
 import { clearProviderAccountHealth, createProviderVerificationFingerprint } from '../services/providerHealth';
@@ -200,6 +200,9 @@ export async function loadAllSlotsConfig(): Promise<AllSlotsConfig> {
     }
 
     const migratedGroqAccounts = await migrateLegacyGroqWhisperConfigs(result);
+    for (const notice of getProviderConfigMigrationNotices()) {
+      if (!recoveryNotices.includes(notice)) recoveryNotices.push(notice);
+    }
     if (migratedGroqAccounts.length > 0) {
       await setRawItem(SLOTS_CONFIG_KEY, JSON.stringify(result));
       for (const slotId of new Set(migratedGroqAccounts.map(item => item.slotId))) {
