@@ -114,7 +114,7 @@ describe('Shadowing batch request budget', () => {
       'Before moving house, I donated furniture to a local reuse centre, which helped another family furnish their flat affordably.'
     ];
     const items = slots.map((slot, index) => ({
-      q: slot.q, fn: slot.fn, text: texts[index], chunk: slot.question.split(/\\s+/u).slice(0, 3).join(' ')
+      q: slot.q, fn: slot.fn, text: texts[index], chunk: slot.question.split(/\s+/u).slice(0, 3).join(' ')
     }));
     items.push(
       { q: slots[0].q, fn: slots[0].fn, text: 'By contrast, I learned basic woodworking at a weekend course where each participant designed a small shelf and tested its stability.', chunk: 'basic woodworking' },

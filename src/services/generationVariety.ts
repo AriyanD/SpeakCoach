@@ -135,7 +135,7 @@ function lemmaToken(token: string): string {
   return token;
 }
 export function lemmatizedTokenJaccard(a: string, b: string): number {
-  const tokens = (value: string) => new Set(value.normalize('NFKC').toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, ' ').split(/\\s+/u).map(lemmaToken).filter(token => token.length > 2 && !TITLE_STOP_WORDS.has(token)));
+  const tokens = (value: string) => new Set(value.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').split(/\s+/u).map(lemmaToken).filter(token => token.length > 2 && !TITLE_STOP_WORDS.has(token)));
   return jaccard(tokens(a), tokens(b));
 }
 export function sharedTextSimilarity(a: string, b: string, language = 'en'): number {

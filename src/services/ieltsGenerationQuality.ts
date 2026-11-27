@@ -83,9 +83,9 @@ const TOPIC_SYNONYMS: Record<string, string[]> = {
   community: ['public spaces','community event','event','volunteering']
 };
 function expandedTopicWords(value: string): Set<string> {
-  const words = new Set(value.toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, ' ').split(/\\s+/u).filter(word => word.length > 2));
+  const words = new Set(value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').split(/\s+/u).filter(word => word.length > 2));
   for (const [term, related] of Object.entries(TOPIC_SYNONYMS)) {
-    if (words.has(term)) for (const phrase of related) for (const word of phrase.split(/\\s+/u)) words.add(word);
+    if (words.has(term)) for (const phrase of related) for (const word of phrase.split(/\s+/u)) words.add(word);
   }
   return words;
 }
@@ -104,8 +104,8 @@ export function takeWeightedQuestionSeeds(part: 1 | 2 | 3, count: number, reques
   const pool = IELTS_FREQUENT_QUESTIONS.filter(item => item.part === part);
   const queryWords = expandedTopicWords(requestedTopic);
   const ranked = pool.map(item => {
-    const topicTokens = item.topic.toLocaleLowerCase().split(/\\s+/u);
-    const questionTokens = item.question.toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, ' ').split(/\\s+/u);
+    const topicTokens = item.topic.toLocaleLowerCase().split(/\s+/u);
+    const questionTokens = item.question.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').split(/\s+/u);
     const score = topicTokens.filter(token => queryWords.has(token)).length * 2 +
       questionTokens.filter(token => queryWords.has(token)).length * 0.2;
     return { item, score };
@@ -133,9 +133,9 @@ export function takeWeightedQuestionSeeds(part: 1 | 2 | 3, count: number, reques
 export function nearestSeedTopics(topic: string, part: 1 | 2 | 3, count: number): IeltsFrequentQuestionSeed[] {
   const words = expandedTopicWords(topic);
   return IELTS_FREQUENT_QUESTIONS.filter(item => item.part === part).map(item => {
-    const tokens = item.topic.toLocaleLowerCase().split(/\\s+/u);
+    const tokens = item.topic.toLocaleLowerCase().split(/\s+/u);
     const score = tokens.filter(token => words.has(token)).length * 2 +
-      item.question.toLocaleLowerCase().split(/\\s+/u).filter(token => words.has(token)).length * 0.2;
+      item.question.toLocaleLowerCase().split(/\s+/u).filter(token => words.has(token)).length * 0.2;
     return { item, score };
   }).sort((a, b) => b.score - a.score).slice(0, count).map(entry => entry.item);
 }
