@@ -287,11 +287,12 @@ export async function renderSettingsView(
         </div>
       </div>`;
 
-    const statusHtml = bothConfiguredApisReady
-      ? `<div class="status-box pass" id="status-${slotId}">Ready</div>`
-      : mixedApiReadiness && secondaryPreset
-        ? renderAccountStatus('primary', preset.name, primaryAccountReady, lastTest, accountHealth?.primary ?? null)
-        : apiRequiredOfflineSelected
+    // Keep API 1's detailed test result visible when both accounts are ready.
+    // API 2 already shows its persisted test result in that state; showing only
+    // "Ready" for API 1 made the two account statuses inconsistent after Test all APIs.
+    const statusHtml = mixedApiReadiness && secondaryPreset
+      ? renderAccountStatus('primary', preset.name, primaryAccountReady, lastTest, accountHealth?.primary ?? null)
+      : apiRequiredOfflineSelected
           ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${slotId === 'llm_translation' ? 'Translation requires an online AI API. No offline translation engine is available.' : 'IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.'}</div>`
           : ['needs-retest', 'cooldown', 'ready-degraded', 'ready-cooldown'].includes(slotStatus) && resolved.reason
             ? `<div class="status-box ${slotStatus === 'needs-retest' ? 'fail' : 'info'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${escapeHtml(resolved.reason)}</div>`
