@@ -3,7 +3,7 @@ import { createDefaultAllSlotsConfig } from '../src/config/providers';
 
 const keys = vi.hoisted(() => new Map<string, string>());
 vi.mock('../src/storage/keyStore', () => ({
-  loadApiKey: vi.fn(async (slot: string, provider: string, account = 'primary') =>
+  loadApiKeyStrict: vi.fn(async (slot: string, provider: string, account = 'primary') =>
     keys.get(`${slot}|${provider}|${account}`) ?? ''
   ),
   saveApiKey: vi.fn(async (slot: string, provider: string, value: string, account = 'primary') => {
