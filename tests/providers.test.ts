@@ -8,7 +8,7 @@ import {
   SLOT_ORDER
 } from '../src/config/providers';
 import { hasConfiguredApiKey, loadApiKey, saveApiKey } from '../src/storage/keyStore';
-import { loadAllSlotsConfig, saveSlotConfig } from '../src/storage/localStore';
+import { loadAllSlotsConfig, loadSlotConnectionTestResult, saveSlotConfig } from '../src/storage/localStore';
 
 describe('Provider Slots Configuration & Storage', () => {
   beforeEach(() => {
@@ -128,6 +128,42 @@ describe('Provider Slots Configuration & Storage', () => {
     // Old entries remain as a recovery copy; migration never deletes credentials.
     expect(await loadApiKey('pronunciation_scoring', 'whisper_alignment')).toBe('gsk-shadowing-legacy');
     expect(await loadApiKey('ielts_stt', 'whisper_stt')).toBe('gsk-ielts-legacy');
+  });
+
+  it('migrates API 2 Groq Whisper settings and invalidates stale provider verification', async () => {
+    await saveApiKey('ielts_stt', 'whisper_stt', 'gsk-secondary-legacy', 'secondary');
+    localStorage.setItem('speakcoach.slots.config.v1', JSON.stringify({
+      ielts_stt: {
+        providerId: 'gemini_stt',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        modelOrVoice: 'gemini-3.5-transcribe',
+        secondary: {
+          providerId: 'whisper_stt',
+          baseUrl: 'https://api.groq.com/openai/v1',
+          modelOrVoice: 'whisper-large-v3-turbo',
+          verified: true,
+          testResult: { ok: true, latencyMs: 20, message: 'PASS', testedAt: Date.now() }
+        }
+      }
+    }));
+    localStorage.setItem('speakcoach.slots.connection_tests.v1', JSON.stringify({
+      ielts_stt: {
+        ok: true, slotId: 'ielts_stt', providerId: 'whisper_stt', tier: 2,
+        label: 'Online AI', latencyMs: 20, message: 'PASS', timestamp: Date.now()
+      }
+    }));
+
+    const loaded = await loadAllSlotsConfig();
+    expect(loaded.ielts_stt.providerId).toBe('gemini_stt');
+    expect(loaded.ielts_stt.secondary).toMatchObject({
+      providerId: 'custom_openai_stt',
+      baseUrl: 'https://api.groq.com/openai/v1',
+      modelOrVoice: 'whisper-large-v3-turbo',
+      verified: false
+    });
+    expect(loaded.ielts_stt.secondary?.testResult).toBeUndefined();
+    expect(await loadApiKey('ielts_stt', 'custom_openai_stt', 'secondary')).toBe('gsk-secondary-legacy');
+    expect(await loadSlotConnectionTestResult('ielts_stt')).toBeNull();
   });
 
   it('does not overwrite an existing Custom API key or migrate a conflicting legacy Groq account', async () => {
