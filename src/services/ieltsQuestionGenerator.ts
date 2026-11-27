@@ -177,7 +177,7 @@ export function getRecentQuestionOverlapTier(question: string, recentQuestions: 
     ? lemmatizedTokenJaccard(question, value)
     : sharedTextSimilarity(question, value, 'en');
 
-  // Exact normalized repeats are never allowed, regardless of age.
+  // Exact normalized repeats are never allowed, regardless of age. Older fuzzy matches are deliberately soft.
   if ([...recent, ...older].some(value => normalized === normalizeGenerationText(value))) return 'exact';
   const recentThreshold = isTitle ? 0.55 : 0.68;
   if (recent.some(value => similarity(value) >= recentThreshold)) return 'recent';
