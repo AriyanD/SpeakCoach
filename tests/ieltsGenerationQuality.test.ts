@@ -27,7 +27,7 @@ describe('IELTS question generation quality', () => {
     const nearMatch = 'How can public libraries support lifelong education in modern communities?';
     const similarityBand = [nearMatch];
     expect(getRecentQuestionOverlapTier(question, similarityBand)).toBe('recent');
-    const olderMemory = [...Array.from({ length: 24 }, (_, index) => `Unrelated recent question ${index}`), nearMatch];
+    const olderMemory = [nearMatch, ...Array.from({ length: 24 }, (_, index) => `Unrelated recent question ${index}`)];
     expect(getRecentQuestionOverlapTier(question, olderMemory)).toBe('older');
     expect(hasRecentQuestionOverlap(question, olderMemory)).toBe(false);
   });
