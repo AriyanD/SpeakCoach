@@ -36,15 +36,16 @@ describe('Quick Setup provider allocation', () => {
     });
 
     // Existing legacy IDs remain readable so previously saved Groq keys can be reused.
-    expect(QUICK_SETUP_REUSABLE_PROVIDER_IDS.groq).toEqual(expect.arrayContaining([
-      'custom_openai_pronunciation',
-      'custom_openai_stt',
+    expect(QUICK_SETUP_REUSABLE_PROVIDER_IDS.groq).toEqual([
+      // Keep the original cross-slot key search order unchanged.
+      'whisper_alignment',
+      'whisper_stt',
       'custom_openai_eval',
       'custom_openai_gen',
       'custom_openai_translation',
-      'whisper_alignment',
-      'whisper_stt'
-    ]));
+      'custom_openai_pronunciation',
+      'custom_openai_stt'
+    ]);
     expect(QUICK_SETUP_REUSABLE_PROVIDER_IDS.gemini).toContain('gemini_eval');
   });
 

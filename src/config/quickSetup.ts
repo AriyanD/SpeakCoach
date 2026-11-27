@@ -58,12 +58,13 @@ export const QUICK_SETUP_PLAN: QuickSetupPlanItem[] = [
 export const QUICK_SETUP_REUSABLE_PROVIDER_IDS: Record<QuickSetupSource, string[]> = {
   gemini: ['gemini_tts', 'gemini_pronunciation', 'gemini_stt', 'gemini_eval', 'gemini_gen', 'gemini_translation'],
   groq: [
-    'custom_openai_pronunciation',
-    'custom_openai_stt',
+    // Preserve the exact legacy lookup priority, then include the new Custom STT IDs.
+    'whisper_alignment',
+    'whisper_stt',
     'custom_openai_eval',
     'custom_openai_gen',
     'custom_openai_translation',
-    'whisper_alignment',
-    'whisper_stt'
+    'custom_openai_pronunciation',
+    'custom_openai_stt'
   ]
 };
