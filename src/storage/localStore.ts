@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
+import { loadApiKey } from './keyStore';
 import {
   createDefaultAllSlotsConfig,
   createDefaultSlotConfig,
@@ -310,8 +311,7 @@ export async function saveSlotConnectionTestResult(
     const configs = await loadAllSlotsConfig();
     if (configs[slotId].providerId === result.providerId) {
       try {
-        const { loadApiKey } = await import('./keyStore');
-        const apiKey = await loadApiKey(slotId, result.providerId, 'primary');
+                const apiKey = await loadApiKey(slotId, result.providerId, 'primary');
         verificationFingerprint = await createProviderVerificationFingerprint(configs[slotId], apiKey) ?? undefined;
       } catch {
         // A successful test without a readable key cannot be bound to a reusable verification.
