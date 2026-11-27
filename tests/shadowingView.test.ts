@@ -178,9 +178,10 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     root.querySelector<HTMLButtonElement>('#settings-open-diagnostics-btn')?.click();
     await new Promise((r) => setTimeout(r, 40));
 
-    await expect.poll(() => root.querySelector('#diag-last-ref')?.textContent).toContain(
-      'Could you please tell me where the nearest train station is?'
-    );
+    await expect.poll(
+      () => root.querySelector('#diag-last-ref')?.textContent,
+      { timeout: 2000, interval: 25 }
+    ).toContain('Could you please tell me where the nearest train station is?');
     expect(root.querySelector('#diag-last-raw')?.textContent).toContain(
       '"Could you tell me where the train station is" (87%)'
     );
