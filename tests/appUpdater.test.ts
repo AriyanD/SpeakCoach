@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Directory, Filesystem } from '@capacitor/filesystem';
-import { assertMinimumAndroidSdk, downloadSpeakCoachUpdate, type SpeakCoachReleaseAsset } from '../src/services/appUpdater';
+import { assertMinimumAndroidSdk, downloadSpeakCoachUpdate, shouldShowApiSettingsUpdateWarning, type SpeakCoachReleaseAsset } from '../src/services/appUpdater';
 
 vi.mock('@capacitor/filesystem', () => ({
   Directory: { Data: 'DATA' },
@@ -18,6 +18,17 @@ const asset: SpeakCoachReleaseAsset = {
   size: 1234,
   sha256: 'a'.repeat(64)
 };
+
+describe('API settings update warning', () => {
+  it('starts warning users about changed API settings from v1.2.1', () => {
+    expect(shouldShowApiSettingsUpdateWarning('1.2.0')).toBe(false);
+    expect(shouldShowApiSettingsUpdateWarning('1.2.1')).toBe(true);
+    expect(shouldShowApiSettingsUpdateWarning('1.2.2')).toBe(true);
+    expect(shouldShowApiSettingsUpdateWarning('1.3.0')).toBe(true);
+    expect(shouldShowApiSettingsUpdateWarning('2.0.0')).toBe(true);
+    expect(shouldShowApiSettingsUpdateWarning('invalid')).toBe(false);
+  });
+});
 
 describe('SpeakCoach Android update compatibility', () => {
   it('rejects Android 5.1 and older before offering an API 23+ update', () => {
