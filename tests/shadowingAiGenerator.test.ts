@@ -58,8 +58,8 @@ describe('AI Shadowing sentence response parsing', () => {
     const samples = [
       { language: 'en' as const, text: 'I usually prepare a simple breakfast before I leave home for work each morning.' },
       { language: 'sv' as const, text: 'Jag brukar ta en kort promenad efter arbetet eftersom det hjälper mig att koppla av och tänka klart.' },
-      { language: 'zh' as const, text: '今天我下班以后常常去附近的公园散步，因为那里很安静，也让我感觉轻松。' },
-      { language: 'ja' as const, text: '仕事のあと、近くの公園を散歩すると、気分が落ち着いて、よく眠れるようになります。' }
+      { language: 'zh' as const, text: '今天我下班后去公园散步，因为那里很安静。' },
+      { language: 'ja' as const, text: '仕事のあと公園を散歩すると気分が落ち着きます。' }
     ];
     for (const sample of samples) {
       const units = countShadowingLanguageUnits(sample.text, sample.language);
