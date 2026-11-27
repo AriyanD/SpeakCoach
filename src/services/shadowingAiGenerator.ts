@@ -52,7 +52,8 @@ function parseSentence(raw: string, difficulty: ShadowingDifficulty, languageCod
   const minimumWords = Math.max(0, band.min - 2);
   const maximumWords = band.max + 2;
   if (wordCount < minimumWords || wordCount > maximumWords) {
-    throw new Error(`length: The AI response contained ${wordCount} units; this level allows ${minimumWords}–${maximumWords} units (target ${band.min}–${band.max}).`);
+    const unitLabel = language.usesWordSegmentation ? 'words' : 'units';
+    throw new Error(`length: The AI response contained ${wordCount} ${unitLabel}; this level allows ${minimumWords}–${maximumWords} ${unitLabel} (target ${band.min}–${band.max}).`);
   }
   return {
     id: `ai-shadowing-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
