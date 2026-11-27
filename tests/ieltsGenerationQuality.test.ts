@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { IELTS_FREQUENT_QUESTIONS } from '../src/data/ieltsFrequentQuestions';
 import { CUE_CARD_SEEDS, IELTS_PART1_FORMS, IELTS_PART3_FORMS, getIeltsQualityMemorySnapshot, restoreIeltsQualityMemorySnapshot, takePersistedIeltsDeck, takeWeightedQuestionSeeds } from '../src/services/ieltsGenerationQuality';
-import { buildGeneratorPrompt, createIeltsGenerationContext, hasRecentQuestionOverlap } from '../src/services/ieltsQuestionGenerator';
+import { buildGeneratorPrompt, createIeltsGenerationContext, getRecentQuestionOverlapTier, hasRecentQuestionOverlap } from '../src/services/ieltsQuestionGenerator';
 
 describe('IELTS question generation quality', () => {
   beforeEach(() => localStorage.clear());
@@ -10,6 +10,26 @@ describe('IELTS question generation quality', () => {
     expect(hasRecentQuestionOverlap('A useful skill', ['Useful skills'], true)).toBe(true);
     expect(hasRecentQuestionOverlap('A place to relax', ['Places for relaxing'], true)).toBe(true);
     expect(hasRecentQuestionOverlap('A useful skill', ['A crowded market'], true)).toBe(false);
+  });
+
+
+  it('uses the full stored IELTS question window even after several sets were accepted', () => {
+    const stored = Array.from({ length: 80 }, (_, index) => `Stored IELTS question number ${index + 1} about a distinct subject`);
+    const acceptedBatch = Array.from({ length: 48 }, (_, index) => `Accepted batch question number ${index + 1} about another subject`);
+    const memory = [...stored, ...acceptedBatch];
+    const repeated = stored[0];
+    expect(getRecentQuestionOverlapTier(repeated, memory)).toBe('exact');
+    expect(hasRecentQuestionOverlap(repeated, memory)).toBe(true);
+  });
+
+  it('softens older near-overlaps while retaining the recent-question threshold', () => {
+    const question = 'How can public libraries support lifelong learning in modern communities?';
+    const nearMatch = 'How can public libraries support lifelong education in modern communities?';
+    const similarityBand = [nearMatch];
+    expect(getRecentQuestionOverlapTier(question, similarityBand)).toBe('recent');
+    const olderMemory = [...Array.from({ length: 24 }, (_, index) => `Unrelated recent question ${index}`), nearMatch];
+    expect(getRecentQuestionOverlapTier(question, olderMemory)).toBe('older');
+    expect(hasRecentQuestionOverlap(question, olderMemory)).toBe(false);
   });
 
   it('persists shuffled decks and does not repeat before exhaustion', () => {

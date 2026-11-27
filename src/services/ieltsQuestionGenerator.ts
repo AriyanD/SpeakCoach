@@ -165,14 +165,30 @@ function topicMatchesAssigned(actual: string, assigned: string): boolean {
   return overlap / Math.min(actualTokens.size, assignedTokens.size) >= 0.8;
 }
 
-export function hasRecentQuestionOverlap(question: string, recentQuestions: string[], isTitle = false): boolean {
+export type QuestionOverlapTier = 'exact' | 'recent' | 'older' | 'none';
+
+export function getRecentQuestionOverlapTier(question: string, recentQuestions: string[], isTitle = false): QuestionOverlapTier {
   const normalized = normalizeGenerationText(question);
-  if (!normalized) return false;
-  for (const recent of recentQuestions) {
-    if (normalized === normalizeGenerationText(recent)) return true;
-    if (isTitle ? lemmatizedTokenJaccard(question, recent) >= 0.55 : sharedTextSimilarity(question, recent, 'en') >= 0.68) return true;
-  }
-  return false;
+  if (!normalized) return 'none';
+  const recentLimit = isTitle ? 12 : 24;
+  const recent = recentQuestions.slice(-recentLimit);
+  const older = recentQuestions.slice(0, -recentLimit);
+  const similarity = (value: string) => isTitle
+    ? lemmatizedTokenJaccard(question, value)
+    : sharedTextSimilarity(question, value, 'en');
+
+  // Exact normalized repeats are never allowed, regardless of age.
+  if ([...recent, ...older].some(value => normalized === normalizeGenerationText(value))) return 'exact';
+  const recentThreshold = isTitle ? 0.55 : 0.68;
+  if (recent.some(value => similarity(value) >= recentThreshold)) return 'recent';
+  const olderThreshold = isTitle ? 0.70 : 0.80;
+  if (older.some(value => similarity(value) >= olderThreshold)) return 'older';
+  return 'none';
+}
+
+export function hasRecentQuestionOverlap(question: string, recentQuestions: string[], isTitle = false): boolean {
+  const tier = getRecentQuestionOverlapTier(question, recentQuestions, isTitle);
+  return tier === 'exact' || tier === 'recent';
 }
 
 function getPlanGenerationMemory(plan: IeltsTestSessionPlan): { topics: string[]; questions: string[]; titles: string[]; part1Topics: string[] } {
@@ -351,8 +367,13 @@ export function parseLlmSessionPlanResponse(rawText: string, options: {
   const recentOverlap = [
     ...part1Questions.map(question => question.question),
     ...part3Questions.map(question => question.question)
-  ].find(question => hasRecentQuestionOverlap(question, recentQuestions))
-    ?? (hasRecentQuestionOverlap(part2CueCard.title, recentTitles, true) ? part2CueCard.title : undefined);
+  ].find(question => {
+    const tier = getRecentQuestionOverlapTier(question, recentQuestions);
+    return tier === 'exact' || tier === 'recent';
+  }) ?? ([part2CueCard.title].find(title => {
+    const tier = getRecentQuestionOverlapTier(title, recentTitles, true);
+    return tier === 'exact' || tier === 'recent';
+  }));
   if (recentOverlap) {
     throw new Error(`The generated set repeats or closely paraphrases a recent question: "${recentOverlap}".`);
   }
@@ -648,8 +669,8 @@ export async function generateIeltsQuestionSets(
     attempts++;
     const generationMemory = {
       topics: [...baseMemory.topics, ...batchTopics].slice(-40),
-      questions: [...baseMemory.questions, ...batchQuestions].slice(-24),
-      titles: [...(baseMemory.titles ?? []), ...batchTitles].slice(-24),
+      questions: [...baseMemory.questions, ...batchQuestions],
+      titles: [...(baseMemory.titles ?? []), ...batchTitles],
       part1Topics: [...getRecentLlmPart1Topics(), ...batchPart1Topics].slice(-40)
     };
     const generationContext = createIeltsGenerationContext(generationMemory.topics, options?.requestedTopic ?? '', generationMemory.part1Topics ?? getRecentLlmPart1Topics());
