@@ -66,7 +66,7 @@ describe('IELTS diagnostic transcript privacy', () => {
     const serialized = JSON.stringify(logs);
     expect(serialized).not.toContain(privateAnswer);
     expect(serialized).not.toContain(privateError);
-    expect(logs[0]?.error).toBe('LLM evaluation failed; provider response omitted.');
+    expect(logs[0]?.error).toBe('LLM evaluation failed (HTTP 502); provider response omitted.');
     expect(logs[0]?.details).toContain('Provider: Groq');
     expect(logs[0]?.details).toContain('HTTP 502');
     expect(localStorage.getItem(SESSION_LOG_KEY)).not.toContain(privateAnswer);
