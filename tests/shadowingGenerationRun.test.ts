@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateAiShadowingSentenceBatch } from '../src/services/shadowingAiGenerator';
-import { buildIeltsShadowingSlots } from '../src/services/ieltsShadowingQuality';
+import { buildIeltsShadowingSlots, validateIeltsShadowingCandidates } from '../src/services/ieltsShadowingQuality';
 
 const mocks = vi.hoisted(() => ({
   calls: 0,
@@ -120,6 +120,8 @@ describe('Shadowing batch request budget', () => {
       { q: slots[0].q, fn: slots[0].fn, text: 'By contrast, I learned basic woodworking at a weekend course where each participant designed a small shelf and tested its stability.', chunk: 'basic woodworking' },
       { q: slots[1].q, fn: slots[1].fn, text: 'A recent conversation with my cousin changed my view of public transport because she described the barriers faced by older passengers.', chunk: 'public transport' }
     );
+    const localValidation = validateIeltsShadowingCandidates(items, slots, []);
+    expect(localValidation.sentences, JSON.stringify(localValidation.rejectionReasons)).toHaveLength(20);
     mocks.batches = [items];
     const result = await generateAiShadowingSentenceBatch('ielts', 20, '', async () => ({}), 'en');
     expect(result).toHaveLength(20);
