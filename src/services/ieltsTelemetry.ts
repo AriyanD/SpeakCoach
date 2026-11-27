@@ -20,11 +20,11 @@ let inMemorySessionLogs: IeltsSessionLogEntry[] = [];
 function sanitizeSessionLogEntry(entry: IeltsSessionLogEntry): IeltsSessionLogEntry {
   if (entry.event === 'recognizer_result') {
     const details = entry.details ?? '';
-    const legacyTranscript = details.match(/^Raw system-recognizer transcript: "([\\s\\S]*)" \\| confidence:/i)?.[1];
-    const transcriptLength = details.match(/transcriptLength=(\\d+)/i)?.[1] ??
+    const legacyTranscript = details.match(/^Raw system-recognizer transcript: "([\s\S]*)" \| confidence:/i)?.[1];
+    const transcriptLength = details.match(/transcriptLength=(\d+)/i)?.[1] ??
       (legacyTranscript !== undefined ? String(legacyTranscript.length) : 'unknown');
-    const confidence = details.match(/confidence[=:]\\s*([^|;]+)/i)?.[1]?.trim() ?? 'N/A';
-    const duration = details.match(/duration[=:]\\s*(\\d+)s?/i)?.[1] ?? 'unknown';
+    const confidence = details.match(/confidence[=:]\s*([^|;]+)/i)?.[1]?.trim() ?? 'N/A';
+    const duration = details.match(/duration[=:]\s*(\d+)s?/i)?.[1] ?? 'unknown';
     return {
       ...entry,
       details: `System recognizer completed; transcript omitted; characters=${transcriptLength}; confidence=${confidence}; duration=${duration}s`
