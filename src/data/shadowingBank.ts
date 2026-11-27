@@ -19,6 +19,8 @@ export interface ShadowingSentence {
   speakingTip?: string;
   meaningContext?: string;
   usefulVocabulary?: { term: string; meaning: string }[];
+  /** Optional prompt variant used when this sentence was generated. */
+  promptVariantId?: string;
   /** Optional cached translations keyed by target language code. */
   translations?: Record<string, string>;
 }

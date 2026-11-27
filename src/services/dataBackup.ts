@@ -16,6 +16,7 @@ import { SEEN_LLM_TOPICS_KEY, RECENT_LLM_QUESTIONS_KEY, getSeenQuestions, getRec
 import { getLastShadowingAttempt, restoreLastShadowingAttempt } from './shadowingTelemetry';
 import { exportIeltsQuestionSetSnapshot, importIeltsQuestionSetSnapshot } from './ieltsQuestionSetStore';
 import { clearActiveShadowingAudioStore } from './shadowingAudioStore';
+import { exportGenerationVarietySnapshot, importGenerationVarietySnapshot } from './generationVariety';
 
 export type BackupKind = 'ai-settings' | 'test-data';
 const BACKUP_VERSION = 2;
@@ -62,7 +63,8 @@ export async function createBackup(
       ? JSON.parse(localStorage.getItem(SEEN_LLM_TOPICS_KEY) || '[]')
       : [],
     seenLlmQuestions: getRecentLlmQuestions(),
-    lastShadowingAttempt: await getLastShadowingAttempt()
+    lastShadowingAttempt: await getLastShadowingAttempt(),
+    shadowingGenerationVariety: await exportGenerationVarietySnapshot()
   };
 }
 
@@ -77,7 +79,7 @@ export function normalizeBackupPayload(payload: unknown, kind: BackupKind): Reco
   const raw = payload as Record<string, any>;
   const inferredType = raw.type ?? (
     raw.configs || Array.isArray(raw.apiKeys) ? 'ai-settings' :
-    raw.ielts || raw.ieltsQuestionSets || raw.seenQuestions || raw.seenLlmQuestions || raw.lastShadowingAttempt !== undefined ? 'test-data' : undefined
+    raw.ielts || raw.ieltsQuestionSets || raw.seenQuestions || raw.seenLlmQuestions || raw.lastShadowingAttempt !== undefined || raw.shadowingGenerationVariety !== undefined ? 'test-data' : undefined
   );
   const acceptedAppIds = new Set(['SpeakCoach']);
   if (raw.app !== undefined && !acceptedAppIds.has(String(raw.app))) {
@@ -330,6 +332,7 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
     ? localStorage.getItem(RECENT_LLM_QUESTIONS_KEY)
     : null;
   const previousShadowingAttempt = await getLastShadowingAttempt();
+  const previousGenerationVariety = await exportGenerationVarietySnapshot();
 
   try {
     if (payload.ielts) await importIeltsHistorySnapshot(payload.ielts);
@@ -350,6 +353,9 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
     if (payload.lastShadowingAttempt !== undefined) {
       await restoreLastShadowingAttempt(payload.lastShadowingAttempt ?? null);
     }
+    if (payload.shadowingGenerationVariety !== undefined) {
+      await importGenerationVarietySnapshot(payload.shadowingGenerationVariety);
+    }
     // Test-data restore can change the user's practice context; keep generated
     // AI audio out of backups and clear the active-set files after a successful import.
     await clearActiveShadowingAudioStore();
@@ -368,6 +374,7 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
       }
     } catch (e) { rollbackErrors.push(`seen-topic tracking: ${String(e)}`); }
     try { await restoreLastShadowingAttempt(previousShadowingAttempt); } catch (e) { rollbackErrors.push(`Shadowing attempt: ${String(e)}`); }
+    try { await importGenerationVarietySnapshot(previousGenerationVariety); } catch (e) { rollbackErrors.push(`Shadowing generation memory: ${String(e)}`); }
     throw new Error(`Test-data import failed: ${originalMessage}${rollbackErrors.length ? `. Rollback was incomplete: ${rollbackErrors.join('; ')}` : '. Your previous test data was restored.'}`);
   }
 }

@@ -6,6 +6,7 @@ import { loadAppSettings, saveAppSettings } from '../src/storage/appSettings';
 import { loadApiKey, saveApiKey } from '../src/storage/keyStore';
 import { getRecentLlmQuestions, getLlmSeenTopics, markLlmQuestionsSeen, markLlmTopicsSeen } from '../src/services/ieltsQuestionTracker';
 import { activateShadowingAudioSet, persistActiveShadowingAudio, readActiveShadowingAudio, resetShadowingAudioStoreForTests } from '../src/services/shadowingAudioStore';
+import { getVarietyMemory, seedVarietyMemory } from '../src/services/generationVariety';
 
 beforeEach(() => {
   localStorage.clear();
@@ -261,6 +262,16 @@ describe('backup restore safety', () => {
     expect(backup).toHaveProperty('ieltsQuestionSets');
     expect((backup.ieltsQuestionSets as { sets?: unknown[] }).sets).toEqual([]);
   });
+  it('backs up and restores language-and-level-specific shadowing variety memory', async () => {
+    const sentence = 'The lighthouse keeper checked the weather before opening the coastal visitor centre.';
+    await seedVarietyMemory('en', 'hard', [sentence]);
+    const backup = await createBackup('test-data');
+    expect(backup.shadowingGenerationVariety).toBeDefined();
+    localStorage.clear();
+    await restoreBackup('test-data', backup);
+    expect((await getVarietyMemory('en', 'hard')).some(item => item.text === sentence)).toBe(true);
+  });
+
   it('keeps generated audio out of backups and clears the active-set store after restore', async () => {
     resetShadowingAudioStoreForTests();
     const setId = 'en:easy:backup-exclusion';
