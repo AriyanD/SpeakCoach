@@ -95,8 +95,8 @@ describe('Shadowing generation variety', () => {
   });
 
   it('uses a softer similarity threshold for memory older than the latest forty entries', () => {
-    const candidate = 'Earlier this year, I joined a neighbourhood repair session where volunteers showed me how to mend a loose bicycle chain safely.';
-    const nearMatch = 'Earlier this year, I joined a neighbourhood repair session where volunteers taught me how to mend a broken bicycle wheel safely.';
+    const candidate = 'How can public libraries support lifelong learning in modern communities?';
+    const nearMatch = 'How can local libraries encourage adult learning in modern communities?';
     const older = [makeMemoryEntry(nearMatch, 'en'), ...Array.from({ length: 40 }, (_, index) => makeMemoryEntry(`Unrelated recent memory sentence number ${index}.`, 'en'))];
     const recent = [...Array.from({ length: 40 }, (_, index) => makeMemoryEntry(`Unrelated recent memory sentence number ${index}.`, 'en')), makeMemoryEntry(nearMatch, 'en')];
     expect(validateVarietyBatch([candidate], 'en', older).accepted).toEqual([0]);
