@@ -101,9 +101,6 @@ export async function buildVarietySlots(language: ShadowingLanguageCode, level: 
   return { slots, promptVariantId: variants[0].id };
 }
 
-function compactWords(text: string, language: string): string[] {
-  const clean = text.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ');
-  const words = clean.split(/\s+/u).filter(word => word.length > 2);
 const SHADOWING_STOP_WORDS = new Set(['the','and','for','with','that','this','from','have','your','about','when','what','there','their','would','could','should','into','because','just','then','than','very','really','من','برای','که','این','آن','با','از','به','در','را','و','می','های','och','att','det','som','en','ett','jag','är','på','till','med','den','der','die','das','und','ist','zu','im','am','ein','eine','ich','wir','mit','für','auf','von','le','la','les','de','des','du','et','est','un','une','je','tu','il','elle','nous','vous','avec','dans','sur','el','los','las','del','y','es','una','yo','que','con','para','por','mi','il','lo','gli','di','e','è','io','per','in','su','het','een','van','ik','je','hij','zij','o','a','os','as','do','da','um','uma','eu','em','и','в','на','с','что','я','он','она','это','не','для','к','по','из','как','ve','bir','bu','şu','için','ile','de','da','ben','o','و','في','من','على','إلى','أن','هو','هي','هذا','هذه','مع','عن']);
 const SIMILARITY_CACHE_LIMIT = 400;
 const SIMILARITY_MEMORY_LIMIT = 120;
@@ -112,8 +109,12 @@ export const VARIETY_RECENT_SIMILARITY_THRESHOLD = 0.5;
 export const VARIETY_OLDER_SIMILARITY_THRESHOLD = 0.65;
 type SimilaritySets = { grams: Set<string>; tokens: Set<string> };
 const similarityCache = new Map<string, SimilaritySets>();
-  if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\s+/g, '')).filter(ch => /[\p{L}\p{N}]/u.test(ch)).slice(1, 5);
-  return words.filter(word => !stop.has(word)).slice(0, 4);
+
+function compactWords(text: string, language: string): string[] {
+  const clean = text.normalize('NFKC').toLocaleLowerCase().replace(/[^\\p{L}\\p{N}\\s]/gu, ' ');
+  const words = clean.split(/\\s+/u).filter(word => word.length > 2);
+  if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\\s+/g, '')).filter(ch => /[\\p{L}\\p{N}]/u.test(ch)).slice(1, 5);
+  return words.filter(word => !SHADOWING_STOP_WORDS.has(word)).slice(0, 4);
 }
 export function openingKey(text: string, language: string): string {
   const clean = text.normalize('NFKC').toLocaleLowerCase().replace(/^[\p{P}\p{S}\s]+/u, '');
