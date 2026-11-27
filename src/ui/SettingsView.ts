@@ -178,6 +178,10 @@ export async function renderSettingsView(
     const apiRequiredOfflineSelected = (slotId === 'llm_evaluator' || slotId === 'llm_translation') && preset.tier === 3;
     const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
     const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
+    const secondaryHasUnrecognizedProvider = !!slotCfg.secondary && slotCfg.secondary.providerId !== secondaryPreset?.id;
+    const secondaryProviderDisplayName = secondaryHasUnrecognizedProvider
+      ? `Unrecognized saved provider: ${slotCfg.secondary!.providerId}`
+      : secondaryPreset?.name ?? 'Not configured';
     const secondarySuggestions = secondaryPreset ? (secondaryPreset.modelSuggestions || [secondaryPreset.defaultModelOrVoice]) : [];
     const secondaryIsCustom = secondaryPreset?.id.startsWith('custom_openai_') ?? false;
     const secondarySameModelAsPrimary = !!slotCfg.secondary && slotCfg.secondary.providerId === slotCfg.providerId && slotCfg.secondary.modelOrVoice.trim() === slotCfg.modelOrVoice.trim();
@@ -542,12 +546,14 @@ export async function renderSettingsView(
             <div class="form-field"><label class="form-label" for="secondary-provider-${slotId}">Provider</label>
               <select class="form-select provider-native-select" id="secondary-provider-${slotId}" data-slot="${slotId}" aria-hidden="true" tabindex="-1">
                 <option value="">Not configured</option>
+                ${secondaryHasUnrecognizedProvider ? `<option value="${escapeHtml(slotCfg.secondary!.providerId)}" selected disabled>Unrecognized saved provider: ${escapeHtml(slotCfg.secondary!.providerId)} (temporarily offline)</option>` : ''}
                 ${visibleProviders.map((p) => `<option value="${escapeHtml(p.id)}" ${slotCfg.secondary?.providerId === p.id ? 'selected' : ''} ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</option>`).join('')}
               </select>
               <div class="provider-picker secondary-provider-picker" id="secondary-provider-picker-${slotId}">
-                <button type="button" class="provider-picker-trigger" id="secondary-provider-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(secondaryPreset?.name ?? 'Not configured')}</span><span class="provider-picker-chevron">⌄</span></button>
+                <button type="button" class="provider-picker-trigger" id="secondary-provider-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(secondaryProviderDisplayName)}</span><span class="provider-picker-chevron">⌄</span></button>
                 <div class="provider-picker-options" id="secondary-provider-options-${slotId}" hidden>
                   <details class="settings-info-help"><summary aria-label="Provider setup information">i</summary><p>After selecting a provider and adding its API key, tap <strong>Test API 2</strong> below. Wait for a successful result before using online features.</p></details>
+                  ${secondaryHasUnrecognizedProvider ? `<button type="button" class="provider-picker-option active" data-secondary-provider-id="${escapeHtml(slotCfg.secondary!.providerId)}" disabled>Unrecognized saved provider: ${escapeHtml(slotCfg.secondary!.providerId)} (temporarily offline)</button>` : ''}
                   ${visibleProviders.map((p) => `<button type="button" class="provider-picker-option ${slotCfg.secondary?.providerId === p.id ? 'active' : ''}" data-secondary-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
                 </div>
               </div>
