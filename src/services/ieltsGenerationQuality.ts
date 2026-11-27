@@ -23,15 +23,68 @@ export const IELTS_BANNED_CLICHES = [
 ] as const;
 
 export const CUE_CARD_SEEDS: Record<string, readonly string[]> = {
-  person: ['a neighbour who shared a practical skill','a colleague who handled a difficult situation calmly','a relative who changed their career later in life','a friend who organised a community activity','a local craftsperson whose work you admire','a person who encouraged you to question an idea','a volunteer who supported a local project','a teacher who made a complex subject accessible','a friend with an unusual hobby','a person who repaired something instead of replacing it','a community organiser you once met','a relative with a memorable daily routine','a person who helped you settle into a new place','a colleague who solved a problem creatively','someone whose advice changed a decision'],
-  place: ['a public library with a welcoming atmosphere','a walking route beside water','a small workshop open to visitors','a neighbourhood market','a quiet courtyard in a busy area','a community garden','a building with an unusual design','a place where people gather outdoors','a museum focused on everyday life','a café suitable for working quietly','a coastal path','a public square used for events','a place you visited during bad weather','a green space in a city','a local place that has changed over time'],
-  object: ['a tool used for a practical repair','a notebook that helped organise a project','a second-hand object with an interesting history','a reusable item that replaced disposable products','a piece of furniture made by hand','a device that saves time at home','a photograph with personal meaning','an object inherited from a relative','a useful item bought from a local maker','a map kept from a memorable journey','a musical instrument you tried','a small object that is difficult to replace','a household item designed unusually well','a book with notes written by someone else','an item you learned to maintain'],
-  event: ['a neighbourhood event organised by residents','a workshop where strangers worked together','a small celebration after a shared achievement','a public talk that changed your perspective','a local festival affected by the weather','a community clean-up day','a performance in an unexpected venue','a family gathering with a new tradition','a sports event watched with friends','a meeting where a disagreement was resolved','an exhibition by local artists','a volunteer event with practical results','a trip delayed by an unexpected event','a school event remembered for teamwork','a public event that brought generations together'],
-  decision: ['choosing a field of study','deciding to move to a different neighbourhood','turning down an attractive opportunity','changing a daily habit for environmental reasons','choosing to learn a practical skill','deciding to work with a new team','buying a repaired or second-hand item','changing the way you travel','taking responsibility for a group task','choosing a smaller but more meaningful project','deciding to continue learning after graduation','changing a long-term plan','choosing where to spend a holiday','deciding to speak up in a meeting','choosing a more affordable option'],
-  skill: ['repairing a household item','preparing a meal without a recipe','speaking confidently to a group','planning a low-cost trip','using a digital tool for creative work','growing herbs or vegetables','taking clear photographs','making a simple piece of furniture','managing time during a busy week','learning to cycle in traffic','drawing a useful diagram','giving constructive feedback','organising a community activity','maintaining a bicycle','learning a new language through conversation'],
-  activity: ['walking through an unfamiliar part of a city','camping with a small group','visiting a local market','making something with your hands','volunteering at a community event','cycling along a safe route','cooking a meal with friends','exploring a museum independently','working on a shared garden','attending a public lecture','taking photographs outdoors','learning a dance or movement activity','repairing or upcycling an object','planning a day without a car','playing a team game'],
-  'piece of media': ['a documentary about everyday consumption','a podcast that explained a social issue','a novel set in an unfamiliar community','an article about redesigning public spaces','a film with an unexpected ending','a radio programme about local history','a photograph that tells a social story','a series about people changing careers','a book exploring a different culture','a short video teaching a practical skill','a story about cooperation','a news feature that raised a question','a song connected with a personal memory','an interview with a creative professional','a programme about protecting local nature'],
-  situation: ['helping a visitor who had lost their way','solving a misunderstanding in a group','finding an alternative after a service was cancelled','working with limited materials','making a plan during unexpected rain','returning an item that was not as described','sharing a workspace with others','adjusting a routine after a timetable change','dealing with a delayed delivery','finding a quiet place to concentrate','organising transport for a group','asking for help with an unfamiliar task','making a fair decision with limited time','adapting an event for different needs','finding a practical use for discarded materials']
+  person: [
+    'a friend who introduced you to a new hobby','a teacher who made a difficult subject interesting','a relative who tells memorable stories',
+    'a colleague who manages time effectively','a person who works in an unusual profession','someone who inspired you to learn a language',
+    'a person you met while travelling','a neighbour with a useful practical skill','a public figure whose work you respect',
+    'a friend who enjoys reading','someone who achieved a personal goal','a person from a different cultural background',
+    'a family member who cooks well','a person who gave you helpful advice','a friend you knew during childhood'
+  ],
+  place: [
+    'a historic city you would like to visit','a beach or coastal area','a mountain trail with a memorable view',
+    'a public park with interesting features','a museum you enjoyed visiting','a quiet café where you can read',
+    'a restaurant with memorable food','a bookshop you like','a train station in an unfamiliar city',
+    'a village you visited on a trip','a sports centre you have used','a garden open to visitors',
+    'a building with unusual architecture','a market you explored while travelling','a place with beautiful night views'
+  ],
+  object: [
+    'a book that changed your opinion','a camera you use regularly','a bicycle you enjoy riding',
+    'a musical instrument you would like to learn','an old photograph from your family','a gift with personal meaning',
+    'a reusable water bottle you carry','a suitcase you use for travel','a recipe book you often consult',
+    'a pair of headphones you rely on','a piece of handmade furniture','a board game you enjoy',
+    'a watch you have owned for years','a toy you kept from childhood','an item you learned to maintain'
+  ],
+  event: [
+    'a birthday celebration you remember','a graduation ceremony','a concert you attended',
+    'a sports match you watched live','a wedding with an unusual tradition','a cultural festival',
+    'a school trip from your childhood','a family meal for a special occasion','a trip delayed by unexpected weather',
+    'a public celebration in your city','an art exhibition you visited','a competition you took part in',
+    'your first day at a new job','a reunion with an old friend','a journey with an unexpected event'
+  ],
+  decision: [
+    'choosing a field of study','deciding to buy a second-hand item','planning a trip with a limited budget',
+    'changing to a different job','learning a practical skill','moving to a new city',
+    'choosing a holiday destination','saving money for an important purchase','using public transport instead of a car',
+    'joining a sports club','selecting a meaningful gift','deciding whether to study abroad',
+    'changing a daily routine','accepting a challenging opportunity','choosing between two courses'
+  ],
+  skill: [
+    'cooking a meal without following a recipe','riding a bicycle safely in traffic','taking photographs in natural light',
+    'speaking a foreign language in conversation','managing a personal budget','speaking confidently to a group',
+    'swimming a longer distance','growing herbs or vegetables','playing a musical instrument',
+    'repairing or altering clothes','planning a multi-day trip','managing time during a busy week',
+    'drawing a useful diagram','working effectively in a team','using a digital tool for creative work'
+  ],
+  activity: [
+    'hiking in the countryside','camping with friends','cooking for your family','reading a novel',
+    'visiting a museum independently','cycling through a city','playing a team sport','taking photographs outdoors',
+    'exploring an unfamiliar city','attending a concert','learning a new language','gardening at home',
+    'playing board games with friends','volunteering at a local event','travelling by train'
+  ],
+  'piece of media': [
+    'a novel set in an unfamiliar country','a documentary about nature','a film about friendship',
+    'a podcast that explains a scientific idea','a news article about technology','a travel blog you follow',
+    'a music album connected to a memory','a photo essay about daily life','a historical television series',
+    'a comedy show you enjoy','an educational video that taught you something','an interview with a creative professional',
+    'an audiobook you listened to','an online tutorial for a practical skill','a short story with a surprising ending'
+  ],
+  situation: [
+    'missing a train during a journey','losing luggage while travelling','unexpected rain during an outdoor activity',
+    'planning a group holiday','helping a friend move house','cooking for guests with little preparation time',
+    'finding a phone that you had misplaced','dealing with a noisy neighbour','resolving a disagreement with a colleague',
+    'learning an unfamiliar route','changing travel plans at short notice','meeting new people at an event',
+    'sharing accommodation with other people','buying the wrong size item online','finding a quiet place to study'
+  ]
 };
 
 interface DeckState<T> { deck: T[]; cursor: number; cycle: number; clock?: number; lastUsed?: Record<string, number>; }

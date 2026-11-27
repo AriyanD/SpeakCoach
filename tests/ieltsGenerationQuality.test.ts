@@ -101,6 +101,19 @@ describe('IELTS question generation quality', () => {
     for (const subjects of Object.values(CUE_CARD_SEEDS)) expect(subjects.length).toBeGreaterThanOrEqual(15);
   });
 
+
+  it('broadens cue-card subjects and keeps repair/community/volunteer themes below one quarter', () => {
+    const subjects = Object.values(CUE_CARD_SEEDS).flat();
+    const focused = subjects.filter(subject =>
+      /\\b(repair|volunteer|community|neighbourhood|neighborhood|clean-up|organiser|organizer)\\b/i.test(subject)
+    );
+    expect(focused.length).toBeLessThanOrEqual(Math.ceil(subjects.length * 0.25));
+    const allSubjects = subjects.join(' ').toLocaleLowerCase();
+    for (const theme of ['travel', 'book', 'food', 'exercise', 'technology', 'money', 'childhood', 'study', 'celebration', 'nature', 'job']) {
+      expect(allSubjects).toContain(theme);
+    }
+  });
+
   it('contains the requested question coverage and answer-form decks', () => {
     expect(IELTS_FREQUENT_QUESTIONS.filter(item => item.part === 1).length).toBeGreaterThanOrEqual(90);
     expect(IELTS_FREQUENT_QUESTIONS.filter(item => item.part === 2)).toHaveLength(20);
