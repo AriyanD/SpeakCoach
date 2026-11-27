@@ -3,7 +3,7 @@ import { SHADOWING_LANGUAGES } from '../src/data/shadowingLanguages';
 import { SHADOWING_LANGUAGE_PROFILES } from '../src/data/shadowingLanguageProfiles';
 import { buildShadowingPrompt, estimatePromptTokens } from '../src/services/shadowingPromptBuilder';
 import {
-  buildVarietySlots, getVarietyMemory, openingKey, sentenceSimilarity,
+  buildVarietySlots, getVarietyMemory, makeMemoryEntry, openingKey, sentenceSimilarity,
   seedVarietyMemory, validateVarietyBatch
 } from '../src/services/generationVariety';
 
