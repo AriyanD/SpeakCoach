@@ -12,11 +12,12 @@ import {
 import { loadAppSettings, saveAppSettings, type AppSettings } from '../storage/appSettings';
 import { loadApiKeyStrict, saveApiKey } from '../storage/keyStore';
 import { exportIeltsHistorySnapshot, importIeltsHistorySnapshot } from '../storage/ieltsHistoryStore';
-import { SEEN_LLM_TOPICS_KEY, RECENT_LLM_QUESTIONS_KEY, getSeenQuestions, getRecentLlmQuestions, restoreLlmGenerationMemory, saveSeenQuestions } from './ieltsQuestionTracker';
+import { SEEN_LLM_TOPICS_KEY, RECENT_LLM_QUESTIONS_KEY, RECENT_LLM_TITLES_KEY, RECENT_LLM_PART1_TOPICS_KEY, getSeenQuestions, getRecentLlmQuestions, getRecentLlmTitles, getRecentLlmPart1Topics, restoreLlmGenerationMemory, saveSeenQuestions } from './ieltsQuestionTracker';
 import { getLastShadowingAttempt, restoreLastShadowingAttempt } from './shadowingTelemetry';
 import { exportIeltsQuestionSetSnapshot, importIeltsQuestionSetSnapshot } from './ieltsQuestionSetStore';
 import { clearActiveShadowingAudioStore } from './shadowingAudioStore';
 import { exportGenerationVarietySnapshot, importGenerationVarietySnapshot } from './generationVariety';
+import { getIeltsQualityMemorySnapshot, restoreIeltsQualityMemorySnapshot } from './ieltsGenerationQuality';
 
 export type BackupKind = 'ai-settings' | 'test-data';
 const BACKUP_VERSION = 2;
@@ -63,8 +64,11 @@ export async function createBackup(
       ? JSON.parse(localStorage.getItem(SEEN_LLM_TOPICS_KEY) || '[]')
       : [],
     seenLlmQuestions: getRecentLlmQuestions(),
+    seenLlmTitles: getRecentLlmTitles(),
+    seenLlmPart1Topics: getRecentLlmPart1Topics(),
     lastShadowingAttempt: await getLastShadowingAttempt(),
-    shadowingGenerationVariety: await exportGenerationVarietySnapshot()
+    shadowingGenerationVariety: await exportGenerationVarietySnapshot(),
+    ieltsGenerationQuality: getIeltsQualityMemorySnapshot()
   };
 }
 
@@ -79,7 +83,7 @@ export function normalizeBackupPayload(payload: unknown, kind: BackupKind): Reco
   const raw = payload as Record<string, any>;
   const inferredType = raw.type ?? (
     raw.configs || Array.isArray(raw.apiKeys) ? 'ai-settings' :
-    raw.ielts || raw.ieltsQuestionSets || raw.seenQuestions || raw.seenLlmQuestions || raw.lastShadowingAttempt !== undefined || raw.shadowingGenerationVariety !== undefined ? 'test-data' : undefined
+    raw.ielts || raw.ieltsQuestionSets || raw.seenQuestions || raw.seenLlmQuestions || raw.seenLlmTitles || raw.seenLlmPart1Topics || raw.ieltsGenerationQuality !== undefined || raw.lastShadowingAttempt !== undefined || raw.shadowingGenerationVariety !== undefined ? 'test-data' : undefined
   );
   const acceptedAppIds = new Set(['SpeakCoach']);
   if (raw.app !== undefined && !acceptedAppIds.has(String(raw.app))) {
@@ -331,8 +335,15 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
   const previousSeenLlmQuestionsRaw = typeof localStorage !== 'undefined'
     ? localStorage.getItem(RECENT_LLM_QUESTIONS_KEY)
     : null;
+  const previousSeenLlmTitlesRaw = typeof localStorage !== 'undefined'
+    ? localStorage.getItem(RECENT_LLM_TITLES_KEY)
+    : null;
+  const previousSeenPart1TopicsRaw = typeof localStorage !== 'undefined'
+    ? localStorage.getItem(RECENT_LLM_PART1_TOPICS_KEY)
+    : null;
   const previousShadowingAttempt = await getLastShadowingAttempt();
   const previousGenerationVariety = await exportGenerationVarietySnapshot();
+  const previousIeltsGenerationQuality = getIeltsQualityMemorySnapshot();
 
   try {
     if (payload.ielts) await importIeltsHistorySnapshot(payload.ielts);
@@ -344,10 +355,12 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
         seenPart3Ids: Array.isArray(payload.seenQuestions.seenPart3Ids) ? payload.seenQuestions.seenPart3Ids : []
       });
     }
-    if (Array.isArray(payload.seenLlmTopics) || Array.isArray(payload.seenLlmQuestions)) {
+    if (Array.isArray(payload.seenLlmTopics) || Array.isArray(payload.seenLlmQuestions) || Array.isArray(payload.seenLlmTitles) || Array.isArray(payload.seenLlmPart1Topics)) {
       restoreLlmGenerationMemory({
         topics: Array.isArray(payload.seenLlmTopics) ? payload.seenLlmTopics : [],
-        questions: Array.isArray(payload.seenLlmQuestions) ? payload.seenLlmQuestions : []
+        questions: Array.isArray(payload.seenLlmQuestions) ? payload.seenLlmQuestions : [],
+        titles: Array.isArray(payload.seenLlmTitles) ? payload.seenLlmTitles : [],
+        part1Topics: Array.isArray(payload.seenLlmPart1Topics) ? payload.seenLlmPart1Topics : []
       });
     }
     if (payload.lastShadowingAttempt !== undefined) {
@@ -355,6 +368,9 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
     }
     if (payload.shadowingGenerationVariety !== undefined) {
       await importGenerationVarietySnapshot(payload.shadowingGenerationVariety);
+    }
+    if (payload.ieltsGenerationQuality !== undefined) {
+      restoreIeltsQualityMemorySnapshot(payload.ieltsGenerationQuality);
     }
     // Test-data restore can change the user's practice context; keep generated
     // AI audio out of backups and clear the active-set files after a successful import.
@@ -371,10 +387,15 @@ export async function restoreBackup(kind: BackupKind, payload: any): Promise<voi
         else localStorage.setItem(SEEN_LLM_TOPICS_KEY, previousSeenTopicsRaw);
         if (previousSeenLlmQuestionsRaw === null) localStorage.removeItem(RECENT_LLM_QUESTIONS_KEY);
         else localStorage.setItem(RECENT_LLM_QUESTIONS_KEY, previousSeenLlmQuestionsRaw);
+        if (previousSeenLlmTitlesRaw === null) localStorage.removeItem(RECENT_LLM_TITLES_KEY);
+        else localStorage.setItem(RECENT_LLM_TITLES_KEY, previousSeenLlmTitlesRaw);
+        if (previousSeenPart1TopicsRaw === null) localStorage.removeItem(RECENT_LLM_PART1_TOPICS_KEY);
+        else localStorage.setItem(RECENT_LLM_PART1_TOPICS_KEY, previousSeenPart1TopicsRaw);
       }
     } catch (e) { rollbackErrors.push(`seen-topic tracking: ${String(e)}`); }
     try { await restoreLastShadowingAttempt(previousShadowingAttempt); } catch (e) { rollbackErrors.push(`Shadowing attempt: ${String(e)}`); }
     try { await importGenerationVarietySnapshot(previousGenerationVariety); } catch (e) { rollbackErrors.push(`Shadowing generation memory: ${String(e)}`); }
+    try { restoreIeltsQualityMemorySnapshot(previousIeltsGenerationQuality); } catch (e) { rollbackErrors.push(`IELTS generation memory: ${String(e)}`); }
     throw new Error(`Test-data import failed: ${originalMessage}${rollbackErrors.length ? `. Rollback was incomplete: ${rollbackErrors.join('; ')}` : '. Your previous test data was restored.'}`);
   }
 }

@@ -4,9 +4,10 @@ import { createDefaultAllSlotsConfig } from '../src/config/providers';
 import { loadAllSlotsConfig, saveAllSlotsConfig } from '../src/storage/localStore';
 import { loadAppSettings, saveAppSettings } from '../src/storage/appSettings';
 import { loadApiKey, saveApiKey } from '../src/storage/keyStore';
-import { getRecentLlmQuestions, getLlmSeenTopics, markLlmQuestionsSeen, markLlmTopicsSeen } from '../src/services/ieltsQuestionTracker';
+import { getRecentLlmQuestions, getLlmSeenTopics, markLlmQuestionsSeen, markLlmTopicsSeen, getRecentLlmTitles, markLlmTitlesSeen, getRecentLlmPart1Topics, markLlmPart1TopicsSeen } from '../src/services/ieltsQuestionTracker';
 import { activateShadowingAudioSet, persistActiveShadowingAudio, readActiveShadowingAudio, resetShadowingAudioStoreForTests } from '../src/services/shadowingAudioStore';
 import { getVarietyMemory, seedVarietyMemory } from '../src/services/generationVariety';
+import { takePersistedIeltsDeck } from '../src/services/ieltsGenerationQuality';
 
 beforeEach(() => {
   localStorage.clear();
@@ -262,6 +263,21 @@ describe('backup restore safety', () => {
     expect(backup).toHaveProperty('ieltsQuestionSets');
     expect((backup.ieltsQuestionSets as { sets?: unknown[] }).sets).toEqual([]);
   });
+  it('backs up and restores separated IELTS titles, Part 1 topics and persisted selection decks', async () => {
+    markLlmTitlesSeen(['A neighbour who taught a useful skill']);
+    markLlmPart1TopicsSeen(['Work and study', 'Hometown']);
+    takePersistedIeltsDeck('part1-topics', ['one', 'two', 'three', 'four'], 2);
+    const backup = await createBackup('test-data');
+    expect(backup.seenLlmTitles).toEqual(['A neighbour who taught a useful skill']);
+    expect(backup.seenLlmPart1Topics).toEqual(['Work and study', 'Hometown']);
+    expect(backup.ieltsGenerationQuality).toBeDefined();
+    localStorage.clear();
+    await restoreBackup('test-data', backup);
+    expect(getRecentLlmTitles()).toEqual(['A neighbour who taught a useful skill']);
+    expect(getRecentLlmPart1Topics()).toEqual(['Work and study', 'Hometown']);
+    expect(localStorage.getItem('speakcoach_ielts_quality_v1.part1-topics')).toBeTruthy();
+  });
+
   it('backs up and restores language-and-level-specific shadowing variety memory', async () => {
     const sentence = 'The lighthouse keeper checked the weather before opening the coastal visitor centre.';
     await seedVarietyMemory('en', 'hard', [sentence]);

@@ -125,6 +125,22 @@ export function sentenceSimilarity(a: string, b: string, language: string): numb
   const token = jaccard(tokensA, tokensB);
   return Math.max(char, token);
 }
+const TITLE_STOP_WORDS = new Set(['a','an','and','at','by','for','from','in','of','on','the','to','with','about']);
+function lemmaToken(token: string): string {
+  if (token.length > 5 && token.endsWith('ies')) return token.slice(0, -3) + 'y';
+  if (token.length > 5 && token.endsWith('ing')) return token.slice(0, -3);
+  if (token.length > 4 && token.endsWith('ed')) return token.slice(0, -2);
+  if (token.length > 4 && token.endsWith('es')) return token.slice(0, -2);
+  if (token.length > 3 && token.endsWith('s')) return token.slice(0, -1);
+  return token;
+}
+export function lemmatizedTokenJaccard(a: string, b: string): number {
+  const tokens = (value: string) => new Set(value.normalize('NFKC').toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, ' ').split(/\\s+/u).map(lemmaToken).filter(token => token.length > 2 && !TITLE_STOP_WORDS.has(token)));
+  return jaccard(tokens(a), tokens(b));
+}
+export function sharedTextSimilarity(a: string, b: string, language = 'en'): number {
+  return Math.max(sentenceSimilarity(a, b, language), lemmatizedTokenJaccard(a, b));
+}
 export function makeMemoryEntry(text: string, language: string): VarietyMemoryEntry {
   return { openingKey: openingKey(text, language), keyWords: compactWords(text, language), text: text.replace(/\s+/g, ' ').trim() };
 }

@@ -21,6 +21,12 @@ export interface ShadowingSentence {
   usefulVocabulary?: { term: string; meaning: string }[];
   /** Optional prompt variant used when this sentence was generated. */
   promptVariantId?: string;
+  /** Optional IELTS question context for answer-focused shadowing sets. */
+  part?: 1 | 2 | 3;
+  question?: string;
+  answerFunction?: 'A' | 'R' | 'E' | 'W';
+  chunk?: string;
+  seedId?: string;
   /** Optional cached translations keyed by target language code. */
   translations?: Record<string, string>;
 }

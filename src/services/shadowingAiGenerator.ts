@@ -14,6 +14,7 @@ import {
   buildVarietySlots, getVarietyMemory, rememberVarietySentences,
   seedVarietyMemory, validateVarietyBatch, openingKey
 } from './generationVariety';
+import { buildIeltsShadowingSlots, buildIeltsShadowingPrompt, validateIeltsShadowingCandidates, type IeltsShadowingCandidate } from './ieltsShadowingQuality';
 
 export interface GeneratedShadowingSentence extends ShadowingSentence {
   providerName: string;
@@ -140,6 +141,74 @@ async function requestSentences(params: {
   return { ...attempt.result, account: attempt.account };
 }
 
+async function generateIeltsEnglishShadowingSet(
+  requestedTopic: string, transport?: (opts: any) => Promise<any>
+): Promise<GeneratedShadowingSentence[]> {
+  const languageCode: ShadowingLanguageCode = 'en';
+  await seedFromExistingHistory(languageCode, 'ielts');
+  const history = await getVarietyMemory(languageCode, 'ielts');
+  const slots = buildIeltsShadowingSlots(requestedTopic);
+  const primaryReady = await getSlotAccountReadiness('llm_generator', 'primary');
+  const secondaryReady = await getSlotAccountReadiness('llm_generator', 'secondary');
+  const firstAccount = primaryReady.usable ? 'primary' : secondaryReady.usable ? 'secondary' : 'primary';
+  let first: Awaited<ReturnType<typeof requestSentences>>;
+  let calls = 0;
+  let candidates: IeltsShadowingCandidate[] = [];
+  let lastError = '';
+  try {
+    calls++;
+    try {
+      first = await requestSentences({
+        prompt: buildIeltsShadowingPrompt(slots), difficulty: 'ielts', languageCode,
+        expectedCount: 22, account: firstAccount, transport
+      });
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      const fallback = firstAccount === 'primary'
+        ? (secondaryReady.usable ? 'secondary' : 'primary')
+        : (primaryReady.usable ? 'primary' : 'secondary');
+      calls++;
+      first = await requestSentences({
+        prompt: buildIeltsShadowingPrompt(slots), difficulty: 'ielts', languageCode,
+        expectedCount: 22, account: fallback, transport
+      });
+    }
+    candidates = first.items.filter((item): item is IeltsShadowingCandidate =>
+      !!item && typeof item === 'object' &&
+      Number.isInteger((item as IeltsShadowingCandidate).q) &&
+      ['A','R','E','W'].includes(String((item as IeltsShadowingCandidate).fn))
+    );
+    let validation = validateIeltsShadowingCandidates(candidates, slots, history);
+    if (validation.missing.length && calls < 2) {
+      const repairAccount = first.account === 'primary' && secondaryReady.usable
+        ? 'secondary'
+        : first.account === 'secondary' && primaryReady.usable ? 'primary' : first.account;
+      calls++;
+      const repair = await requestSentences({
+        prompt: buildIeltsShadowingPrompt(validation.missing, true),
+        difficulty: 'ielts', languageCode, expectedCount: validation.missing.length,
+        account: repairAccount, transport
+      });
+      const repaired = repair.items.filter((item): item is IeltsShadowingCandidate =>
+        !!item && typeof item === 'object' &&
+        Number.isInteger((item as IeltsShadowingCandidate).q) &&
+        ['A','R','E','W'].includes(String((item as IeltsShadowingCandidate).fn))
+      );
+      candidates = [...candidates, ...repaired];
+      validation = validateIeltsShadowingCandidates(candidates, slots, history);
+    }
+    if (validation.missing.length) {
+      throw new Error(`The model supplied ${validation.sentences.length} of 20 valid answer sentences after ${calls} request(s); ${validation.missing.length} slots remain. ${lastError}`);
+    }
+    await rememberVarietySentences(languageCode, 'ielts', validation.sentences.map(sentence => sentence.text));
+    return validation.sentences.map(sentence => ({
+      ...sentence, providerName: first.providerName, modelName: first.modelName
+    }));
+  } catch (error) {
+    throw new Error(`IELTS Shadowing generation failed within the two-request limit: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 async function generateAiShadowingSentences(
   difficulty: ShadowingDifficulty, count: number, requestedTopic = '',
   transport?: (opts: any) => Promise<any>, languageCode: ShadowingLanguageCode = 'en'
@@ -151,6 +220,9 @@ async function generateAiShadowingSentences(
     throw new Error(`The AI sentence generator is not ready because its provider has not passed the required connection test. ${getProviderVerificationInstructions('llm_generator')}`);
   }
   const language = getShadowingLanguage(languageCode);
+  if (difficulty === 'ielts' && language.code === 'en' && count === 20) {
+    return generateIeltsEnglishShadowingSet(requestedTopic, transport);
+  }
   const profile = SHADOWING_LANGUAGE_PROFILES[language.code];
   await seedFromExistingHistory(language.code, difficulty);
   const memory = await getVarietyMemory(language.code, difficulty);
