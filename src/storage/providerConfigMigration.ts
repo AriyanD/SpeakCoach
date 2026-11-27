@@ -42,7 +42,8 @@ export async function migrateLegacyGroqWhisperConfigs(
         oldKey = await loadApiKey(migration.slotId, migration.from, entry.account);
         customKey = await loadApiKey(migration.slotId, migration.to, entry.account);
       } catch {
-        // If secure key access is unavailable, preserve both IDs and credentials.
+        // Do not switch to the new ID when the old secure key could not be checked.
+        current.providerId = migration.from;
         continue;
       }
 
@@ -51,7 +52,8 @@ export async function migrateLegacyGroqWhisperConfigs(
         try {
           await saveApiKey(migration.slotId, migration.to, oldKey, entry.account);
         } catch {
-          // Do not report a completed migration unless the new key is saved.
+          // Keep the old provider ID active if copying its key cannot be verified.
+          current.providerId = migration.from;
           continue;
         }
         changed.push({ slotId: migration.slotId, account: entry.account });
