@@ -1546,14 +1546,6 @@ export async function renderSettingsView(
     );
     if (importButton) importButton.disabled = true;
     if (testAllApisButton) testAllApisButton.disabled = true;
-    // Native Android file pickers can restore focus by scrolling the WebView.
-    // Preserve the user's settings position across the import and UI refresh.
-    const settingsScrollTop = container.scrollTop;
-    const windowScrollTop = window.scrollY;
-    const restoreSettingsScroll = (): void => {
-      window.scrollTo({ top: windowScrollTop, behavior: 'auto' });
-      container.scrollTop = settingsScrollTop;
-    };
     const operationStatus = kind === 'ai-settings' ? backupStatus : testDataBackupStatus;
     if (operationStatus) {
       operationStatus.hidden = false;
@@ -1571,11 +1563,6 @@ export async function renderSettingsView(
           : 'Test history and practice data restored.';
       }
       await _onSettingsUpdated();
-      restoreSettingsScroll();
-      requestAnimationFrame(() => {
-        restoreSettingsScroll();
-        requestAnimationFrame(restoreSettingsScroll);
-      });
     } catch (error) {
       if (operationStatus) {
         operationStatus.hidden = false;
@@ -1844,6 +1831,9 @@ export async function renderSettingsView(
           const result = tested.find(item => item.account === 'primary')!.result;
           primaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
           primaryStatus.textContent = `API 1 (${getPreset(slotId, result.providerId).name}): ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
+          const verificationActions = container.querySelector<HTMLElement>(`#verification-actions-${slotId}`);
+          if (verificationActions) verificationActions.style.display = result.ok ? 'none' : 'flex';
+          if (result.ok) dismissedVerificationErrors.delete(slotId);
         }
         const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
         if (secondaryStatus && tested.some(item => item.account === 'secondary')) {
