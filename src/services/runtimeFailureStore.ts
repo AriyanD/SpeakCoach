@@ -20,7 +20,7 @@ function isStickyAuthFailure(errOrStatusOrMsg?: unknown): boolean {
   const message = errOrStatusOrMsg instanceof Error
     ? errOrStatusOrMsg.message
     : typeof errOrStatusOrMsg === 'string' ? errOrStatusOrMsg : '';
-  return /\\bHTTP\\s*(401|403)\\b/i.test(message) || /\\b(401|403)\\b/.test(message);
+  return /\bHTTP\s*(401|403)\\b/i.test(message) || /\b(401|403)\\b/.test(message);
 }
 
 export function markSlotRuntimeFailure(
