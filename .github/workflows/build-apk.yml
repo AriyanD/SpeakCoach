@@ -6,6 +6,7 @@ on:
       - main
       - refine/settings-ielts-dark-palette
       - tts
+      - chore/architecture-performance-maintenance
     tags:
       - 'v*'
   pull_request:
