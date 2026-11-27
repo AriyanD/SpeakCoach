@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Improved
+- IELTS question generation now checks the full stored question/title history with separate recent and older similarity thresholds, and produces more useful Avoid keywords.
+- Shadowing sentence validation now follows each difficulty level's length band, maps model responses to explicit prompt rows, and uses faster full-token similarity with tiered history.
+- IELTS cue-card subjects cover a broader range of everyday topics with less emphasis on repair, community and volunteer themes.
+
+### Fixed
+- Shadowing prompt variants now rotate by persisted IDs across reloads; generation-variety backups include selection decks.
+- IELTS weighted seed ordering now scores each seed once before sorting.
+
 Notable user-facing changes are recorded here. A version tag triggers creation of a draft release; it stays unpublished until intentionally published.
 
 ## 1.2.1 — 2026-11-27

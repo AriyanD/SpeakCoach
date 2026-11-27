@@ -22,14 +22,20 @@ describe('IELTS question generation quality', () => {
     expect(hasRecentQuestionOverlap(repeated, memory)).toBe(true);
   });
 
-  it('softens older near-overlaps while retaining the recent-question threshold', () => {
-    const question = 'How can public libraries support lifelong learning in modern communities?';
-    const nearMatch = 'How can public libraries support lifelong education in modern communities?';
-    const similarityBand = [nearMatch];
-    expect(getRecentQuestionOverlapTier(question, similarityBand)).toBe('recent');
+  it('rejects recent 0.68–0.80 overlaps but accepts the same softer match in older memory', () => {
+    const question = 'Local libraries offer free evening classes that help adults develop practical digital skills.';
+    const nearMatch = 'Local libraries run free evening classes that help adults develop useful digital skills.';
+    expect(getRecentQuestionOverlapTier(question, [nearMatch])).toBe('recent');
     const olderMemory = [nearMatch, ...Array.from({ length: 24 }, (_, index) => `Unrelated recent question ${index}`)];
-    expect(getRecentQuestionOverlapTier(question, olderMemory)).toBe('older');
+    expect(getRecentQuestionOverlapTier(question, olderMemory)).toBe('none');
     expect(hasRecentQuestionOverlap(question, olderMemory)).toBe(false);
+
+    const title = 'A memorable visit to a historic museum';
+    const nearTitle = 'A memorable visit to a historic gallery';
+    expect(getRecentQuestionOverlapTier(title, [nearTitle], true)).toBe('recent');
+    const olderTitles = [nearTitle, ...Array.from({ length: 12 }, (_, index) => `Unrelated cue-card title ${index}`)];
+    expect(getRecentQuestionOverlapTier(title, olderTitles, true)).toBe('none');
+    expect(hasRecentQuestionOverlap(title, olderTitles, true)).toBe(false);
   });
 
 
