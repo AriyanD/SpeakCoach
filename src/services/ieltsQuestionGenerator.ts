@@ -136,7 +136,7 @@ Part 3 angles: ${context.part3Angles.join(' / ')}; Part 3 forms in order: ${p3Fo
 ${themeLine}
 Recent topics already used (keywords): ${topicAvoid || 'none'}.
 Recent questions and cue-card titles (keywords only): ${avoid || 'none'}.
-RULES: Part 1 exactly 6 questions, 3 per assigned topic; follow each assigned form and use distinct openings within the part. Part 2 one concrete Describe cue card with exactly four useful bullets. Part 3 exactly 4 connected but distinct questions; follow assigned forms and use distinct openings. Avoid semantic repeats and clichés. Avoid close semantic equivalents, not merely identical wording. Keep spoken questions concise and accessible.
+RULES: Part 1 exactly 6 questions, 3 per assigned topic; follow each assigned form and use distinct openings within the part. Part 2 one concrete Describe cue card with exactly four useful bullets. Part 3 exactly 4 connected but distinct discussion questions that clearly grow out of the specific Part 2 cue card. Treat the cue card as the shared theme anchor: identify its underlying wider issue, then explore that same issue from broader social, cultural, economic, environmental, educational or policy perspectives as appropriate. Do not switch to an unrelated topic. Move beyond the candidate’s personal story into general discussion; do not simply repeat the cue-card bullets. Use the assigned Part 3 angles and forms to create varied perspectives within the same theme. The four Part 3 topic labels must name the same broader discussion theme or closely related facets of it. Avoid semantic repeats and clichés. Avoid close semantic equivalents, not merely identical wording. Keep spoken questions concise and accessible.
 JSON ONLY: {"part1Topics":["A","B"],"part1Questions":[{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."}],"part2CueCard":{"topic":"...","title":"...","prompt":"Describe ...","bullets":["...","...","...","..."]},"part3Questions":[{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."}]}`;
   return { system, user: 'Generate one complete IELTS Speaking test set. Follow every assignment and return only the requested JSON.' };
 }
@@ -319,6 +319,17 @@ export function parseLlmSessionPlanResponse(rawText: string, options: {
 
   if (part3Questions.length < 4 || part3Questions.length > 5) {
     throw new Error(`Part 3 must contain four or five valid discussion questions (got ${part3Questions.length}).`);
+  }
+
+  // Part 3 must stay anchored to the Part 2 cue card while broadening the
+  // discussion. Check the question + topic label together so wider, related
+  // angles (e.g. a favourite park -> public space policy) remain valid.
+  const cueCardAnchor = [p2Topic, p2Title, p2Prompt, ...bullets].join(' ');
+  const relatedPart3Count = part3Questions.filter(question =>
+    sharedTextSimilarity(`${question.topic} ${question.question}`, cueCardAnchor, 'en') >= 0.12
+  ).length;
+  if (relatedPart3Count < 3) {
+    throw new Error('Part 3 questions must remain connected to the Part 2 cue-card theme while discussing its wider implications.');
   }
 
   const normalizeQuestionText = (value: string) =>
