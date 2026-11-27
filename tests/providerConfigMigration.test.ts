@@ -21,12 +21,12 @@ describe('legacy Groq Whisper credential migration', () => {
     configs.ielts_stt.providerId = 'custom_openai_stt';
     configs.ielts_stt.baseUrl = 'https://api.groq.com/openai/v1';
     configs.ielts_stt.modelOrVoice = 'whisper-large-v3-turbo';
-    keys.set(keyId('ielts_stt', 'whisper_stt', 'primary'), 'legacy-secret');
+    keys.set('ielts_stt|whisper_stt|primary', 'legacy-secret');
 
     const changed = await migrateLegacyGroqWhisperConfigs(configs);
 
-    expect(keys.get(keyId('ielts_stt', 'custom_openai_stt', 'primary'))).toBe('legacy-secret');
-    expect(keys.get(keyId('ielts_stt', 'whisper_stt', 'primary'))).toBe('legacy-secret');
+    expect(keys.get('ielts_stt|custom_openai_stt|primary')).toBe('legacy-secret');
+    expect(keys.get('ielts_stt|whisper_stt|primary')).toBe('legacy-secret');
     expect(changed).toEqual([{ slotId: 'ielts_stt', account: 'primary' }]);
   });
 
@@ -35,13 +35,13 @@ describe('legacy Groq Whisper credential migration', () => {
     configs.pronunciation_scoring.providerId = 'custom_openai_pronunciation';
     configs.pronunciation_scoring.baseUrl = 'https://api.groq.com/openai/v1';
     configs.pronunciation_scoring.modelOrVoice = 'whisper-large-v3-turbo';
-    keys.set(keyId('pronunciation_scoring', 'whisper_alignment', 'primary'), 'legacy-secret');
-    keys.set(keyId('pronunciation_scoring', 'custom_openai_pronunciation', 'primary'), 'existing-custom-secret');
+    keys.set('pronunciation_scoring|whisper_alignment|primary', 'legacy-secret');
+    keys.set('pronunciation_scoring|custom_openai_pronunciation|primary', 'existing-custom-secret');
 
     const changed = await migrateLegacyGroqWhisperConfigs(configs);
 
-    expect(keys.get(keyId('pronunciation_scoring', 'custom_openai_pronunciation', 'primary'))).toBe('existing-custom-secret');
-    expect(keys.get(keyId('pronunciation_scoring', 'whisper_alignment', 'primary'))).toBe('legacy-secret');
+    expect(keys.get('pronunciation_scoring|custom_openai_pronunciation|primary')).toBe('existing-custom-secret');
+    expect(keys.get('pronunciation_scoring|whisper_alignment|primary')).toBe('legacy-secret');
     expect(changed).toEqual([]);
   });
 
@@ -52,11 +52,11 @@ describe('legacy Groq Whisper credential migration', () => {
       baseUrl: 'https://api.groq.com/openai/v1',
       modelOrVoice: 'whisper-large-v3-turbo'
     };
-    keys.set(keyId('ielts_stt', 'whisper_stt', 'secondary'), 'secondary-secret');
+    keys.set('ielts_stt|whisper_stt|secondary', 'secondary-secret');
 
     const changed = await migrateLegacyGroqWhisperConfigs(configs);
 
-    expect(keys.get(keyId('ielts_stt', 'custom_openai_stt', 'secondary'))).toBe('secondary-secret');
+    expect(keys.get('ielts_stt|custom_openai_stt|secondary')).toBe('secondary-secret');
     expect(changed).toEqual([{ slotId: 'ielts_stt', account: 'secondary' }]);
   });
 });
