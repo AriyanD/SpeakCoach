@@ -23,6 +23,7 @@ import { showSetupGuide, applyAppLanguage } from './OnboardingView';
 import { applyLanguageToDocument } from '../services/appLanguage';
 import { confirmInApp } from './confirmDialog';
 import { showToast } from './toast';
+import { bindSecondaryApiTestActions } from './secondaryApiTestBinding';
 import { createBackup, downloadBackupFile, parseBackupJsonText, readBackupFile, restoreBackup, type BackupKind } from '../services/dataBackup';
 import { isNativeBackupImportAvailable, selectNativeBackupFile } from '../services/nativeBackupImport';
 import { getIeltsQuestionStoreRecoveryNotices } from '../services/ieltsQuestionSetStore';
@@ -579,7 +580,7 @@ export async function renderSettingsView(
         <section class="settings-connection-tests" aria-label="Provider connection tests">
         <div class="btn-row provider-test-actions" >
           <button type="button" class="btn btn-primary settings-test-button" data-test-slot="${slotId}">Test API 1</button>
-          <button type="button" class="btn btn-primary settings-test-button" id="test-secondary-${slotId}">Test API 2</button>
+          <button type="button" class="btn btn-primary settings-test-button" id="test-secondary-${slotId}" data-test-secondary-slot="${slotId}">Test API 2</button>
         </div>
         <p class="card-subtitle provider-save-help">Test each configured provider separately. The test saves its current settings and checks the connection.</p>
         <div class="provider-test-results" >
@@ -816,6 +817,150 @@ export async function renderSettingsView(
     status.className = `settings-required-badge ${missing ? 'missing' : 'configured'}`;
     status.textContent = missing ? 'Core API setup needed' : 'Core APIs configured';
   };
+
+  const runSecondaryApiTest = async (slotId: SlotId, secondaryTestBtn: HTMLButtonElement): Promise<void> => {
+    let secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
+    if (!secondaryStatus) {
+      secondaryStatus = document.createElement('div');
+      secondaryStatus.id = `secondary-status-${slotId}`;
+      secondaryStatus.className = 'status-box info';
+      const results = secondaryTestBtn.closest<HTMLElement>('.settings-connection-tests')
+        ?.querySelector<HTMLElement>('.provider-test-results');
+      (results ?? secondaryTestBtn.parentElement)?.append(secondaryStatus);
+    }
+
+    if (settingsProviderTestRunning) {
+      secondaryStatus.className = 'status-box info';
+      secondaryStatus.textContent = 'API 2: Another provider test is already running. Try again when it finishes.';
+      return;
+    }
+
+    settingsProviderTestRunning = true;
+    if (testAllApisButton) testAllApisButton.disabled = true;
+    secondaryTestBtn.disabled = true;
+    secondaryStatus.hidden = false;
+    secondaryStatus.style.display = '';
+    secondaryStatus.className = 'status-box info';
+    secondaryStatus.textContent = 'API 2: Testing…';
+
+    try {
+      const secondaryProviderSelect = container.querySelector<HTMLSelectElement>(`#secondary-provider-${slotId}`);
+      const providerId = secondaryProviderSelect?.value || configs[slotId].secondary?.providerId || '';
+      if (!providerId) {
+        secondaryStatus.textContent = 'API 2: Choose a provider first.';
+        return;
+      }
+
+      const secondaryPreset = getPreset(slotId, providerId);
+      const secondaryBaseUrlInput = container.querySelector<HTMLInputElement>(`#secondary-baseurl-${slotId}`);
+      const secondaryModelInput = container.querySelector<HTMLInputElement>(`#secondary-model-${slotId}`);
+      const secondaryAuthSelect = container.querySelector<HTMLSelectElement>(`#secondary-authstyle-${slotId}`);
+      const secondaryHeaderInput = container.querySelector<HTMLInputElement>(`#secondary-custom-header-${slotId}`);
+      const secondaryQueryInput = container.querySelector<HTMLInputElement>(`#secondary-custom-query-${slotId}`);
+      const secondaryEndpointInput = container.querySelector<HTMLInputElement>(`#secondary-endpoint-${slotId}`);
+      const secondaryCustomVoiceInput = container.querySelector<HTMLInputElement>(`#secondary-custom-voice-${slotId}`);
+      const secondaryKeyInput = container.querySelector<HTMLInputElement>(`#secondary-key-${slotId}`);
+      const secondaryCfg: SlotConfig = {
+        slotId,
+        providerId: secondaryPreset.id,
+        baseUrl: secondaryBaseUrlInput?.value.trim() || secondaryPreset.defaultBaseUrl,
+        modelOrVoice: secondaryModelInput?.value.trim() || secondaryPreset.defaultModelOrVoice,
+        authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
+        customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
+        customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
+        endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined,
+        customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
+      };
+
+      // Show the running state before reading Android secure storage; that read can be slow.
+      const apiKey = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, secondaryPreset.id, 'secondary');
+      const result = await testAndPersistSlotAccount(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
+      const testResult = {
+        ok: result.ok && result.tier !== 3,
+        latencyMs: result.latencyMs,
+        message: result.message,
+        testedAt: Date.now(),
+        verificationFingerprint: result.verificationFingerprint
+      };
+
+      if (testResult.ok) {
+        await saveApiKey(slotId, secondaryPreset.id, apiKey, 'secondary');
+        if (slotId === 'voice_tts') {
+          await clearActiveShadowingAudioStore();
+          clearGeminiLanguageFailures('gemini_tts');
+        }
+        secondaryKeysBySlot[slotId] = apiKey;
+        if (secondaryKeyInput) {
+          secondaryKeyInput.value = '';
+          secondaryKeyInput.placeholder = 'API 2 key saved securely. Leave blank to keep it, or type a replacement.';
+        }
+      }
+
+      const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
+      clearPreloadedSentenceAudio();
+      if (slotId === 'voice_tts') {
+        await clearActiveShadowingAudioStore();
+        clearGeminiLanguageFailures('gemini_tts');
+      }
+      configs[slotId].secondary = verifiedConfig;
+      secondaryStatus.className = `status-box ${testResult.ok ? 'pass' : 'fail'}`;
+      secondaryStatus.textContent = `API 2: ${testResult.ok ? 'PASS' : 'FAIL'} — ${result.message}`;
+
+      const slotBadge = container.querySelector<HTMLElement>(`#badge-${slotId}`);
+      if (slotBadge) {
+        const primaryTest = lastTestResults.get(slotId);
+        const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
+        const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, verifiedConfig);
+        slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
+        slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
+      try {
+        const providerId = container.querySelector<HTMLSelectElement>(`#secondary-provider-${slotId}`)?.value || configs[slotId].secondary?.providerId;
+        if (providerId) {
+          const failedPreset = getPreset(slotId, providerId);
+          const failedConfig: SlotConfig = {
+            slotId,
+            providerId: failedPreset.id,
+            baseUrl: container.querySelector<HTMLInputElement>(`#secondary-baseurl-${slotId}`)?.value.trim() || failedPreset.defaultBaseUrl,
+            modelOrVoice: container.querySelector<HTMLInputElement>(`#secondary-model-${slotId}`)?.value.trim() || failedPreset.defaultModelOrVoice,
+            authStyle: (container.querySelector<HTMLSelectElement>(`#secondary-authstyle-${slotId}`)?.value as AuthStyle) || 'bearer',
+            customHeaderName: container.querySelector<HTMLInputElement>(`#secondary-custom-header-${slotId}`)?.value.trim() || undefined,
+            customQueryParamName: container.querySelector<HTMLInputElement>(`#secondary-custom-query-${slotId}`)?.value.trim() || undefined,
+            endpointPathOverride: container.querySelector<HTMLInputElement>(`#secondary-endpoint-${slotId}`)?.value.trim() || undefined,
+            customTtsVoice: container.querySelector<HTMLInputElement>(`#secondary-custom-voice-${slotId}`)?.value.trim() || undefined
+          };
+          const failedConfigWithResult = { ...failedConfig, verified: false, testResult };
+          await saveSecondarySlotConfig(slotId, failedConfigWithResult);
+          clearPreloadedSentenceAudio();
+          configs[slotId].secondary = failedConfigWithResult;
+        }
+      } catch {
+        // Keep the visible error even when local persistence is unavailable.
+      }
+      secondaryStatus.className = 'status-box fail';
+      secondaryStatus.textContent = `API 2: FAIL — ${message}`;
+      const slotBadge = container.querySelector<HTMLElement>(`#badge-${slotId}`);
+      if (slotBadge) {
+        const primaryTest = lastTestResults.get(slotId);
+        const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
+        const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, configs[slotId].secondary);
+        slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
+        slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
+      }
+    } finally {
+      secondaryTestBtn.disabled = false;
+      settingsProviderTestRunning = false;
+      if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount;
+      refreshRequiredApiStatus();
+    }
+  };
+
+  bindSecondaryApiTestActions(container, (slotId, button) => {
+    void runSecondaryApiTest(slotId, button);
+  });
 
   const quickSetupButton = container.querySelector<HTMLButtonElement>('#quick-setup-run-btn');
   const quickSetupStatus = container.querySelector<HTMLElement>('#quick-setup-status');
@@ -1726,7 +1871,9 @@ export async function renderSettingsView(
       settingsProviderTestRunning = false;
       testAllButton.textContent = 'Test all APIs';
       testAllButton.disabled = !hasConfiguredOnlineAccount;
-      [...singleTestButtons, ...importButtons].forEach((button, index) => { button.disabled = previousDisabled[index]; });
+      [...singleTestButtons, ...importButtons].forEach((button, index) => {
+        button.disabled = button.classList.contains('settings-test-button') ? false : previousDisabled[index];
+      });
     }
   });
 
@@ -2819,85 +2966,6 @@ export async function renderSettingsView(
     persistSlotDrafts[slotId] = async () => {
       await persistCurrentSlot();
     };
-
-    secondaryTestBtn?.addEventListener('click', async () => {
-      if (!secondaryTestBtn || !secondaryStatus) return;
-      settingsProviderTestRunning = true;
-      if (testAllApisButton) testAllApisButton.disabled = true;
-      const providerId = secondaryProviderSelect?.value ?? '';
-      if (!providerId) { secondaryStatus.textContent = 'API 2: Choose a provider first.'; settingsProviderTestRunning = false; if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount; return; }
-      const secondaryPreset = getPreset(slotId, providerId);
-      const secondaryCfg: SlotConfig = {
-        slotId, providerId: secondaryPreset.id,
-        baseUrl: secondaryBaseUrlInput?.value.trim() || secondaryPreset.defaultBaseUrl,
-        modelOrVoice: secondaryModelInput?.value.trim() || secondaryPreset.defaultModelOrVoice,
-        authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
-        customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
-        customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
-        endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined,
-        customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
-      };
-      const apiKey = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, secondaryPreset.id, 'secondary');
-      secondaryTestBtn.disabled = true;
-      secondaryStatus.className = 'status-box info';
-      secondaryStatus.textContent = 'API 2: Testing…';
-      try {
-        const result = await testAndPersistSlotAccount(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
-        const testResult = {
-          ok: result.ok && result.tier !== 3,
-          latencyMs: result.latencyMs,
-          message: result.message,
-          testedAt: Date.now(),
-          verificationFingerprint: result.verificationFingerprint
-        };
-        if (testResult.ok) {
-          await saveApiKey(slotId, secondaryPreset.id, apiKey, 'secondary');
-          if (slotId === 'voice_tts') {
-            await clearActiveShadowingAudioStore();
-            clearGeminiLanguageFailures('gemini_tts');
-          }
-          secondaryKeysBySlot[slotId] = apiKey;
-          if (secondaryKeyInput) {
-            secondaryKeyInput.value = '';
-            secondaryKeyInput.placeholder = 'API 2 key saved securely. Leave blank to keep it, or type a replacement.';
-          }
-        }
-        const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
-        clearPreloadedSentenceAudio();
-        if (slotId === 'voice_tts') {
-            await clearActiveShadowingAudioStore();
-            clearGeminiLanguageFailures('gemini_tts');
-          }
-        configs[slotId].secondary = verifiedConfig;
-        secondaryStatus.className = `status-box ${testResult.ok ? 'pass' : 'fail'}`;
-        secondaryStatus.textContent = `API 2: ${result.ok && result.tier !== 3 ? 'PASS' : 'FAIL'} — ${result.message}`;
-        if (slotBadge) {
-          const primaryTest = lastTestResults.get(slotId);
-          const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
-          const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, verifiedConfig);
-          slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
-          slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
-        try {
-          const failedConfig = { ...secondaryCfg, verified: false, testResult };
-          await saveSecondarySlotConfig(slotId, failedConfig);
-clearPreloadedSentenceAudio();
-          configs[slotId].secondary = failedConfig;
-        } catch { /* Keep the visible test error even if storage is unavailable. */ }
-        secondaryStatus.className = 'status-box fail';
-        secondaryStatus.textContent = `API 2: FAIL — ${message}`;
-        if (slotBadge) {
-          const primaryTest = lastTestResults.get(slotId);
-          const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
-          const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, configs[slotId].secondary);
-          slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
-          slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
-        }
-      } finally { secondaryTestBtn.disabled = false; settingsProviderTestRunning = false; if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount; refreshRequiredApiStatus(); }
-    });
 
     saveBtn?.addEventListener('click', async () => {
       if (!saveBtn) return;
