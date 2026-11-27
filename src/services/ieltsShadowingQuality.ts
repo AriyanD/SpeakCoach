@@ -72,7 +72,7 @@ export function validateIeltsShadowingCandidates(
   candidates: IeltsShadowingCandidate[],
   slots: IeltsShadowingSlot[],
   history: VarietyMemoryEntry[]
-): { sentences: ShadowingSentence[]; missing: IeltsShadowingSlot[]; rejected: number } {
+): { sentences: ShadowingSentence[]; missing: IeltsShadowingSlot[]; rejected: number; rejectionReasons: Record<string, number> } {
   const buckets = new Map<string, IeltsShadowingCandidate[]>();
   for (const candidate of candidates) {
     const key = `${candidate.q}:${candidate.fn}`;
@@ -84,6 +84,7 @@ export function validateIeltsShadowingCandidates(
   const usedTexts: string[] = history.slice(-40).map(item => item.text);
   const openings = new Map<string, number>();
   let rejected = 0;
+  const rejectionReasons = { wordCount: 0, chunk: 0, cliche: 0, opening: 0, similarity: 0 };
   const missing: IeltsShadowingSlot[] = [];
   for (const slot of slots) {
     const key = `${slot.q}:${slot.fn}`;
@@ -99,10 +100,11 @@ export function validateIeltsShadowingCandidates(
       const opening = openingKey(text, 'en');
       const tooManyOpenings = (openings.get(opening) ?? 0) >= 2;
       const tooSimilar = usedTexts.some(previous => sentenceSimilarity(text, previous, 'en') >= 0.6);
-      if (words < 18 || words > 30 || !chunk || chunk.split(/\s+/u).length > 8 || cliché || tooManyOpenings || tooSimilar) {
-        rejected++;
-        continue;
-      }
+      if (words < 18 || words > 30) { rejectionReasons.wordCount++; rejected++; continue; }
+      if (!chunk || chunk.split(/\s+/u).length > 8) { rejectionReasons.chunk++; rejected++; continue; }
+      if (cliché) { rejectionReasons.cliche++; rejected++; continue; }
+      if (tooManyOpenings) { rejectionReasons.opening++; rejected++; continue; }
+      if (tooSimilar) { rejectionReasons.similarity++; rejected++; continue; }
       chosen = { ...candidate, text, chunk };
     }
     if (!chosen) { missing.push(slot); continue; }
@@ -117,7 +119,7 @@ export function validateIeltsShadowingCandidates(
       part: slot.part, question: slot.question, answerFunction: slot.fn, chunk: chosen.chunk, seedId: slot.seedId
     });
   }
-  return { sentences: accepted, missing, rejected };
+  return { sentences: accepted, missing, rejected, rejectionReasons };
 }
 export function getIeltsShadowingSetStructure(): { part1: number; part2: number; part3: number; total: number } {
   return { part1: 6, part2: 6, part3: 8, total: 20 };
