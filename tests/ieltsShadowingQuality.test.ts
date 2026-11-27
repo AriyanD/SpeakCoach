@@ -49,6 +49,18 @@ describe('IELTS Shadowing answer generation', () => {
     expect(result.missing).toHaveLength(1);
   });
 
+
+  it('uses 0.60 for recent IELTS Shadowing history and 0.70 for older history', () => {
+    const slot = buildIeltsShadowingSlots()[0];
+    const candidateText = 'Earlier this year, I joined a neighbourhood repair session where volunteers showed me how to mend a loose bicycle chain safely.';
+    const nearMatch = 'Earlier this year, I joined a neighbourhood repair session where volunteers taught me how to mend a broken bicycle wheel safely.';
+    const candidate: IeltsShadowingCandidate = { q: slot.q, fn: slot.fn, text: candidateText, chunk: 'bicycle chain' };
+    const older = [makeMemoryEntry(nearMatch, 'en'), ...Array.from({ length: 40 }, (_, index) => makeMemoryEntry(`An unrelated older IELTS memory sentence number ${index}.`, 'en'))];
+    const recent = [...Array.from({ length: 40 }, (_, index) => makeMemoryEntry(`An unrelated recent IELTS memory sentence number ${index}.`, 'en')), makeMemoryEntry(nearMatch, 'en')];
+    expect(validateIeltsShadowingCandidates([candidate], [slot], older).sentences).toHaveLength(1);
+    expect(validateIeltsShadowingCandidates([candidate], [slot], recent).sentences).toHaveLength(0);
+  });
+
   it('loads legacy stored sentences and round-trips the new optional fields', () => {
     const oldSentence: ShadowingSentence = {
       id: 'old', difficulty: 'ielts', topic: 'Work', text: 'An older stored sentence remains valid.', phoneticFocus: 'linking', expectedTotalDurationMs: 5000

@@ -287,10 +287,11 @@ async function generateAiShadowingSentences(
         rejectionCounts.set(reason, (rejectionCounts.get(reason) ?? 0) + 1);
       }
     }
-    const variety = validateVarietyBatch(candidates.map(item => item.sentence.text), language.code, [
-      ...memory,
-      ...collected.map(item => ({ openingKey: '', keyWords: [], text: item.text }))
-    ], 0.5, collected.map(item => openingKey(item.text, language.code)));
+    const variety = validateVarietyBatch(
+      candidates.map(item => item.sentence.text), language.code, memory, 0.5,
+      collected.map(item => openingKey(item.text, language.code)),
+      collected.map(item => item.text)
+    );
     for (const rejected of variety.rejected) {
       rejectionCounts.set(rejected.reason, (rejectionCounts.get(rejected.reason) ?? 0) + 1);
     }

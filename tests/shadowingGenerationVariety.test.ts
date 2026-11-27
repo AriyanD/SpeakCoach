@@ -85,6 +85,36 @@ describe('Shadowing generation variety', () => {
     expect(prompt).toContain('"n":1');
   });
 
+
+  it('does not reject short sentences merely because they share two content words', () => {
+    const first = 'A bicycle needs careful maintenance.';
+    const second = 'Careful drivers inspect every bicycle regularly.';
+    expect(sentenceSimilarity(first, second, 'en')).toBeLessThan(0.5);
+    const result = validateVarietyBatch([first, second], 'en', []);
+    expect(result.accepted).toEqual([0, 1]);
+  });
+
+  it('uses a softer similarity threshold for memory older than the latest forty entries', () => {
+    const candidate = 'Earlier this year, I joined a neighbourhood repair session where volunteers showed me how to mend a loose bicycle chain safely.';
+    const nearMatch = 'Earlier this year, I joined a neighbourhood repair session where volunteers taught me how to mend a broken bicycle wheel safely.';
+    const older = [makeMemoryEntry(nearMatch, 'en'), ...Array.from({ length: 40 }, (_, index) => makeMemoryEntry(`Unrelated recent memory sentence number ${index}.`, 'en'))];
+    const recent = [...Array.from({ length: 40 }, (_, index) => makeMemoryEntry(`Unrelated recent memory sentence number ${index}.`, 'en')), makeMemoryEntry(nearMatch, 'en')];
+    expect(validateVarietyBatch([candidate], 'en', older).accepted).toEqual([0]);
+    expect(validateVarietyBatch([candidate], 'en', recent).rejected).toEqual([{ index: 0, reason: 'similar' }]);
+  });
+
+  it('keeps 22 by 120 similarity comparisons comfortably below 100 ms', () => {
+    const memory = Array.from({ length: 120 }, (_, index) =>
+      `A different person described an ordinary experience number ${index} during a quiet afternoon.`
+    );
+    const candidates = Array.from({ length: 22 }, (_, index) =>
+      `A learner explained a completely separate situation number ${index} while travelling across town.`
+    );
+    const started = performance.now();
+    for (const candidate of candidates) for (const previous of memory) sentenceSimilarity(candidate, previous, 'en');
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
   it('builds a compact profile-aware prompt for all 15 languages and four levels', async () => {
     for (const language of SHADOWING_LANGUAGES) {
       expect(SHADOWING_LANGUAGE_PROFILES[language.code].foci.length).toBeGreaterThanOrEqual(10);

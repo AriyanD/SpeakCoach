@@ -104,7 +104,14 @@ export async function buildVarietySlots(language: ShadowingLanguageCode, level: 
 function compactWords(text: string, language: string): string[] {
   const clean = text.normalize('NFKC').toLocaleLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ');
   const words = clean.split(/\s+/u).filter(word => word.length > 2);
-  const stop = new Set(['the','and','for','with','that','this','from','have','your','about','when','what','there','their','would','could','should','into','because','just','then','than','very','really','من','برای','که','این','آن','با','از','به','در','را','و','می','های','och','att','det','som','en','ett','jag','är','på','till','med','den','der','die','das','und','ist','zu','im','am','ein','eine','ich','wir','mit','für','auf','von','le','la','les','de','des','du','et','est','un','une','je','tu','il','elle','nous','vous','avec','dans','sur','el','los','las','del','y','es','una','yo','que','con','para','por','mi','il','lo','gli','di','e','è','io','per','in','su','het','een','van','ik','je','hij','zij','o','a','os','as','do','da','um','uma','eu','em','и','в','на','с','что','я','он','она','это','не','для','к','по','из','как','ve','bir','bu','şu','için','ile','de','da','ben','o','و','في','من','على','إلى','أن','هو','هي','هذا','هذه','مع','عن']);
+const SHADOWING_STOP_WORDS = new Set(['the','and','for','with','that','this','from','have','your','about','when','what','there','their','would','could','should','into','because','just','then','than','very','really','من','برای','که','این','آن','با','از','به','در','را','و','می','های','och','att','det','som','en','ett','jag','är','på','till','med','den','der','die','das','und','ist','zu','im','am','ein','eine','ich','wir','mit','für','auf','von','le','la','les','de','des','du','et','est','un','une','je','tu','il','elle','nous','vous','avec','dans','sur','el','los','las','del','y','es','una','yo','que','con','para','por','mi','il','lo','gli','di','e','è','io','per','in','su','het','een','van','ik','je','hij','zij','o','a','os','as','do','da','um','uma','eu','em','и','в','на','с','что','я','он','она','это','не','для','к','по','из','как','ve','bir','bu','şu','için','ile','de','da','ben','o','و','في','من','على','إلى','أن','هو','هي','هذا','هذه','مع','عن']);
+const SIMILARITY_CACHE_LIMIT = 400;
+const SIMILARITY_MEMORY_LIMIT = 120;
+export const VARIETY_MEMORY_TIER_BOUNDARY = 40;
+export const VARIETY_RECENT_SIMILARITY_THRESHOLD = 0.5;
+export const VARIETY_OLDER_SIMILARITY_THRESHOLD = 0.65;
+type SimilaritySets = { grams: Set<string>; tokens: Set<string> };
+const similarityCache = new Map<string, SimilaritySets>();
   if (language === 'zh' || language === 'ja') return Array.from(clean.replace(/\s+/g, '')).filter(ch => /[\p{L}\p{N}]/u.test(ch)).slice(1, 5);
   return words.filter(word => !stop.has(word)).slice(0, 4);
 }
@@ -125,12 +132,44 @@ function jaccard<T>(a: Set<T>, b: Set<T>): number {
   for (const item of a) if (b.has(item)) intersection++;
   return intersection / (a.size + b.size - intersection);
 }
+function normalizedSimilarityText(text: string): string {
+  return text.normalize('NFKC').toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/gu, ' ').trim();
+}
+function createContentTokens(normalized: string, language: string): Set<string> {
+  if (language === 'zh' || language === 'ja') {
+    const characters = Array.from(normalized.replace(/\s+/gu, ''));
+    const bigrams = new Set<string>();
+    for (let index = 0; index < characters.length - 1; index++) bigrams.add(characters.slice(index, index + 2).join(''));
+    return bigrams;
+  }
+  return new Set(normalized.split(/\s+/u).filter(Boolean).map(lemmaToken)
+    .filter(token => token.length > 2 && !SHADOWING_STOP_WORDS.has(token)));
+}
+function getSimilaritySets(text: string, language: string): SimilaritySets {
+  const normalized = normalizedSimilarityText(text);
+  const cacheKey = `${language}:${normalized}`;
+  const cached = similarityCache.get(cacheKey);
+  if (cached) {
+    similarityCache.delete(cacheKey);
+    similarityCache.set(cacheKey, cached);
+    return cached;
+  }
+  const sets = { grams: grams(normalized), tokens: createContentTokens(normalized, language) };
+  similarityCache.set(cacheKey, sets);
+  if (similarityCache.size > SIMILARITY_CACHE_LIMIT) {
+    const oldest = similarityCache.keys().next().value;
+    if (oldest !== undefined) similarityCache.delete(oldest);
+  }
+  return sets;
+}
+export function contentTokens(text: string, language: string): Set<string> {
+  return getSimilaritySets(text, language).tokens;
+}
 export function sentenceSimilarity(a: string, b: string, language: string): number {
-  const char = jaccard(grams(a), grams(b));
-  const tokensA = new Set(compactWords(a, language));
-  const tokensB = new Set(compactWords(b, language));
-  const token = jaccard(tokensA, tokensB);
-  return Math.max(char, token);
+  const setsA = getSimilaritySets(a, language);
+  const setsB = getSimilaritySets(b, language);
+  return Math.max(jaccard(setsA.grams, setsB.grams), jaccard(setsA.tokens, setsB.tokens));
 }
 const TITLE_STOP_WORDS = new Set(['a','an','and','at','by','for','from','in','of','on','the','to','with','about']);
 export function lemmaToken(token: string): string {
@@ -183,17 +222,26 @@ export async function seedVarietyMemory(language: ShadowingLanguageCode, level: 
 export async function rememberVarietySentences(language: ShadowingLanguageCode, level: ShadowingDifficulty, texts: string[]): Promise<void> {
   await seedVarietyMemory(language, level, texts);
 }
-export function validateVarietyBatch(texts: string[], language: ShadowingLanguageCode, memory: VarietyMemoryEntry[], threshold = 0.5, priorOpenings: string[] = []): { accepted: number[]; rejected: Array<{ index: number; reason: string }> } {
+export function validateVarietyBatch(
+  texts: string[], language: ShadowingLanguageCode, memory: VarietyMemoryEntry[],
+  threshold = VARIETY_RECENT_SIMILARITY_THRESHOLD, priorOpenings: string[] = [], priorTexts: string[] = []
+): { accepted: number[]; rejected: Array<{ index: number; reason: string }> } {
   const accepted: number[] = [];
   const rejected: Array<{ index: number; reason: string }> = [];
+  const boundedMemory = memory.slice(-SIMILARITY_MEMORY_LIMIT);
+  const recentMemory = boundedMemory.slice(-VARIETY_MEMORY_TIER_BOUNDARY);
+  const olderMemory = boundedMemory.slice(0, -VARIETY_MEMORY_TIER_BOUNDARY);
   const openingCounts = new Map<string, number>();
   for (const opening of priorOpenings) openingCounts.set(opening, (openingCounts.get(opening) ?? 0) + 1);
   for (let i = 0; i < texts.length; i++) {
     const text = texts[i];
     const opening = openingKey(text, language);
     if (!opening || (openingCounts.get(opening) ?? 0) >= 2) { rejected.push({ index: i, reason: 'opening' }); continue; }
-    const previous = [...memory.map(item => item.text), ...accepted.map(index => texts[index])];
-    if (previous.some(item => sentenceSimilarity(text, item, language) >= threshold)) { rejected.push({ index: i, reason: 'similar' }); continue; }
+    const tooSimilar = recentMemory.some(item => sentenceSimilarity(text, item.text, language) >= threshold) ||
+      olderMemory.some(item => sentenceSimilarity(text, item.text, language) >= VARIETY_OLDER_SIMILARITY_THRESHOLD) ||
+      priorTexts.some(item => sentenceSimilarity(text, item, language) >= threshold) ||
+      accepted.some(index => sentenceSimilarity(text, texts[index], language) >= threshold);
+    if (tooSimilar) { rejected.push({ index: i, reason: 'similar' }); continue; }
     openingCounts.set(opening, (openingCounts.get(opening) ?? 0) + 1);
     accepted.push(i);
   }

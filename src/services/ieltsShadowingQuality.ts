@@ -81,7 +81,10 @@ export function validateIeltsShadowingCandidates(
     buckets.set(key, list);
   }
   const accepted: ShadowingSentence[] = [];
-  const usedTexts: string[] = history.slice(-40).map(item => item.text);
+  const boundedHistory = history.slice(-120);
+  const recentHistory = boundedHistory.slice(-40).map(item => item.text);
+  const olderHistory = boundedHistory.slice(0, -40).map(item => item.text);
+  const acceptedTexts: string[] = [];
   const openings = new Map<string, number>();
   let rejected = 0;
   const rejectionReasons = { wordCount: 0, chunk: 0, cliche: 0, opening: 0, similarity: 0 };
@@ -99,7 +102,9 @@ export function validateIeltsShadowingCandidates(
       const cliché = IELTS_BANNED_CLICHES.some(phrase => lower.includes(phrase));
       const opening = openingKey(text, 'en');
       const tooManyOpenings = (openings.get(opening) ?? 0) >= 2;
-      const tooSimilar = usedTexts.some(previous => sentenceSimilarity(text, previous, 'en') >= 0.6);
+      const tooSimilar = recentHistory.some(previous => sentenceSimilarity(text, previous, 'en') >= 0.6) ||
+        olderHistory.some(previous => sentenceSimilarity(text, previous, 'en') >= 0.7) ||
+        acceptedTexts.some(previous => sentenceSimilarity(text, previous, 'en') >= 0.6);
       if (words < 18 || words > 30) { rejectionReasons.wordCount++; rejected++; continue; }
       if (!chunk || chunk.split(/\s+/u).length > 8) { rejectionReasons.chunk++; rejected++; continue; }
       if (cliché) { rejectionReasons.cliche++; rejected++; continue; }
@@ -110,7 +115,7 @@ export function validateIeltsShadowingCandidates(
     if (!chosen) { missing.push(slot); continue; }
     const opening = openingKey(chosen.text, 'en');
     openings.set(opening, (openings.get(opening) ?? 0) + 1);
-    usedTexts.push(chosen.text);
+    acceptedTexts.push(chosen.text);
     const words = countShadowingLanguageUnits(chosen.text, 'en');
     accepted.push({
       id: `ai-ielts-shadowing-${Date.now()}-${slot.q}-${slot.fn}-${accepted.length}`,
