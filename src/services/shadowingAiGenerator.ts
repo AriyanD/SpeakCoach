@@ -198,7 +198,7 @@ async function generateIeltsEnglishShadowingSet(
       validation = validateIeltsShadowingCandidates(candidates, slots, history);
     }
     if (validation.missing.length) {
-      throw new Error(`The model supplied ${validation.sentences.length} of 20 valid answer sentences after ${calls} request(s); ${validation.missing.length} slots remain. ${lastError}`);
+      throw new Error(`The model supplied ${validation.sentences.length} of 20 valid answer sentences after ${calls} request(s); ${validation.missing.length} slots remain. Rejected: ${JSON.stringify(validation.rejectionReasons)}. Missing: ${validation.missing.map(slot => `${slot.q}:${slot.fn}`).join(', ')}. ${lastError}`);
     }
     await rememberVarietySentences(languageCode, 'ielts', validation.sentences.map(sentence => sentence.text));
     return validation.sentences.map(sentence => ({
