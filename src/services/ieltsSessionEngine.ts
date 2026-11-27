@@ -915,15 +915,14 @@ export class IeltsSessionController {
 
     const execute = async (): Promise<LlmQuestionPlanResult | null> => {
       try {
-        const allowBuiltinFallback = false;
         this.notify();
 
         const genResult = await generateIeltsPlanWithTierFallback({
           mode: this.mode,
           transport: options?.transport,
-          allowBuiltinFallback
+          allowBuiltinFallback: false
         });
-        if (!false && genResult.source !== 'online_ai') {
+        if (genResult.source !== 'online_ai') {
           throw new LlmQuestionGenerationError(
             'AI-only mode was enabled while question generation was running. The offline plan was discarded.',
             genResult.providerName,
@@ -997,15 +996,14 @@ export class IeltsSessionController {
 
     const execute = async (): Promise<LlmQuestionPlanResult | null> => {
       try {
-        const allowBuiltinFallback = false;
         this.notify();
 
         const genResult = await generateIeltsPlanWithTierFallback({
           mode: this.mode,
           transport: options?.transport,
-          allowBuiltinFallback
+          allowBuiltinFallback: false
         });
-        if (!false && genResult.source !== 'online_ai') {
+        if (genResult.source !== 'online_ai') {
           throw new LlmQuestionGenerationError(
             'AI-only mode was enabled while question generation was running. The offline plan was discarded.',
             genResult.providerName,
@@ -1233,11 +1231,10 @@ export class IeltsSessionController {
     mode: IeltsTestMode = 'full',
     options?: { transport?: IeltsTransport }
   ): Promise<void> {
-    const allowBuiltinFallback = false;
     const genResult = await generateIeltsPlanWithTierFallback({
       mode,
       transport: options?.transport,
-      allowBuiltinFallback
+      allowBuiltinFallback: false
     });
     await this.startSession(mode, { plan: genResult.plan });
   }
@@ -1275,17 +1272,14 @@ export class IeltsSessionController {
     this.isSessionActive = true;
     this.setStatus('preparing', null, 'Preparing IELTS question plan');
 
-    // Always read the persisted preference before accepting any plan. This
-    // prevents stale constructor defaults or direct-plan entry points from
-    // bypassing the user's AI-only setting.
-    const allowBuiltinFallback = false;
+    // Built-in IELTS question fallback is retired; only AI-generated plans are accepted.
     if (this.stepRunToken !== token) return;
     this.notify();
 
     // Synchronous decision when options.plan or ready preparedPlan exists
     if (options?.plan) {
       const isAiPlan = options.plan.id.includes('llm');
-      if (!allowBuiltinFallback && !isAiPlan && !options.allowHistoricalPlan) {
+      if (!isAiPlan && !options.allowHistoricalPlan) {
         this.isSessionActive = false;
         this.setStatus(
           'error',
@@ -1328,7 +1322,7 @@ export class IeltsSessionController {
       return;
     }
 
-    if (this.preparedPlanResult && this.preparedPlanResult.source === 'offline_bank' && !false) {
+    if (this.preparedPlanResult && this.preparedPlanResult.source === 'offline_bank') {
       const providerName = this.preparedPlanResult.providerName || 'AI Question Generator';
       this.preparedPlan = null;
       this.preparedPlanResult = null;
@@ -1342,7 +1336,7 @@ export class IeltsSessionController {
     }
 
     if (this.preparedPlan) {
-      if (!false && (!this.preparedPlan.id.includes('llm') || this.preparedPlanResult?.source === 'offline_bank')) {
+      if (!this.preparedPlan.id.includes('llm') || this.preparedPlanResult?.source === 'offline_bank') {
         this.preparedPlan = null;
         this.preparedPlanResult = null;
         this.isSessionActive = false;
@@ -1370,7 +1364,7 @@ export class IeltsSessionController {
       return;
     }
 
-    if (!false && !this.activePreloadPromise && !options?.transport) {
+    if (!this.activePreloadPromise && !options?.transport) {
       this.isSessionActive = false;
       this.setStatus(
         'error',
@@ -1459,7 +1453,7 @@ export class IeltsSessionController {
           'Slot 5 AI generation error'
         );
         return;
-      } else if (this.preparedPlanResult && this.preparedPlanResult.source === 'offline_bank' && !false) {
+      } else if (this.preparedPlanResult && this.preparedPlanResult.source === 'offline_bank') {
         const providerName = this.preparedPlanResult.providerName || 'AI Question Generator';
         this.preparedPlan = null;
         this.preparedPlanResult = null;
@@ -1471,7 +1465,7 @@ export class IeltsSessionController {
         );
         return;
       } else if (this.preparedPlan) {
-        if (!false && (!this.preparedPlan.id.includes('llm') || this.preparedPlanResult?.source === 'offline_bank')) {
+        if (!this.preparedPlan.id.includes('llm') || this.preparedPlanResult?.source === 'offline_bank') {
           this.preparedPlan = null;
           this.preparedPlanResult = null;
           this.isSessionActive = false;
@@ -1487,20 +1481,12 @@ export class IeltsSessionController {
         this.currentPlanResult = this.preparedPlanResult;
         this.preparedPlan = null;
         this.preparedPlanResult = null;
-      } else if (!false) {
-        this.isSessionActive = false;
-        this.setStatus(
-          'error',
-          'No AI-generated question set is ready. Configure and test an Online AI provider in Slot 5, then generate a new set.',
-          'Fallback disabled, no preloaded AI plan'
-        );
-        return;
       } else {
         this.isSessionActive = false;
         this.setStatus(
           'error',
           'No AI-generated question set is ready. Configure and test an Online AI provider in Slot 5, then generate a new set.',
-          'No built-in IELTS question fallback is available'
+          'Fallback disabled, no preloaded AI plan'
         );
         return;
       }
@@ -1611,7 +1597,6 @@ export class IeltsSessionController {
     };
   }): void {
     if (
-      !false &&
       snapshot.plan &&
       snapshot.questionSource !== 'AI' &&
       !snapshot.plan.id.includes('llm')
