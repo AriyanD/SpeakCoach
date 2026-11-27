@@ -1472,7 +1472,7 @@ export function renderShadowingView(
         sttActiveTierLabel: sttOutcome.activeTier.detailLabel,
         report: null
       });
-      void import('./DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
+      await import('./DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
       shadowingIsStopping = false;
       state.audioActivity = 'idle';
       renderShadowingView(container, summary);
@@ -1522,7 +1522,7 @@ export function renderShadowingView(
       sttActiveTierLabel: sttOutcome.activeTier.detailLabel,
       report: state.lastReport
     });
-    void import('./DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
+    await import('./DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
 
     state.statusMessage = `${sttOutcome.error ? `${sttOutcome.error} ` : ''}Scored recognizer output ("${rawRecognized}") against reference.`;
     shadowingIsStopping = false;
