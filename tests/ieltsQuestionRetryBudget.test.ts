@@ -55,14 +55,14 @@ describe('IELTS question retry budget', () => {
     const progress: Array<{ completed: number; total: number }> = [];
     const retryPrompts: string[] = [];
     const transport = async (opts: HttpOptions): Promise<HttpResponse> => {
-      calls++;
+      const callNumber = ++calls;
       activeRequests++;
       maxConcurrentRequests = Math.max(maxConcurrentRequests, activeRequests);
       await new Promise(resolve => setTimeout(resolve, 5));
       activeRequests--;
       const payload = typeof opts.data === 'string' ? JSON.parse(opts.data) : opts.data;
       const prompt = payload.contents[0].parts[0].text as string;
-      if (calls <= 5) {
+      if (callNumber <= 5) {
         return {
           status: 200, headers: { 'content-type': 'application/json' }, url: opts.url,
           data: { candidates: [{ content: { parts: [{ text: 'not valid JSON' }] } }] }
@@ -72,7 +72,7 @@ describe('IELTS question retry budget', () => {
       const topicA = prompt.match(/Part 1 topic A: "([^"]+)"/)?.[1];
       const topicB = prompt.match(/Part 1 topic B: "([^"]+)"/)?.[1];
       if (!topicA || !topicB) throw new Error('Assigned topics were missing from the prompt.');
-      const setIndex = calls - 6;
+      const setIndex = callNumber - 6;
       const subject = subjects[setIndex];
       const fill = (value: string): string => value
         .replace(/\{A\}/gu, topicA).replace(/\{B\}/gu, topicB).replace(/\{S\}/gu, subject);
