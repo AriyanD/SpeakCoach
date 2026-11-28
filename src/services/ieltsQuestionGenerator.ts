@@ -670,6 +670,7 @@ export async function generateIeltsQuestionSets(
   let attempts = 0;
   let nextIndex = 0;
   let fatalError: unknown;
+  let lastRetryReason = '';
 
   const contexts = Array.from({ length: target }, () =>
     createIeltsGenerationContext(baseMemory.topics, options?.requestedTopic ?? '', getRecentLlmPart1Topics())
@@ -690,11 +691,13 @@ export async function generateIeltsQuestionSets(
       const index = nextIndex++;
       if (index >= target) return;
       let retryGuidance = '';
+      let setAttempts = 0;
       let completedThisSet = false;
       while (!fatalError && attempts < maxAttempts && !completedThisSet) {
-        const attemptNumber = ++attempts;
+        attempts++;
+        setAttempts++;
         const memory = getMemory();
-        const context = attemptNumber <= target
+        const context = setAttempts === 1
           ? contexts[index]
           : createIeltsGenerationContext(memory.topics, options?.requestedTopic ?? '', memory.part1Topics);
         try {
@@ -727,6 +730,7 @@ export async function generateIeltsQuestionSets(
             fatalError = error;
             return;
           }
+          lastRetryReason = error.message.replace(/\\s+/gu, ' ').slice(0, 240);
           retryGuidance = getQuestionSetRetryGuidance(error.message);
           console.warn('[ieltsQuestionGenerator] Retrying invalid AI question set (' + attempts + '/' + maxAttempts + '):', error.message);
         }
@@ -738,7 +742,7 @@ export async function generateIeltsQuestionSets(
   if (fatalError) throw fatalError;
   const completed = generated.filter((item): item is NonNullable<typeof item> => Boolean(item));
   if (completed.length < target) {
-    throw new LlmQuestionGenerationError('The AI generated only ' + completed.length + ' of ' + target + ' requested sets after ' + attempts + ' attempts. Your current unfinished sets have been kept; refresh again to try another batch.');
+    throw new LlmQuestionGenerationError('The AI generated only ' + completed.length + ' of ' + target + ' requested sets after ' + attempts + ' attempts. Last issue: ' + (lastRetryReason || 'The provider could not complete a valid set.') + ' Your current unfinished sets have been kept; refresh again to try another batch.');
   }
   const saved = replaceUncompletedIeltsQuestionSets(completed);
   commitGeneratedPlansMemory(saved.map(item => item.plan));
