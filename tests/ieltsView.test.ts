@@ -327,11 +327,11 @@ describe('IeltsView UI Component (Question Set Library)', () => {
         llm_generator: { ...mockGlobalTierSummary.slots.llm_generator, label: 'Online AI' }
       }
     };
-    let finishGeneration!: (sets: any[]) => void;
+    let finishGeneration!: () => void;
     const generateSpy = vi.spyOn(ieltsQuestionGenerator, 'generateIeltsQuestionSets')
       .mockImplementation((_count, options) => new Promise((resolve) => {
         options?.onProgress?.({ completed: 2, total: 5 });
-        finishGeneration = resolve;
+        finishGeneration = () => resolve([]);
       }));
 
     const cleanup = renderIeltsView(container, onlineSummary, {
@@ -344,7 +344,7 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     await vi.waitFor(() => expect(button?.querySelector('.ielts-loading-copy > span')?.textContent).toBe('2 of 5 sets ready'));
     expect(button?.querySelector('.ielts-loading-hint')?.textContent).toBe('2 of 5 ready');
 
-    finishGeneration([]);
+    finishGeneration();
     await vi.waitFor(() => expect(container.querySelector('#ielts-refresh-sets-btn')?.textContent).toContain('Get new question sets'));
     cleanup();
     generateSpy.mockRestore();
