@@ -148,9 +148,9 @@ Part 3 angles: ${context.part3Angles.join(' / ')}; Part 3 forms in order: ${p3Fo
 ${themeLine}
 Recent topics already used (keywords): ${topicAvoid || 'none'}.
 Recent questions and cue-card titles (keywords only): ${avoid || 'none'}.
-RULES: Part 1 exactly 6 questions, 3 per assigned topic; follow each assigned form and use distinct openings within the part. Part 2 one concrete Describe cue card with exactly four useful bullets. Part 3 exactly 4 distinct discussion questions rooted in the Part 2 cue card’s underlying theme. Broaden from the candidate’s personal experience to wider social, cultural, economic, environmental, educational or policy implications. Do not switch to an unrelated subject or repeat the cue-card bullets. Use assigned angles and forms for varied perspectives within that shared theme; keep topic labels on the same broad theme or closely related facets. Avoid semantic repeats and clichés. Avoid close semantic equivalents, not merely identical wording. Keep spoken questions concise and accessible.
-Use the exact assigned Part 1 topic names in every Part 1 question and in part1Topics. Never output the literal labels A or B. The first three Part 1 questions belong to topic A and the next three to topic B.
-JSON ONLY: {"part1Topics":["${context.part1Topics[0]}","${context.part1Topics[1]}"],"part1Questions":[{"topic":"${context.part1Topics[0]}","question":"..."},{"topic":"${context.part1Topics[0]}","question":"..."},{"topic":"${context.part1Topics[0]}","question":"..."},{"topic":"${context.part1Topics[1]}","question":"..."},{"topic":"${context.part1Topics[1]}","question":"..."},{"topic":"${context.part1Topics[1]}","question":"..."}],"part2CueCard":{"topic":"...","title":"...","prompt":"Describe ...","bullets":["...","...","...","..."]},"part3Questions":[{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."}]}`;
+RULES: Part 1 exactly 6 questions, 3 per assigned topic; follow forms in order and vary openings. Part 2 one concrete Describe cue card with exactly four useful bullets. Part 3 exactly 4 distinct questions connected to the Part 2 theme, widening from personal experience to social, cultural, economic, environmental, educational or policy implications. Keep the same broad theme or related facets; do not switch subjects, repeat cue-card bullets, use clichés or semantic duplicates. Use the assigned angles and forms for varied perspectives. Keep questions concise and accessible.
+Use the exact assigned Part 1 names in part1Topics and each question's topic. The A/B labels below are placeholders only; use the assigned names instead.
+JSON ONLY: {"part1Topics":["${context.part1Topics[0]}","${context.part1Topics[1]}"],"part1Questions":[{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."}],"part2CueCard":{"topic":"...","title":"...","prompt":"Describe ...","bullets":["...","...","...","..."]},"part3Questions":[{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."}]}`;
   const baseUser = 'Generate one complete IELTS Speaking test set. Follow every assignment and return only the requested JSON.';
   const user = retryGuidance
     ? `${baseUser} IMPORTANT CORRECTION: ${retryGuidance}`
@@ -478,7 +478,7 @@ export async function requestLlmSessionPlan(params: {
           }
         },
         timeoutMs: 45000,
-        maxRetries: 1
+        maxRetries: 0 // IELTS uses slot-level API 2 fallback; do not replay a billable request on HTTP 429.
       },
       params.transport
     );
@@ -517,7 +517,7 @@ export async function requestLlmSessionPlan(params: {
           response_format: { type: 'json_object' }
         },
         timeoutMs: 45000,
-        maxRetries: 1
+        maxRetries: 0 // IELTS uses slot-level API 2 fallback; do not replay a billable request on HTTP 429.
       },
       params.transport
     );
@@ -668,8 +668,8 @@ export async function generateIeltsPlanWithTierFallback(options?: {
 
 
 /**
- * Generate complete AI-only IELTS sets. Five-set batches use two workers.
- * Keep strict validation, the existing retry budget and atomic batch persistence.
+ * Generate AI-only IELTS sets with two workers in the normal case.
+ * Persist each valid set immediately; replace the previous pending batch only when all sets are ready.
  */
 export async function generateIeltsQuestionSets(
   count = 5,
