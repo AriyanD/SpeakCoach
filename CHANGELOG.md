@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.2 — 2026-11-28
+
+### Improved
+- IELTS question-set generation now runs up to two sets concurrently, preserves strict variety checks, retries only affected sets, and shows live generation progress.
+
+
 ## 1.2.1 — 2026-11-28
 
 ### Improved

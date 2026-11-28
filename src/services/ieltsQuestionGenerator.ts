@@ -656,80 +656,95 @@ export async function generateIeltsPlanWithTierFallback(options?: {
 
 
 /**
- * Generate several complete AI-only IELTS sets and persist them in the local library.
- * Calls are sequential so each generated set can inform the next call's duplicate-topic guard.
+ * Generate complete AI-only IELTS sets. Five-set batches use two workers.
+ * Keep strict validation, the existing retry budget and atomic batch persistence.
  */
 export async function generateIeltsQuestionSets(
   count = 5,
-  options?: { transport?: (opts: any) => Promise<any>; requestedTopic?: string }
+  options?: { transport?: (opts: any) => Promise<any>; requestedTopic?: string; onProgress?: (progress: { completed: number; total: number }) => void }
 ): Promise<StoredIeltsQuestionSet[]> {
   const target = Math.max(1, Math.min(5, Math.floor(count)));
-  const generated: Array<{ plan: IeltsTestSessionPlan; providerName?: string; modelName?: string }> = [];
   const baseMemory = getCompactLlmGenerationMemory();
-  const batchTopics: string[] = [];
-  const batchQuestions: string[] = [];
-  const batchTitles: string[] = [];
-  const batchPart1Topics: string[] = [];
-  let attempts = 0;
-  let retryGuidance = '';
-  let lastRetryReason = '';
   const maxAttempts = target + 5;
+  const generated: Array<{ plan: IeltsTestSessionPlan; providerName?: string; modelName?: string } | undefined> = new Array(target);
+  let attempts = 0;
+  let nextIndex = 0;
+  let fatalError: unknown;
+  let lastRetryReason = '';
 
-  while (generated.length < target && attempts < maxAttempts) {
-    attempts++;
-    const generationMemory = {
-      topics: [...baseMemory.topics, ...batchTopics].slice(-40),
-      questions: [...baseMemory.questions, ...batchQuestions],
-      titles: [...(baseMemory.titles ?? []), ...batchTitles],
-      part1Topics: [...getRecentLlmPart1Topics(), ...batchPart1Topics].slice(-40)
+  const contexts = Array.from({ length: target }, () =>
+    createIeltsGenerationContext(baseMemory.topics, options?.requestedTopic ?? '', getRecentLlmPart1Topics())
+  );
+  const getMemory = () => {
+    const accepted = generated.filter((item): item is NonNullable<typeof item> => Boolean(item));
+    const memories = accepted.map(item => getPlanGenerationMemory(item.plan));
+    return {
+      topics: [...baseMemory.topics, ...memories.flatMap(item => item.topics)].slice(-40),
+      questions: [...baseMemory.questions, ...memories.flatMap(item => item.questions)],
+      titles: [...(baseMemory.titles ?? []), ...memories.flatMap(item => item.titles)],
+      part1Topics: [...getRecentLlmPart1Topics(), ...memories.flatMap(item => item.part1Topics)].slice(-40)
     };
-    const generationContext = createIeltsGenerationContext(generationMemory.topics, options?.requestedTopic ?? '', generationMemory.part1Topics ?? getRecentLlmPart1Topics());
-    try {
-      const result = await generateIeltsPlanWithTierFallback({
-        transport: options?.transport,
-        requestedTopic: options?.requestedTopic,
-        allowBuiltinFallback: false,
-        generationContext,
-        generationMemory,
-        strictValidation: true,
-        deferMemoryCommit: true,
-        retryGuidance
-      });
-      if (result.source !== 'online_ai' || !result.plan.id.includes('llm')) {
-        throw new LlmQuestionGenerationError(
-          'IELTS question library accepts AI-generated sets only. Built-in question bank results are not added.',
-          result.providerName,
-          result.modelName
-        );
+  };
+
+  const worker = async (): Promise<void> => {
+    while (!fatalError && attempts < maxAttempts) {
+      const index = nextIndex++;
+      if (index >= target) return;
+      let retryGuidance = '';
+      let setAttempts = 0;
+      let completedThisSet = false;
+      while (!fatalError && attempts < maxAttempts && !completedThisSet) {
+        attempts++;
+        setAttempts++;
+        const memory = getMemory();
+        const context = setAttempts === 1
+          ? contexts[index]
+          : createIeltsGenerationContext(memory.topics, options?.requestedTopic ?? '', memory.part1Topics);
+        try {
+          const result = await generateIeltsPlanWithTierFallback({
+            transport: options?.transport, requestedTopic: options?.requestedTopic,
+            allowBuiltinFallback: false, generationContext: context, generationMemory: memory,
+            strictValidation: true, deferMemoryCommit: true, retryGuidance
+          });
+          if (result.source !== 'online_ai' || !result.plan.id.includes('llm')) {
+            throw new LlmQuestionGenerationError('IELTS question library accepts AI-generated sets only.', result.providerName, result.modelName);
+          }
+
+          const accepted = generated.filter((item): item is NonNullable<typeof item> => Boolean(item)).map(item => item.plan);
+          const questions = accepted.flatMap(plan => [...plan.part1Questions, ...plan.part3Questions].map(item => item.question));
+          const titles = accepted.map(plan => plan.part2CueCard.title);
+          const duplicate = [...result.plan.part1Questions, ...result.plan.part3Questions].some(item => {
+            const tier = getRecentQuestionOverlapTier(item.question, questions);
+            return tier === 'exact' || tier === 'recent';
+          });
+          const titleTier = getRecentQuestionOverlapTier(result.plan.part2CueCard.title, titles, true);
+          if (duplicate || titleTier === 'exact' || titleTier === 'recent') {
+            throw new LlmQuestionGenerationError('The generated set repeats or closely paraphrases another set in this batch.', result.providerName, result.modelName, undefined, true);
+          }
+
+          generated[index] = { plan: result.plan, providerName: result.providerName, modelName: result.modelName };
+          completedThisSet = true;
+          try { options?.onProgress?.({ completed: generated.filter(Boolean).length, total: target }); } catch { /* Ignore progress callback errors. */ }
+        } catch (error) {
+          if (!(error instanceof LlmQuestionGenerationError) || !error.retryable) {
+            fatalError = error;
+            return;
+          }
+          lastRetryReason = error.message.replace(/\s+/gu, ' ').slice(0, 240);
+          retryGuidance = getQuestionSetRetryGuidance(error.message);
+          console.warn('[ieltsQuestionGenerator] Retrying invalid AI question set (' + attempts + '/' + maxAttempts + '):', error.message);
+        }
       }
-      retryGuidance = '';
-      lastRetryReason = '';
-      generated.push({
-        plan: result.plan,
-        providerName: result.providerName,
-        modelName: result.modelName
-      });
-      const planMemory = getPlanGenerationMemory(result.plan);
-      batchTopics.push(...planMemory.topics);
-      batchQuestions.push(...planMemory.questions);
-      batchTitles.push(...planMemory.titles);
-      batchPart1Topics.push(...planMemory.part1Topics);
-    } catch (error) {
-      if (!(error instanceof LlmQuestionGenerationError) || !error.retryable) throw error;
-      if (attempts >= maxAttempts) break;
-      lastRetryReason = error.message.replace(/\s+/gu, ' ').slice(0, 240);
-      retryGuidance = getQuestionSetRetryGuidance(error.message);
-      console.warn(`[ieltsQuestionGenerator] Retrying invalid AI question set (${attempts}/${maxAttempts}):`, error.message);
     }
+  };
+
+  await Promise.all(Array.from({ length: target >= 5 ? 2 : 1 }, () => worker()));
+  if (fatalError) throw fatalError;
+  const completed = generated.filter((item): item is NonNullable<typeof item> => Boolean(item));
+  if (completed.length < target) {
+    throw new LlmQuestionGenerationError('The AI generated only ' + completed.length + ' of ' + target + ' requested sets after ' + attempts + ' attempts. Last issue: ' + (lastRetryReason || 'The provider could not complete a valid set.') + ' Your current unfinished sets have been kept; refresh again to try another batch.');
   }
-  if (generated.length < target) {
-    throw new LlmQuestionGenerationError(
-      `The AI generated only ${generated.length} of ${target} requested sets after ${attempts} attempts. Last issue: ${lastRetryReason || 'The provider could not complete a valid set.'} Your current unfinished sets have been kept; refresh again to try another batch.`
-    );
-  }
-  // Save the complete batch first. Only after the store verifies its write do
-  // we commit anti-repeat memory, so discarded/failed batches never pollute it.
-  const saved = replaceUncompletedIeltsQuestionSets(generated);
+  const saved = replaceUncompletedIeltsQuestionSets(completed);
   commitGeneratedPlansMemory(saved.map(item => item.plan));
   return saved;
 }

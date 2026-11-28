@@ -50,12 +50,19 @@ describe('IELTS question retry budget', () => {
       'a community bicycle workshop'
     ];
     let calls = 0;
+    let activeRequests = 0;
+    let maxConcurrentRequests = 0;
+    const progress: Array<{ completed: number; total: number }> = [];
     const retryPrompts: string[] = [];
     const transport = async (opts: HttpOptions): Promise<HttpResponse> => {
-      calls++;
+      const callNumber = ++calls;
+      activeRequests++;
+      maxConcurrentRequests = Math.max(maxConcurrentRequests, activeRequests);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      activeRequests--;
       const payload = typeof opts.data === 'string' ? JSON.parse(opts.data) : opts.data;
       const prompt = payload.contents[0].parts[0].text as string;
-      if (calls <= 5) {
+      if (callNumber <= 5) {
         return {
           status: 200, headers: { 'content-type': 'application/json' }, url: opts.url,
           data: { candidates: [{ content: { parts: [{ text: 'not valid JSON' }] } }] }
@@ -65,7 +72,7 @@ describe('IELTS question retry budget', () => {
       const topicA = prompt.match(/Part 1 topic A: "([^"]+)"/)?.[1];
       const topicB = prompt.match(/Part 1 topic B: "([^"]+)"/)?.[1];
       if (!topicA || !topicB) throw new Error('Assigned topics were missing from the prompt.');
-      const setIndex = calls - 6;
+      const setIndex = callNumber - 6;
       const subject = subjects[setIndex];
       const fill = (value: string): string => value
         .replace(/\{A\}/gu, topicA).replace(/\{B\}/gu, topicB).replace(/\{S\}/gu, subject);
@@ -87,11 +94,12 @@ describe('IELTS question retry budget', () => {
       };
     };
 
-    const sets = await generateIeltsQuestionSets(5, { transport });
+    const sets = await generateIeltsQuestionSets(5, { transport, onProgress: value => progress.push(value) });
     expect(calls).toBe(10);
+    expect(maxConcurrentRequests).toBe(2);
+    expect(progress[progress.length - 1]).toEqual({ completed: 5, total: 5 });
     expect(sets).toHaveLength(5);
     expect(retryPrompts).toHaveLength(5);
-    expect(retryPrompts[0]).toContain('IMPORTANT CORRECTION');
-    expect(retryPrompts.slice(1).every(prompt => !prompt.includes('IMPORTANT CORRECTION'))).toBe(true);
+    expect(retryPrompts.some(prompt => prompt.includes('IMPORTANT CORRECTION'))).toBe(true);
   });
 });
