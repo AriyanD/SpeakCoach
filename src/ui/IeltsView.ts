@@ -447,7 +447,9 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
               }
               if (button) {
                 const copy = button.querySelector<HTMLElement>('.ielts-loading-copy > span');
+                const detail = button.querySelector<HTMLElement>('.ielts-loading-hint');
                 if (copy) copy.textContent = progressText;
+                if (detail) detail.textContent = completed + ' of ' + total + ' ready';
               }
             }
           });
