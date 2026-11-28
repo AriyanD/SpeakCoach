@@ -730,7 +730,7 @@ export async function generateIeltsQuestionSets(
             fatalError = error;
             return;
           }
-          lastRetryReason = error.message.replace(/\\s+/gu, ' ').slice(0, 240);
+          lastRetryReason = error.message.replace(/\s+/gu, ' ').slice(0, 240);
           retryGuidance = getQuestionSetRetryGuidance(error.message);
           console.warn('[ieltsQuestionGenerator] Retrying invalid AI question set (' + attempts + '/' + maxAttempts + '):', error.message);
         }
