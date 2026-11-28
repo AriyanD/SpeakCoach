@@ -91,7 +91,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelector('#sh-generate-ai-btn')).not.toBeNull();
     expect(root.querySelector('#sh-history-prev-btn')).not.toBeNull();
     expect(root.querySelector('#sh-history-next-btn')).not.toBeNull();
-    expect(root.querySelector('#sh-history-position')?.textContent).toContain('Set 1 of 5');
+    expect(root.querySelector('#sh-history-position')?.textContent).toContain('1/5');
     expect(root.querySelector('#sh-translation-card')).not.toBeNull();
     expect(root.querySelector<HTMLButtonElement>('#sh-play-normal-btn')?.disabled).toBe(false);
 
@@ -163,7 +163,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     expect(root.querySelectorAll('.sh-result-strip-words [data-word-replay]')).toHaveLength(
       root.querySelectorAll('#sh-word-chips [data-word-replay]').length
     );
-    expect(root.querySelector('.sh-result-replay-help')?.textContent).toContain('Shadowing Score Report');
+    expect(root.querySelector('.sh-result-replay-help')?.textContent).toContain('Detailed Report');
     expect(root.querySelector<HTMLButtonElement>('#sh-word-chips [data-word-replay]')?.getAttribute('aria-label')).toContain('Play pronunciation of');
     // In offline SpeechRecognizer mode, no raw WAV is kept and word timing / replay are disabled with a clear notice
     expect(root.querySelector('#sh-vad-summary')).toBeNull();
@@ -259,7 +259,7 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     root.querySelector<HTMLButtonElement>('#sh-api-open-settings-btn')?.click();
     expect(openSettingsEvent).toHaveBeenCalledTimes(1);
     window.removeEventListener('speakcoach:open-settings', openSettingsEvent);
-    expect(root.querySelector('#sh-score-card .tier-badge')?.textContent).toContain('Basic offline');
+    expect(root.querySelector('.sh-result-strip .tier-badge')?.textContent).toContain('Basic offline');
 
     // In offline mode, word timing bars are hidden and replaced by clear notice, and replay button is disabled
     expect(root.querySelector('#sh-timing-bars')).toBeNull();

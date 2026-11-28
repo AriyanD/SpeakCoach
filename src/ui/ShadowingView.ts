@@ -34,6 +34,46 @@ import { attachScrollRail } from './scrollRail';
 import { SHADOWING_LANGUAGES, getShadowingLanguage, countShadowingLanguageUnits, type ShadowingLanguageCode } from '../data/shadowingLanguages';
 import { loadShadowingLanguageHistories, saveShadowingLanguageHistories, getShadowingHistoryForLanguage, createShadowingHistoryForLanguage, setShadowingHistoryForLanguage, loadSelectedShadowingLanguage, saveSelectedShadowingLanguage, type ShadowingLanguageHistories } from '../services/shadowingLanguageHistory';
 
+const SX_ICON_PATHS = {
+  language: 'M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z',
+  translate: 'M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z',
+  layers: 'M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z',
+  graphic_eq: 'M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z',
+  auto_awesome: 'M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z',
+  info: 'M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z',
+  chevron_left: 'M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z',
+  chevron_right: 'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
+  skip_previous: 'M6 6h2v12H6zm3.5 6l8.5 6V6z',
+  skip_next: 'M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z',
+  play_arrow: 'M8 5v14l11-7z',
+  stop: 'M6 6h12v12H6z',
+  mic: 'M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z',
+  check: 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+  expand_more: 'M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z',
+  volume_up: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z',
+  send: 'M2.01 21L23 12 2.01 3 2 10l15 2-15 2z',
+  slow_motion_video: 'M13.05 9.79L10 7.5v9l3.05-2.29L16 12zM11 4.07V2.05c-2.01.2-3.84 1-5.32 2.21L7.1 5.69c1.11-.86 2.44-1.44 3.9-1.62zM5.69 7.1L4.26 5.68C3.05 7.16 2.25 8.99 2.05 11h2.02c.18-1.46.76-2.79 1.62-3.9zM4.07 13H2.05c.2 2.01 1 3.84 2.21 5.32l1.43-1.43c-.86-1.1-1.44-2.43-1.62-3.89zm1.61 6.74C7.16 20.95 8.99 21.75 11 21.95v-2.02c-1.46-.18-2.79-.76-3.9-1.62l-1.42 1.43zM22 12c0 5.16-3.92 9.42-8.95 9.95v-2.02C16.95 19.44 20 16.07 20 12s-3.05-7.44-6.95-7.93V2.05C18.08 2.58 22 6.84 22 12z'
+} as const;
+type SxIconName = keyof typeof SX_ICON_PATHS;
+/** Inline Material-style glyph; bundled as SVG so the redesigned page needs no icon font or network. */
+function sxIcon(name: SxIconName, className = 'sx-icon'): string {
+  return `<svg class="${className}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${SX_ICON_PATHS[name]}"/></svg>`;
+}
+const SX_TURTLE_SVG = '<svg class="sx-icon sx-icon-turtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.2 6.8C10.2 4.6 10.9 3.2 12 3.2C13.1 3.2 13.8 4.6 13.8 6.8"/><ellipse cx="12" cy="13" rx="5" ry="6.2"/><path d="M12 6.8V19.2"/><path d="M7.3 11H16.7"/><path d="M7.5 15.2H16.5"/><path d="M7.6 9.5L4.4 7.4"/><path d="M16.4 9.5L19.6 7.4"/><path d="M7.8 16.8L4.8 19"/><path d="M16.2 16.8L19.2 19"/><path d="M12 19.2V21.3"/></svg>';
+/** Status mark shown inside word chips; the volume glyph is revealed by CSS while the word is playing. */
+function sxWordMark(status: WordMatchStatus, loading = false): string {
+  const base = loading
+    ? '<span class="sh-word-spinner" aria-hidden="true"></span>'
+    : status === 'match' ? sxIcon('check', 'sx-icon sx-mark-icon')
+      : status === 'mispronounced' ? '<b>!</b>'
+        : status === 'missing' ? '<b>−</b>'
+          : '<b>+</b>';
+  return `<span class="sx-mark" aria-hidden="true"><span class="sx-mark-base">${base}</span>${sxIcon('volume_up', 'sx-icon sx-mark-icon sx-mark-vol')}</span>`;
+}
+function sxSpeedClass(label: string): string {
+  return label.toLowerCase().replace(/\s+/g, '-');
+}
+
 interface ShadowingState {
   difficulty: ShadowingDifficulty;
   languageCode: ShadowingLanguageCode;
@@ -77,6 +117,9 @@ interface ShadowingState {
   translationStatusType: 'info' | 'pass' | 'fail';
   isTranslating: boolean;
   forceSpeechApiNotice: boolean;
+  reportDetailsOpen: boolean;
+  timingDetailsOpen: boolean;
+  transcriptDetailsOpen: boolean;
 }
 
 const state: ShadowingState = {
@@ -121,7 +164,10 @@ const state: ShadowingState = {
   translationStatus: null,
   translationStatusType: 'info',
   isTranslating: false,
-  forceSpeechApiNotice: false
+  forceSpeechApiNotice: false,
+  reportDetailsOpen: false,
+  timingDetailsOpen: true,
+  transcriptDetailsOpen: false
 };
 
 let sentenceSetHistory: ShadowingSetHistory | null = null;
@@ -242,48 +288,68 @@ function renderVadWaveformSection(vad?: WavVadAnalysisResult): string {
   const pausesText =
     vad.midSentencePauses.length > 0
       ? vad.midSentencePauses
-          .map((p, idx) => `#${idx + 1}: ${p.durationMs} ms (@${p.startMs}–${p.endMs} ms)`)
+          .map((p, idx) => `#${idx + 1}: ${p.durationMs} ms`)
           .join(' · ')
       : 'None detected';
+  const seconds = (ms: number): string => `${(ms / 1000).toFixed(2)}s`;
 
   return `
-    <div class="vad-box" id="sh-vad-summary">
-      <div class="card-header vad-report-header">
-        <span class="slot-summary-title"><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l2-6 4 12 3-9 2 3h4"/></svg> Waveform &amp; Voice Activity (Approximate)</span>
-        <span class="tier-badge offline">Approximate VAD</span>
+    <div class="vad-box sx-vad" id="sh-vad-summary">
+      <div class="sx-vad-head">
+        <span class="sx-vad-title">Waveform &amp; Voice Activity (Approximate)</span>
+        <span class="tier-badge offline sx-vad-badge">Approximate VAD</span>
       </div>
-      <div class="card-subtitle" id="sh-vad-metrics">
-        Speech: <strong>${vad.speechDurationMs} ms</strong> (Expected: ${vad.expectedDurationMs} ms · Rate: ${Math.round(
+      <p class="sx-mono" id="sh-vad-metrics">
+        Speech: ${seconds(vad.speechDurationMs)} · Expected: ${seconds(vad.expectedDurationMs)} · Rate: ${Math.round(
           vad.speakingRateRatio * 100
-        )}% ${vad.speakingRateLabel}) ·
-        Leading Silence: <strong>${vad.leadingSilenceMs} ms</strong> ·
-        Trailing Silence: <strong>${vad.trailingSilenceMs} ms</strong>
-      </div>
-      <div class="card-subtitle vad-pauses" id="sh-vad-pauses">
-        Mid-Sentence Pauses (${vad.midSentencePauses.length}): <strong>${pausesText}</strong>
-      </div>
+        )}% · Lead: ${vad.leadingSilenceMs}ms · Trail: ${vad.trailingSilenceMs}ms
+      </p>
+      <p class="sx-pauses ${vad.midSentencePauses.length ? 'has-pauses' : ''}" id="sh-vad-pauses">
+        Mid-Sentence Pauses (${vad.midSentencePauses.length}): ${pausesText}
+      </p>
       <div class="vad-waveform" id="sh-vad-waveform">
         ${barsHtml}
       </div>
-      <div class="card-subtitle vad-legend">
-        Legend: <span class="vad-legend-speech">■ Speech</span> ·
-        <span class="vad-legend-pause">■ Pause Marker</span> ·
-        <span class="vad-legend-silence">■ Leading/Trailing Silence</span>
+      <div class="sx-legend">
+        <span><i class="sx-dot speech" aria-hidden="true"></i>Speech</span>
+        <span><i class="sx-dot pause" aria-hidden="true"></i>Pause marker</span>
+        <span><i class="sx-dot silence" aria-hidden="true"></i>Leading/Trailing silence</span>
       </div>
     </div>
   `;
 }
 
-function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, drillMode = false, previousStatuses: Record<string, { status: WordMatchStatus; accuracyScore: number }> = {}, audioBusy = false, playbackActive = false, wordPlayback = false): string {
+function renderTranscriptDetailsHtml(altsHtml: string): string {
+  return `
+      <details class="sh-transcript-details sx-sub" data-sx-details="transcript" ${state.recognizerError || state.transcriptDetailsOpen ? 'open' : ''}>
+        <summary><span>Transcript &amp; recognition details</span>${sxIcon('expand_more', 'sx-icon sx-chevron')}</summary>
+        <div class="form-field sh-transcript-field sx-sub-body">
+          <label class="form-label" for="sh-transcript-input">Recognized speech</label>
+          <input
+            type="text"
+            class="form-input"
+            id="sh-transcript-input"
+            readonly
+            placeholder="Your speech will appear here."
+            value="${escapeHtml(state.recognizedTranscript)}"
+          />
+          <div class="card-subtitle sh-recognizer-meta" id="sh-recognizer-meta">
+            Alternatives / Confidence: ${altsHtml}
+            ${state.recognizerError ? ` · Recognizer Note: ${escapeHtml(state.recognizerError)}` : ''}
+          </div>
+        </div>
+      </details>`;
+}
+
+function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, drillMode = false, previousStatuses: Record<string, { status: WordMatchStatus; accuracyScore: number }> = {}, audioBusy = false, playbackActive = false, wordPlayback = false, transcriptDetailsHtml = ''): string {
   const isOfflineMode = report.activeTier.tier === 3 || report.activeTier.label === 'Basic offline';
 
   const chipsHtml = report.words
     .map((w, wordIndex) => {
       const text =
         w.status === 'extra' ? `+${w.spokenWord}` : w.referenceWord ?? w.spokenWord ?? '';
-      const statusMark = w.status === 'match' ? '✓' : w.status === 'mispronounced' ? '!' : w.status === 'missing' ? '−' : '+';
       const speedBadge =
-        !drillMode && !isOfflineMode && w.speedLabel
+        !drillMode && !isOfflineMode && w.speedLabel && !(w.status === 'match' && sxSpeedClass(w.speedLabel) === 'ok')
           ? `<span class="speed-tag ${w.speedLabel.replace(' ', '-')}">${w.speedLabel}</span>`
           : '';
       const durationText = !drillMode && !isOfflineMode && w.spokenDurationMs ? ` · ${w.spokenDurationMs}ms` : '';
@@ -300,20 +366,21 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, d
             : `${w.accuracyScore}%${durationText}`;
       const replayText = (w.referenceWord ?? w.spokenWord ?? '').trim();
       const activeWord = state.wordPlayback?.index === wordIndex;
+      const loading = activeWord && state.wordPlayback?.phase === 'loading';
       return `
-        <button type="button" class="word-chip ${w.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-status="${w.status}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayText)}" ${activeWord && state.wordPlayback?.phase === 'loading' ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayText)}" ${replayText && !audioBusy && (!playbackActive || (wordPlayback && activeWord)) ? '' : 'disabled'}>
-          <span class="word-chip-status" aria-hidden="true">${statusMark}</span>
-          <span>${escapeHtml(text)}</span>
-          ${activeWord && state.wordPlayback?.phase === 'loading' ? '<span class="sh-word-spinner" aria-hidden="true"></span>' : ''}${speedBadge}
+        <button type="button" class="word-chip sx-wchip ${w.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-status="${w.status}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayText)}" ${loading ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayText)}" ${replayText && !audioBusy && (!playbackActive || (wordPlayback && activeWord)) ? '' : 'disabled'}>
+          <span class="sx-wchip-top">${sxWordMark(w.status, loading)}<span class="sx-wchip-word">${escapeHtml(text)}</span></span>
+          ${speedBadge}
           <span class="word-chip-meta">${meta}</span>${progress ? `<span class="drill-word-progress">${progress}</span>` : ""}
         </button>
       `;
     })
     .join('');
 
+  const statusLabels: Record<WordMatchStatus, string> = { match: 'Match', mispronounced: 'Mispronounced', missing: 'Missing', extra: 'Extra' };
   const timingSectionHtml = isOfflineMode
     ? `<div class="status-box info sh-offline-timing-disabled" id="sh-offline-timing-disabled">
-         <svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg> <strong>Word timing &amp; recording replay disabled in System SpeechRecognizer mode:</strong> Android's system SpeechRecognizer returns transcript text only to SpeakCoach in this mode; the OS recognition service controls audio processing and may require network access. Configure an online Whisper STT slot for recording replay and per-word timing.
+         ${sxIcon('info')} <span><strong>Word timing &amp; recording replay disabled in System SpeechRecognizer mode:</strong> Android's system SpeechRecognizer returns transcript text only to SpeakCoach in this mode; the OS recognition service controls audio processing and may require network access. Configure an online Whisper STT slot for recording replay and per-word timing.</span>
        </div>`
     : `<div class="timing-bars-list" id="sh-timing-bars">
          ${report.words
@@ -324,7 +391,6 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, d
              const ratioPct = Math.min(220, Math.round((spk / Math.max(100, exp)) * 100));
              const barWidth = Math.min(100, Math.round((ratioPct / 180) * 100));
              const speedClass = w.speedLabel ? w.speedLabel.replace(' ', '-') : 'ok';
-             const speedText = w.speedLabel ? ` · Speed: ${w.speedLabel}` : '';
              const spokenTimes =
                w.spokenStartMs !== undefined
                  ? `Spoken: ${w.spokenStartMs}–${w.spokenEndMs ?? (w.spokenStartMs + spk)} ms (${spk} ms)`
@@ -332,14 +398,12 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, d
              const modelTimes = `Ref: ${w.expectedStartMs ?? 0}–${w.expectedEndMs ?? ((w.expectedStartMs ?? 0) + exp)} ms (${exp} ms)`;
 
              return `
-               <div class="timing-row">
+               <div class="timing-row sx-timing-row">
                  <div class="timing-row-head">
-                   <span>
-                     <strong>${escapeHtml(w.referenceWord ?? '')}</strong> (${w.status})
-                     ${w.speedLabel ? `<span class="speed-pill ${speedClass}">${w.speedLabel}</span>` : ''}
-                   </span>
-                   <span>${spokenTimes} vs ${modelTimes} (${ratioPct}%)${speedText}</span>
+                   <span class="sx-t-word"><strong>${escapeHtml(w.referenceWord ?? '')}</strong><span class="sx-t-status ${w.status}">${statusLabels[w.status]}</span></span>
+                   ${w.speedLabel ? `<span class="speed-pill ${speedClass}">${w.speedLabel}</span>` : ''}
                  </div>
+                 <p class="sx-mono sx-t-times">${spokenTimes} vs ${modelTimes} (${ratioPct}%)</p>
                  <div class="timing-track">
                    <div class="timing-fill ${speedClass}" style="width: ${barWidth}%"></div>
                  </div>
@@ -351,70 +415,71 @@ function renderReportHtml(report: ShadowingScoreReport, hasRecording: boolean, d
 
   const replayRecBtn = hasRecording
     ? `<button type="button" class="btn btn-secondary" id="sh-replay-my-audio-btn" ${audioBusy || (playbackActive && state.audioActivity !== 'playingMine(normal)') ? 'disabled' : ''}>
-         <svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg> Replay My Recording
+         ${sxIcon('play_arrow', 'sx-icon sx-icon-lg')}<span>Replay My Recording</span>
        </button>
        <button type="button" class="btn btn-secondary" id="sh-replay-my-slow-btn" ${audioBusy || (playbackActive && state.audioActivity !== 'playingMine(slow)') ? 'disabled' : ''}>
-         <svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> My Recording Slow (0.75x)
+         ${sxIcon('slow_motion_video', 'sx-icon sx-icon-lg')}<span>My Recording Slow (0.75x)</span>
        </button>`
     : `<button type="button" class="btn btn-secondary" id="sh-replay-my-audio-btn" disabled title="No audio kept in System SpeechRecognizer mode">
-         <svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4H4Zm13-1 4 6m0-6-4 6"/></svg> Replay My Recording (Disabled in Offline Mode)
+         ${sxIcon('play_arrow', 'sx-icon sx-icon-lg')}<span>Replay My Recording (Disabled in Offline Mode)</span>
        </button>`;
 
+  const timingBlock = drillMode ? '' : isOfflineMode
+    ? `<div class="sx-sub-plain">${renderVadWaveformSection(report.vadAnalysis)}${timingSectionHtml}</div>`
+    : `<details class="sh-timing-details sx-sub" data-sx-details="timing" ${state.timingDetailsOpen ? 'open' : ''}>
+         <summary><span>Timing &amp; voice activity details</span>${sxIcon('expand_more', 'sx-icon sx-chevron')}</summary>
+         <div class="sx-sub-body">
+           ${renderVadWaveformSection(report.vadAnalysis)}
+           ${timingSectionHtml}
+         </div>
+       </details>`;
+
   return `
-    <div id="sh-score-card" class="sh-score-card">
-      <div class="sh-score-heading section-heading">
-        <div>
-          <h2 class="card-title">Shadowing Score Report</h2>
-          <p class="card-subtitle">
-            Scored via <strong>${escapeHtml(report.activeTier.detailLabel)}</strong> · Overall Pace: <strong>${Math.round(
-              report.overallPaceRatio * 100
-            )}% (${report.overallPaceLabel})</strong>
-          </p>
+    <details class="sx-report" data-sx-details="report" ${state.reportDetailsOpen ? 'open' : ''}>
+      <summary class="sx-report-summary">
+        <div class="sx-report-summary-copy">
+          <h3 class="sx-report-title">Detailed Report</h3>
+          <p class="sx-report-sub">Scored via <strong>${escapeHtml(report.activeTier.detailLabel)}</strong> · Overall Pace: <strong>${Math.round(
+            report.overallPaceRatio * 100
+          )}% (${report.overallPaceLabel})</strong></p>
         </div>
-        <span class="tier-badge ${report.activeTier.label === 'Online AI' ? 'online' : 'offline'}">
-          <span class="tier-dot"></span>
-          ${report.activeTier.label}
-        </span>
+        ${sxIcon('expand_more', 'sx-icon sx-chevron')}
+      </summary>
+      <div id="sh-score-card" class="sh-score-card sx-report-body">
+        ${
+          report.approximateNotice
+            ? `<div class="status-box info" id="sh-tier3-notice">${escapeHtml(report.approximateNotice)}</div>`
+            : ''
+        }
+
+        <div class="score-metrics-grid ${drillMode ? 'sh-drill-metrics' : ''}">
+          ${drillMode ? `
+            <div class="metric-tile metric-tile-overall">
+              <div class="metric-value" id="sh-pron-score">${report.pronunciationScore}</div>
+              <div class="metric-label">Word match</div>
+            </div>
+          ` : `
+            <div class="metric-tile metric-tile-overall"><div class="metric-value" id="sh-overall-score">${report.overallScore}</div><div class="metric-label">Overall score</div></div>
+            <div class="metric-tile"><div class="metric-value" id="sh-pron-score">${report.pronunciationScore}</div><div class="metric-label">${report.activeTier.tier >= 2 ? 'Word match' : 'Pronunciation assessment'}</div></div>
+            <div class="metric-tile"><div class="metric-value" id="sh-fluency-score">${report.fluencyScore}</div><div class="metric-label">Fluency${isOfflineMode ? ' (approx.)' : ''}</div></div>
+            <div class="metric-tile"><div class="metric-value" id="sh-pace-score">${report.paceScore}</div><div class="metric-label">Pace${isOfflineMode ? ' (approx.)' : ''} (${report.overallPaceLabel})</div></div>
+            <div class="metric-tile"><div class="metric-value" id="sh-complete-score">${report.completenessScore}%</div><div class="metric-label">Completeness</div></div>
+          `}
+        </div>
+
+        <p class="word-replay-help" id="sh-word-replay-help">Tap any word below to hear its pronunciation separately.</p>
+        <div class="word-tokens-wrap" id="sh-word-chips">
+          ${chipsHtml}
+        </div>
+
+        <div class="btn-row sh-report-playback-actions">
+          ${replayRecBtn}
+        </div>
+
+        ${timingBlock}
+        ${transcriptDetailsHtml}
       </div>
-
-      ${
-        report.approximateNotice
-          ? `<div class="status-box info" id="sh-tier3-notice">${escapeHtml(report.approximateNotice)}</div>`
-          : ''
-      }
-
-      <div class="score-metrics-grid ${drillMode ? 'sh-drill-metrics' : ''}">
-        ${drillMode ? `
-          <div class="metric-tile metric-tile-overall">
-            <div class="metric-value" id="sh-pron-score">${report.pronunciationScore}</div>
-            <div class="metric-label">Word match</div>
-          </div>
-        ` : `
-          <div class="metric-tile metric-tile-overall"><div class="metric-value" id="sh-overall-score">${report.overallScore}</div><div class="metric-label">Overall score</div></div>
-          <div class="metric-tile"><div class="metric-value" id="sh-pron-score">${report.pronunciationScore}</div><div class="metric-label">${report.activeTier.tier >= 2 ? 'Word match' : 'Pronunciation assessment'}</div></div>
-          <div class="metric-tile"><div class="metric-value" id="sh-fluency-score">${report.fluencyScore}</div><div class="metric-label">Fluency${isOfflineMode ? ' (approx.)' : ''}</div></div>
-          <div class="metric-tile"><div class="metric-value" id="sh-pace-score">${report.paceScore}</div><div class="metric-label">Pace${isOfflineMode ? ' (approx.)' : ''} (${report.overallPaceLabel})</div></div>
-          <div class="metric-tile"><div class="metric-value" id="sh-complete-score">${report.completenessScore}%</div><div class="metric-label">Completeness</div></div>
-        `}
-      </div>
-
-      <p class="word-replay-help" id="sh-word-replay-help">Tap any word below to hear its pronunciation separately.</p>
-      <div class="word-tokens-wrap" id="sh-word-chips">
-        ${chipsHtml}
-      </div>
-
-      <div class="btn-row sh-report-playback-actions">
-        ${replayRecBtn}
-      </div>
-
-      ${drillMode ? '' : isOfflineMode
-        ? `${renderVadWaveformSection(report.vadAnalysis)}${timingSectionHtml}`
-        : `<details class="sh-timing-details">
-            <summary>Timing &amp; voice activity details</summary>
-            ${renderVadWaveformSection(report.vadAnalysis)}
-            ${timingSectionHtml}
-          </details>`}
-    </div>
+    </details>
   `;
 }
 
@@ -564,191 +629,168 @@ export function renderShadowingView(
   const remainingDrillWords = [...new Set(drillWords.filter(word => word.status !== 'match').map(word => word.referenceWord!).filter(Boolean))];
   const weakActionHtml = state.lastReport ? (drillMode
     ? remainingDrillWords.length
-      ? `<div class="sh-retry-weak-actions"><button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}><span>Retry remaining weak words</span> (<span>${remainingDrillWords.length}</span>)</button></div>`
+      ? `<div class="sh-retry-weak-actions"><button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}>${sxIcon('mic')}<span>Retry remaining weak words</span> (<span>${remainingDrillWords.length}</span>)</button></div>`
       : '<p class="sh-drill-success" role="status">All target words matched.</p>'
     : weakReferenceWords.length
-      ? `<div class="sh-retry-weak-actions"><button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}><span>${weakReferenceWords.length === 1 ? 'Practice weak word' : 'Retry weak words'}</span> ${weakReferenceWords.length === 1 ? '' : `(<span>${weakReferenceWords.length}</span>)`}</button></div>`
+      ? `<div class="sh-retry-weak-actions"><button type="button" class="btn btn-primary" id="sh-retry-weak-btn" ${isCaptureBusy || isPlaybackActive ? 'disabled' : ''}>${sxIcon('mic')}<span>${weakReferenceWords.length === 1 ? 'Practice weak word' : 'Retry weak words'}</span> ${weakReferenceWords.length === 1 ? '' : `(<span>${weakReferenceWords.length}</span>)`}</button></div>`
       : '') : '';
   const resultStripHtml = state.lastReport ? `
-    <div class="sh-result-strip" role="group" aria-label="Latest recording result">
-      <div class="sh-result-strip-score" role="status" aria-live="polite">
-        ${drillMode ? `<strong>Correct words</strong><span id="sh-drill-correct-count">${drillCorrect} / ${drillWords.length}</span>` : `<strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace${state.lastReport.activeTier.tier >= 3 ? ' (approx.)' : ''}</span>`}
+    <div class="sh-result-strip sx-quick" role="group" aria-label="Latest recording result">
+      <div class="sx-quick-head">
+        <div class="sh-result-strip-score" role="status" aria-live="polite">
+          ${drillMode ? `<strong>Correct words</strong><span id="sh-drill-correct-count">${drillCorrect} / ${drillWords.length}</span>` : `<strong>Score ${state.lastReport.overallScore}</strong><span>${state.lastReport.completenessScore}% complete · ${escapeHtml(state.lastReport.overallPaceLabel)} pace${state.lastReport.activeTier.tier >= 3 ? ' (approx.)' : ''}</span>`}
+        </div>
+        <span class="tier-badge ${state.lastReport.activeTier.label === 'Online AI' ? 'online' : 'offline'} sx-badge"><span class="tier-dot"></span>${escapeHtml(state.lastReport.activeTier.label)}</span>
       </div>
-      <div class="sh-result-strip-words">${state.lastReport.words.map((word, wordIndex) => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); const mark = word.status === 'match' ? '✓' : word.status === 'mispronounced' ? '!' : word.status === 'missing' ? '−' : '+'; const activeWord = state.wordPlayback?.index === wordIndex; return `<button type="button" class="sh-result-chip ${word.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayWord)}" ${activeWord && state.wordPlayback?.phase === 'loading' ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord && !isCaptureBusy && (!isPlaybackActive || (isWordPlayback && activeWord)) ? '' : 'disabled'}>${drillMode ? mark + ' ' : ''}${escapeHtml(replayWord)}${activeWord && state.wordPlayback?.phase === 'loading' ? '<span class="sh-word-spinner" aria-hidden="true"></span>' : ''}</button>`; }).join('')}</div>
+      <div class="sh-result-strip-words">${state.lastReport.words.map((word, wordIndex) => { const replayWord = (word.referenceWord || word.spokenWord || '').trim(); const activeWord = state.wordPlayback?.index === wordIndex; const loading = activeWord && state.wordPlayback?.phase === 'loading'; return `<button type="button" class="sh-result-chip ${word.status} ${activeWord ? 'sh-word-pending' : ''}" data-word-index="${wordIndex}" data-word-replay="${escapeHtml(replayWord)}" ${loading ? 'aria-busy="true"' : ''} aria-label="Play pronunciation of ${escapeHtml(replayWord)}" ${replayWord && !isCaptureBusy && (!isPlaybackActive || (isWordPlayback && activeWord)) ? '' : 'disabled'}>${sxWordMark(word.status, loading)}<span class="sx-chip-word">${escapeHtml(replayWord)}</span></button>`; }).join('')}</div>
       ${weakActionHtml}
-      <p class="sh-result-replay-help">${drillMode ? 'Each chip shows the latest result for that target word.' : 'Tap a word to hear it. For more details and practice with difficult words, see Shadowing Score Report below.'}</p>
+      <p class="sh-result-replay-help">${drillMode ? 'Each chip shows the latest result for that target word.' : 'Tap a word to hear it. For more details and practice with difficult words, see Detailed Report below.'}</p>
+      <!--SX_REPORT-->
     </div>` : '';
   const focusedControlId = container.contains(document.activeElement) ? (document.activeElement as HTMLElement | null)?.id : undefined;
   const focusedSelectionStart = document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement ? document.activeElement.selectionStart : null;
   const focusedSelectionEnd = document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement ? document.activeElement.selectionEnd : null;
   clearShadowingScrollRails(container);
+  const setPosition = activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1 : 0;
+  const setTotal = activeHistory.sets.length;
+  const transcriptDetailsHtml = renderTranscriptDetailsHtml(altsHtml);
+  const reportHtml = state.lastReport
+    ? renderReportHtml(state.lastReport, Boolean(state.lastRecording?.wavBase64), drillMode, state.drillPreviousStatuses, isCaptureBusy, isPlaybackActive, isWordPlayback, transcriptDetailsHtml)
+    : '';
+  const autoTranslationHtml = state.autoTranslateSentenceSets && hasSentence && !state.customDrillText
+    ? `<div class="sh-auto-translation-card sx-translated" id="sh-auto-translation-card" dir="auto">${escapeHtml(sentence?.translations?.[state.translationTargetLanguage] ?? (state.autoTranslationError ?? 'Translating this sentence…'))}${!sentence?.translations?.[state.translationTargetLanguage] && state.autoTranslationError ? ' <button type="button" class="btn btn-secondary" id="sh-auto-translation-retry">Retry</button>' : ''}</div>`
+    : '';
+  const resultDetailsHtml = state.lastReport ? '' : `<section class="sh-result-details sx-result-details">${transcriptDetailsHtml}</section>`;
+  const quickResultHtml = state.lastReport ? resultStripHtml.replace('<!--SX_REPORT-->', `<section class="sh-result-details sx-result-details">${reportHtml}</section>`) : '';
   container.innerHTML = `
-    <div class="shadowing-page shadowing-main-card">
-      <div class="page-heading shadowing-main-header">
-        <div class="page-heading-title">
-          <h1 class="card-title shadowing-page-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v3m-4 0h8"/></svg>Shadowing Trainer</h1>
-        </div>
-        <span class="tier-badge ${scoringTier.label === 'Online AI' ? 'online' : 'offline'}">
-          <span class="tier-dot"></span>
-          ${scoringTier.label}
-        </span>
-      </div>
-      ${ttsTier.reason ? `<p class="sh-provider-notice" role="status">Voice: <strong>${escapeHtml(ttsTier.label)}</strong> · ${escapeHtml(ttsTier.reason)}</p>` : ''}
-      <div class="sh-language-picker-field">
-        <label class="sh-language-picker-label" for="sh-language-select">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
-          <span>Practice language</span>
-        </label>
+    <div class="shadowing-page shadowing-main-card sx-page">
+      <h1 class="sr-only shadowing-page-title">Shadowing Trainer</h1>
+      ${ttsTier.reason ? `<p class="sh-provider-notice sx-notice sx-notice-info" role="status">Voice: <strong>${escapeHtml(ttsTier.label)}</strong> · ${escapeHtml(ttsTier.reason)}</p>` : ''}
+      <div class="sh-language-picker-field sx-field">
+        <label class="sh-language-picker-label" for="sh-language-select">${sxIcon('language')}<span>Practice language</span></label>
         <select class="form-select sh-language-select" id="sh-language-select" aria-label="Shadowing practice language" ${isCaptureBusy || state.isGeneratingAi ? "disabled" : ""}>
           ${SHADOWING_LANGUAGES.map(language => `<option value="${language.code}" ${language.code === state.languageCode ? 'selected' : ''}>${escapeHtml(language.nativeName)} — ${escapeHtml(language.label)}</option>`).join('')}
         </select>
       </div>
-      <div class="sh-language-picker-field">
-        <label class="sh-language-picker-label" for="sh-translation-language-global"><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m12.2 20.5 3.8-9 3.8 9"/><path d="M13.6 17.5h4.8"/></svg><span>Translation language</span></label>
+      <div class="sh-language-picker-field sx-field">
+        <label class="sh-language-picker-label" for="sh-translation-language-global">${sxIcon('translate')}<span>Translation language</span></label>
         <select class="form-select sh-language-select" id="sh-translation-language-global" aria-label="Translation language" ${isCaptureBusy || state.isGeneratingAi ? 'disabled' : ''}>${renderTranslationLanguageOptions(state.translationTargetLanguage)}</select>
       </div>
-      <section class="sh-sentence-set-details" aria-labelledby="sh-sentence-set-title">
-        <div class="sh-sentence-set-heading section-heading"><h2 id="sh-sentence-set-title">Sentence set</h2><span class="sh-sentence-set-summary">${state.difficulty[0].toUpperCase()+state.difficulty.slice(1)} · Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id)+1 : 0} of ${activeHistory.sets.length} · Change${state.isGeneratingAi ? " · Generating…" : state.aiGenerationError ? " · Error" : ""}</span></div>
-      <p class="sh-set-guidance">AI-generated sets contain 20 sentences; offline starter sets may contain one.</p>
-      <div class="pill-tabs shadowing-difficulty-tabs" aria-label="Sentence difficulty">
-        <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy" aria-pressed="${state.difficulty === 'easy'}" ${isRec || isStopping ? 'disabled' : ''}>Easy</button>
-        <button type="button" class="pill-btn ${state.difficulty === 'medium' ? 'active' : ''}" data-diff="medium" aria-pressed="${state.difficulty === 'medium'}" ${isRec || isStopping ? 'disabled' : ''}>Medium</button>
-        <button type="button" class="pill-btn ${state.difficulty === 'hard' ? 'active' : ''}" data-diff="hard" aria-pressed="${state.difficulty === 'hard'}" ${isRec || isStopping ? 'disabled' : ''}>Hard</button>
-        ${state.languageCode === 'en' ? `<button type="button" class="pill-btn ${state.difficulty === 'ielts' ? 'active' : ''}" data-diff="ielts" aria-pressed="${state.difficulty === 'ielts'}" ${isRec || isStopping ? 'disabled' : ''}>IELTS</button>` : ''}
-      </div>
+      <section class="sh-sentence-set-details sx-card" aria-labelledby="sh-sentence-set-title">
+        <div class="sh-sentence-set-heading section-heading sx-card-head">${sxIcon('layers', 'sx-icon sx-head-icon')}<h2 id="sh-sentence-set-title">Sentence Set</h2></div>
+        <div class="pill-tabs shadowing-difficulty-tabs sx-tabs" role="group" aria-label="Sentence difficulty">
+          <button type="button" class="pill-btn ${state.difficulty === 'easy' ? 'active' : ''}" data-diff="easy" aria-pressed="${state.difficulty === 'easy'}" ${isRec || isStopping ? 'disabled' : ''}>Easy</button>
+          <button type="button" class="pill-btn ${state.difficulty === 'medium' ? 'active' : ''}" data-diff="medium" aria-pressed="${state.difficulty === 'medium'}" ${isRec || isStopping ? 'disabled' : ''}>Medium</button>
+          <button type="button" class="pill-btn ${state.difficulty === 'hard' ? 'active' : ''}" data-diff="hard" aria-pressed="${state.difficulty === 'hard'}" ${isRec || isStopping ? 'disabled' : ''}>Hard</button>
+          ${state.languageCode === 'en' ? `<button type="button" class="pill-btn ${state.difficulty === 'ielts' ? 'active' : ''}" data-diff="ielts" aria-pressed="${state.difficulty === 'ielts'}" ${isRec || isStopping ? 'disabled' : ''}>IELTS</button>` : ''}
+        </div>
 
-      <div class="sh-sentence-set-controls">
-        <div class="form-field sh-topic-field">
-          <label class="form-label" for="sh-topic-input">Optional topic</label>
-          <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
-        </div>
-        <div class="btn-row sh-generate-actions">
-          <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''} aria-busy="${state.isGeneratingAi}">
-            ${state.isGeneratingAi ? '<span class="ielts-loading-spinner" aria-hidden="true"></span><span>Generating sentence set…</span>' : 'Get new sentence set'}
-          </button>
-          <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m12.2 20.5 3.8-9 3.8 9"/><path d="M13.6 17.5h4.8"/></svg></button>
-        </div>
-        <div class="sh-history-controls" aria-label="Sentence set history">
-          <span class="sh-history-caption">From history</span>
-          <span id="sh-history-position" class="card-subtitle sh-history-position">Set ${activeSet ? activeHistory.sets.findIndex(set => set.id === activeSet.id) + 1 : 0} of ${activeHistory.sets.length}</span>
-          <div class="sh-history-arrows">
-            <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || activeHistory.sets.findIndex(set => set.id === activeSet.id) <= 0 ? 'disabled' : ''}>←</button>
-            <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${isRec || isStopping ? 'disabled' : ''}  >→</button>
+        <div class="sh-sentence-set-controls sx-set-controls">
+          <div class="form-field sh-topic-field sx-topic">
+            <label class="form-label" for="sh-topic-input">Topic (optional)</label>
+            <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="e.g. Urban architecture or job interviews" value="${escapeHtml(state.topicInput)}" />
           </div>
+          <div class="btn-row sh-generate-actions sx-actions">
+            <button type="button" class="btn btn-primary sx-generate" id="sh-generate-ai-btn" title="Get new sentence set" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''} aria-busy="${state.isGeneratingAi}">
+              ${state.isGeneratingAi ? '<span class="ielts-loading-spinner" aria-hidden="true"></span><span>Generating…</span>' : `${sxIcon('auto_awesome')}<span>New set</span>`}
+            </button>
+            <button type="button" class="btn btn-secondary sh-translation-toggle sx-square-btn ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}>${sxIcon('translate', 'sx-icon sx-icon-lg')}</button>
+            <div class="sh-history-controls sx-stepper" role="group" aria-label="Sentence set history">
+              <span class="sh-history-caption sr-only">Set</span>
+              <span id="sh-history-position" class="card-subtitle sh-history-position sx-stepper-badge">${setPosition}/${setTotal}</span>
+              <div class="sh-history-arrows sx-stepper-arrows">
+                <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-prev-btn" aria-label="Older sentence set" title="Older sentence set" ${isRec || isStopping ? 'disabled' : ''} ${!activeSet || setPosition <= 1 ? 'disabled' : ''}>${sxIcon('chevron_left', 'sx-icon sx-icon-xl')}</button>
+                <button type="button" class="btn btn-secondary sh-history-arrow" id="sh-history-next-btn" aria-label="Newer sentence set" title="Newer sentence set" ${isRec || isStopping ? 'disabled' : ''}>${sxIcon('chevron_right', 'sx-icon sx-icon-xl')}</button>
+              </div>
+            </div>
+          </div>
+          ${state.navigationNotice ? `<div class="sx-notice sx-notice-warn" role="status" aria-live="polite">${sxIcon('info')}<p>${escapeHtml(state.navigationNotice)}</p></div>` : ''}
+          ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert"><p>Could not generate a new sentence set. Check your connection and Question &amp; Sentence Generator API settings, then try again.</p><details><summary>Technical details</summary><p>${escapeHtml(state.aiGenerationError)}</p></details></div>` : ''}
         </div>
-        
-        ${state.aiGenerationError ? `<div class="status-box fail ai-generation-error" id="sh-ai-generation-error" role="alert"><p>Could not generate a new sentence set. Check your connection and Question &amp; Sentence Generator API settings, then try again.</p><details><summary>Technical details</summary><p>${escapeHtml(state.aiGenerationError)}</p></details></div>` : ''}
-      </div>
       </section>
 
-      
-      ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history" role="status">There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate. <button type="button" class="btn btn-primary" id="sh-empty-generate-btn">Generate now</button></div>` : ''}
+      ${!hasLanguageSentenceSet ? `<div class="status-box info sh-empty-language-history sx-notice sx-notice-info" role="status"><p>There are no saved ${escapeHtml(selectedLanguage.label)} sentences yet. Generate a sentence set in this language to begin. Your English sentence history remains separate.</p> <button type="button" class="btn btn-primary" id="sh-empty-generate-btn">Generate now</button></div>` : ''}
 
       ${scoringTier.tier === 3 ? `<details class="offline-quality-notice shadowing-offline-notice" aria-label="Offline pronunciation accuracy notice">
         <summary><strong>Pronunciation accuracy notice</strong><span class="offline-quality-learn-more">Learn more</span></summary>
         <p>Offline feedback uses the device or browser speech recognizer and approximate word/timing checks. It is still useful for practising repetition, fluency and matching the target sentence, but it is not a precise pronunciation score. For more dependable transcription and word-level timing, connect and test an online speech-to-text provider in Slot 2 (for example, Groq Whisper when available for your account). This improves the information available to the practice feedback, but true phoneme-level pronunciation assessment requires a dedicated pronunciation-assessment service.</p>
       </details>` : ''}
 
-
-      <div class="sh-sentence-set-heading section-heading sh-exercise-heading"><h2 id="sh-exercise-title">Exercise</h2></div>
-      <p class="card-subtitle sh-ai-sentence-count shadowing-topic-label">${state.customDrillText ? 'Weak-word drill' : `<span class="sh-topic-caption" dir="auto">Topic: ${escapeHtml(sentence?.topic ?? 'Offline practice')}</span><span class="sh-sentence-count">${hasLanguageSentenceSet ? `Sentence ${state.index + 1} of ${activeSet?.sentences.length ?? 0}` : 'No sentence set yet'}</span>`}</p>
-      <div class="sentence-box" id="sh-target-text">${escapeHtml(targetText)}</div>
-      <p class="card-subtitle sh-focus-copy">
-        ${
+      <section class="sx-card sx-exercise" aria-labelledby="sh-exercise-title">
+        <div class="sh-sentence-set-heading section-heading sh-exercise-heading sx-card-head">${sxIcon('graphic_eq', 'sx-icon sx-head-icon')}<h2 id="sh-exercise-title">Exercise</h2></div>
+        <div class="sx-ex-meta sh-ai-sentence-count">${state.customDrillText ? '<span class="sx-ex-topic">Weak-word drill</span>' : `<span class="sh-topic-caption sx-ex-topic" dir="auto">${escapeHtml(sentence?.topic ?? 'Offline practice')}</span><span class="sh-sentence-count sx-ex-count">${hasLanguageSentenceSet ? `${state.index + 1} / ${activeSet?.sentences.length ?? 0}` : 'No sentence set yet'}</span>`}</div>
+        <p class="sh-focus-copy sx-focus">${
           state.customDrillText
             ? 'Weak-word practice is active — choose Full Sentence to return.'
             : `Focus: ${escapeHtml(sentence?.phoneticFocus ?? 'Generate a sentence to see its pronunciation focus')}`
-        }
-      </p>
+        }</p>
+        <div class="sentence-box sx-sentence" id="sh-target-text">${escapeHtml(targetText)}</div>
 
-      <div class="btn-row sh-player-controls" aria-label="Sentence playback controls">
-        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-prev-btn" aria-label="Previous sentence" ${isCaptureBusy ? 'disabled' : ''} title="Previous sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14M19 5 9 12l10 7z"/></svg></button>
-        <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn ${state.activeModelPlayback ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && (!isCaptureBusy || state.activeModelPlayback !== null) && (!isPlaybackActive || state.activeModelPlayback !== null) ? '' : 'disabled'} aria-label="${state.activeModelPlayback ? 'Stop model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback ? 'Stop playback' : 'Play model at normal speed'}" aria-busy="${Boolean(state.activeModelPlayback)}">
-          ${state.activeModelPlayback ? '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>' : '<svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>'}
-        </button>
-        <button type="button" class="btn btn-secondary sh-player-icon-btn" id="sh-next-btn" aria-label="Next sentence" ${isCaptureBusy ? 'disabled' : ''} title="Next sentence"><svg class="sh-player-symbol" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M5 5l10 7L5 19z"/></svg></button>
-        <button type="button" class="btn btn-secondary sh-player-icon-btn sh-autoplay-toggle" id="sh-autoplay-next-btn" aria-label="Auto-play" title="Auto-play" aria-pressed="${state.autoPlayNextShadowing}" ${isCaptureBusy || isStopping ? "disabled" : ""}>
-  <svg class="icon-on" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 16" width="28" height="16" aria-hidden="true" ${state.autoPlayNextShadowing ? "" : "style=\"display:none\""}>
-    <rect width="28" height="16" rx="8" fill="currentColor"/>
-    <circle cx="20" cy="8" r="6" fill="var(--bg-primary, #fff)"/>
-    <path d="M18.5 5.5v5l4-2.5z" fill="currentColor"/>
-  </svg>
-  <svg class="icon-off" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 16" width="28" height="16" aria-hidden="true" opacity="0.55" ${state.autoPlayNextShadowing ? "style=\"display:none\"" : ""}>
-    <rect x="0.75" y="0.75" width="26.5" height="14.5" rx="7.25" fill="none" stroke="currentColor" stroke-width="1.5"/>
-    <circle cx="8" cy="8" r="6" fill="currentColor"/>
-    <path d="M6.5 5.5v5l4-2.5z" fill="var(--bg-primary, #fff)"/>
-  </svg>
-</button>
-        <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'slow') && !isCaptureBusy && (!isPlaybackActive || state.audioActivity === 'playingModel(slow)') ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
-          ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : '<span aria-hidden="true">0.72×</span>'}
-        </button>
-      </div>
-      ${!isAutoPlayNoticeDismissed() ? "<p class='sh-autoplay-notice' id='sh-autoplay-notice' role='note'>When Auto-play is on, the next sentence plays automatically as soon as you move to it. Tap the Auto-play button to dismiss this tip.</p>" : ''}
-      ${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
-
-      <div class="btn-row sh-record-controls">
-        <button type="button" class="btn btn-record sh-record-action ${isRec ? 'is-recording' : ''} ${isStopping ? 'is-stopping' : ''}" id="sh-record-btn" ${hasSentence && !isStopping && !isPlaybackActive ? '' : 'disabled'} aria-label="${isStopping ? 'Finishing recording' : isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
-          ${isStopping ? 'Wait…' : isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : 'Record Repetition'}
-        </button>
-        <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
-      </div>
-      ${state.autoTranslateSentenceSets && hasSentence && !state.customDrillText ? `<div class="sh-auto-translation-card" id="sh-auto-translation-card" dir="auto">${escapeHtml(sentence?.translations?.[state.translationTargetLanguage] ?? (state.autoTranslationError ?? 'Translating this sentence…'))}${!sentence?.translations?.[state.translationTargetLanguage] && state.autoTranslationError ? ' <button type="button" class="btn btn-secondary" id="sh-auto-translation-retry">Retry</button>' : ''}</div>` : ''}
-
-      ${
-        state.emptyAttemptError
-          ? `<div class="status-box fail" id="sh-empty-error" role="alert">${escapeHtml(
-              state.emptyAttemptError
-            )}</div>`
-          : `${state.navigationNotice ? '<div class="status-box notice" role="status" aria-live="polite">' + escapeHtml(state.navigationNotice) + '</div>' : '<div class="status-box info" id="sh-status-msg" role="status" aria-live="polite">' + escapeHtml(state.statusMessage) + '</div>'}`
-      }
-
-      ${resultStripHtml}
-    <section class="sh-result-details">
-      ${state.lastReport ? renderReportHtml(state.lastReport, Boolean(state.lastRecording?.wavBase64), drillMode, state.drillPreviousStatuses, isCaptureBusy, isPlaybackActive, isWordPlayback) : ''}
-      <details class="sh-transcript-details" ${state.recognizerError ? 'open' : ''}>
-        <summary>Transcript &amp; recognition details</summary>
-        <div class="form-field sh-transcript-field">
-          <label class="form-label" for="sh-transcript-input">Recognized speech</label>
-          <input
-            type="text"
-            class="form-input"
-            id="sh-transcript-input"
-            readonly
-            placeholder="Your speech will appear here."
-            value="${escapeHtml(state.recognizedTranscript)}"
-          />
-          <div class="card-subtitle sh-recognizer-meta" id="sh-recognizer-meta">
-            Alternatives / Confidence: ${altsHtml}
-            ${state.recognizerError ? ` · Recognizer Note: ${escapeHtml(state.recognizerError)}` : ''}
-          </div>
+        <div class="btn-row sh-player-controls sx-player" role="group" aria-label="Sentence playback controls">
+          <button type="button" class="btn btn-secondary sh-player-icon-btn sx-square-btn" id="sh-prev-btn" aria-label="Previous sentence" ${isCaptureBusy ? 'disabled' : ''} title="Previous sentence">${sxIcon('skip_previous', 'sx-icon sx-icon-xl')}</button>
+          <button type="button" class="btn btn-primary sh-player-icon-btn sh-play-main-btn model-play-btn sx-play ${state.activeModelPlayback ? 'is-playing' : ''}" id="sh-play-normal-btn" ${hasSentence && (!isCaptureBusy || state.activeModelPlayback !== null) && (!isPlaybackActive || state.activeModelPlayback !== null) ? '' : 'disabled'} aria-label="${state.activeModelPlayback ? 'Stop model playback' : 'Play model at normal speed'}" title="${state.activeModelPlayback ? 'Stop playback' : 'Play model at normal speed'}" aria-busy="${Boolean(state.activeModelPlayback)}">
+            ${state.activeModelPlayback ? sxIcon('stop', 'sx-icon sx-icon-xl') : sxIcon('play_arrow', 'sx-icon sx-icon-xl')}
+          </button>
+          <button type="button" class="btn btn-secondary sh-player-icon-btn sx-square-btn" id="sh-next-btn" aria-label="Next sentence" ${isCaptureBusy ? 'disabled' : ''} title="Next sentence">${sxIcon('skip_next', 'sx-icon sx-icon-xl')}</button>
+          <button type="button" class="btn btn-secondary sh-player-icon-btn sh-slow-btn model-play-btn sx-square-btn ${state.activeModelPlayback === 'slow' ? 'is-playing' : ''}" id="sh-play-slow-btn" ${hasSentence && (!state.activeModelPlayback || state.activeModelPlayback === 'slow') && !isCaptureBusy && (!isPlaybackActive || state.audioActivity === 'playingModel(slow)') ? '' : 'disabled'} aria-label="Slow playback at 0.72 speed" title="Slow playback (0.72×)" aria-busy="${state.activeModelPlayback === 'slow'}">
+            ${state.activeModelPlayback === 'slow' ? '<span class="model-play-spinner" aria-hidden="true"></span>' : SX_TURTLE_SVG}
+          </button>
+          <button type="button" class="btn btn-secondary sh-player-icon-btn sh-autoplay-toggle sx-square-btn" id="sh-autoplay-next-btn" aria-label="Auto-play" title="Auto-play" aria-pressed="${state.autoPlayNextShadowing}" ${isCaptureBusy || isStopping ? "disabled" : ""}>
+            <svg class="icon-on sx-autoplay-svg" viewBox="0 0 24 24" aria-hidden="true" ${state.autoPlayNextShadowing ? "" : "style=\"display:none\""}>
+              <rect x="2" y="6.5" width="20" height="11" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+              <circle cx="16.5" cy="12" r="4" fill="currentColor"/>
+              <path d="M15.4 10.3 18.2 12l-2.8 1.7z" fill="var(--on-accent)"/>
+            </svg>
+            <svg class="icon-off sx-autoplay-svg" viewBox="0 0 24 24" aria-hidden="true" ${state.autoPlayNextShadowing ? "style=\"display:none\"" : ""}>
+              <rect x="2" y="6.5" width="20" height="11" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.8" opacity=".6"/>
+              <circle cx="7.5" cy="12" r="4" fill="currentColor" opacity=".6"/>
+            </svg>
+          </button>
         </div>
-      </details>
-    </section>
+        ${!isAutoPlayNoticeDismissed() ? "<p class='sh-autoplay-notice sx-tip' id='sh-autoplay-notice' role='note'>When Auto-play is on, the next sentence plays automatically as soon as you move to it. Tap the Auto-play button to dismiss this tip.</p>" : ''}
+        ${state.customDrillText ? `<div class="sh-drill-exit-actions"><button type="button" class="btn btn-secondary" id="sh-exit-drill-btn">Full Sentence</button></div>` : ''}
+
+        <div class="btn-row sh-record-controls sx-record-row">
+          <button type="button" class="btn btn-record sh-record-action sx-record ${isRec ? 'is-recording' : ''} ${isStopping ? 'is-stopping' : ''}" id="sh-record-btn" ${hasSentence && !isStopping && !isPlaybackActive ? '' : 'disabled'} aria-label="${isStopping ? 'Finishing recording' : isRec ? 'Stop recording and score repetition' : 'Start recording repetition'}" aria-pressed="${isRec ? 'true' : 'false'}">
+            ${isStopping ? 'Wait…' : isRec ? '<span class="recording-led" aria-hidden="true"></span> Stop &amp; Score <span class="recording-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : `${sxIcon('mic', 'sx-icon sx-icon-lg')}<span>Record Repetition</span>`}
+          </button>
+          <button type="button" class="sh-record-action" id="sh-stop-score-btn" hidden aria-hidden="true" tabindex="-1" aria-label="Finish recording and score repetition"></button>
+        </div>
+
+        ${
+          state.emptyAttemptError
+            ? `<div class="status-box fail" id="sh-empty-error" role="alert">${escapeHtml(
+                state.emptyAttemptError
+              )}</div>`
+            : `<div class="status-box info sx-status" id="sh-status-msg" role="status" aria-live="polite">${escapeHtml(state.statusMessage)}</div>`
+        }
+
+        ${quickResultHtml}
+        ${resultDetailsHtml}
+      </section>
     </div>
 
-    <section class="card sh-translation-card" id="sh-translation-card">
-      <div class="card-header">
-        <div>
-          <h2 class="card-title">Translation &amp; Grammar</h2>
-          <p class="card-subtitle">Edit the sentence or enter a single word, then translate or explore its grammar.</p>
-        </div>
+    <section class="card sh-translation-card sx-card" id="sh-translation-card" aria-labelledby="sh-translation-title">
+      <div class="card-header sx-card-head">
+        ${sxIcon('translate', 'sx-icon sx-head-icon')}<h2 class="card-title" id="sh-translation-title">Translation &amp; Grammar</h2>
       </div>
-      <div class="form-field">
+      ${autoTranslationHtml}
+      <div class="form-field sx-source">
         <label class="form-label" for="sh-translation-input">Text to translate</label>
-        <textarea class="form-input sh-translation-input" id="sh-translation-input" rows="3" maxlength="4000" placeholder="Your sentence or word will appear here." ${state.isTranslating ? 'disabled' : ''}>${escapeHtml(state.translationText)}</textarea>
+        <textarea class="form-input sh-translation-input" id="sh-translation-input" rows="2" maxlength="4000" placeholder="Edit the sentence or enter a single word, then translate or explore its grammar." ${state.isTranslating ? 'disabled' : ''}>${escapeHtml(state.translationText)}</textarea>
       </div>
       <div class="sh-translation-controls">
         <div class="sh-translation-actions">
           <button type="button" class="btn btn-secondary sh-translate-btn" id="sh-translate-btn" ${state.isTranslating ? 'disabled' : ''}>Translate</button>
           <div class="sh-grammar-button-group" role="group" aria-label="Grammar explanation options">
             <button type="button" class="btn btn-secondary sh-grammar-btn" id="sh-grammar-btn" ${state.isTranslating ? 'disabled' : ''}>Explain Grammar</button>
-            <button type="button" class="sh-grammar-language-toggle ${state.explainGrammarInTranslationLanguage ? 'is-on' : 'is-off'}" id="sh-grammar-language-toggle" aria-label="Include translation in grammar explanation" title="Show translation" aria-pressed="${state.explainGrammarInTranslationLanguage}" ${state.isTranslating ? 'disabled' : ''}><svg class="sh-grammar-translation-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5.5h9M8 3v2.5"/><path d="M5.5 5.5c.6 3 2.3 5.1 5 6.4"/><path d="M11.5 5.5c-.6 3-2.3 5.1-5 6.4"/><path d="m12.5 20 3.6-8.5 3.6 8.5M14 17h4.2"/></svg></button>
+            <button type="button" class="sh-grammar-language-toggle ${state.explainGrammarInTranslationLanguage ? 'is-on' : 'is-off'}" id="sh-grammar-language-toggle" aria-label="Include translation in grammar explanation" title="Show translation" aria-pressed="${state.explainGrammarInTranslationLanguage}" ${state.isTranslating ? 'disabled' : ''}>${sxIcon('translate', 'sx-icon sx-icon-lg')}</button>
           </div>
         </div>
       </div>
-      ${state.translationResult ? `<div class="sh-translation-result" id="sh-translation-result"><div class="form-label">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
-      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result" id="sh-grammar-result"><div class="form-label">Grammar explanation</div><div class="sh-scroll-field sh-grammar-scroll-shell"><div class="sh-grammar-scroll-body sh-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, "<br>")}</div><div class="sh-scroll-rail"><button type="button" class="sh-scroll-arrow is-up" id="sh-grammar-scroll-up" aria-label="Scroll grammar explanation up" title="Scroll up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg></button><div class="sh-scroll-track" id="sh-grammar-scroll-track" role="scrollbar" aria-label="Grammar explanation scroll position" aria-controls="sh-grammar-scroll-body" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="sh-scroll-thumb" id="sh-grammar-scroll-thumb"></div></div><button type="button" class="sh-scroll-arrow is-down" id="sh-grammar-scroll-down" aria-label="Scroll grammar explanation down" title="Scroll down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6"/></svg></button></div></div></div>
-      <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="sh-grammar-chat-heading"><strong>Ask a follow-up</strong><span>Continue the conversation about this explanation</span></div><div class="sh-scroll-field sh-grammar-chat-scroll-field"><div class="sh-grammar-chat-messages sh-scroll-body" id="sh-grammar-chat-messages" role="log" aria-live="polite" aria-relevant="additions">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status" aria-label="AI is responding"><span></span><span></span><span></span></div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-scroll-rail"><button type="button" class="sh-scroll-arrow is-up" id="sh-grammar-chat-scroll-up" aria-label="Scroll follow-up messages up" title="Scroll up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg></button><div class="sh-scroll-track" id="sh-grammar-chat-scroll-track" role="scrollbar" aria-label="Follow-up messages scroll position" aria-controls="sh-grammar-chat-messages" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="sh-scroll-thumb"></div></div><button type="button" class="sh-scroll-arrow is-down" id="sh-grammar-chat-scroll-down" aria-label="Scroll follow-up messages down" title="Scroll down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6"/></svg></button></div></div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" aria-label="Ask a follow-up question" rows="1" maxlength="500" placeholder="Ask a follow-up question…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="sh-grammar-chat-send" id="sh-grammar-chat-send" aria-label="Send message" title="Send message" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div></div>` : ''}
+      ${state.translationResult ? `<div class="sh-translation-result sx-result" id="sh-translation-result"><div class="form-label sr-only">Translation</div><p dir="auto">${escapeHtml(state.translationResult)}</p></div>` : ''}
+      ${state.grammarResult ? `<div class="sh-translation-result sh-grammar-result sx-result" id="sh-grammar-result"><div class="form-label sr-only">Grammar explanation</div><div class="sh-scroll-field sh-grammar-scroll-shell"><div class="sh-grammar-scroll-body sh-scroll-body" id="sh-grammar-scroll-body" dir="auto">${escapeHtml(state.grammarResult).replace(/\n/g, "<br>")}</div><div class="sh-scroll-rail"><button type="button" class="sh-scroll-arrow is-up" id="sh-grammar-scroll-up" aria-label="Scroll grammar explanation up" title="Scroll up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg></button><div class="sh-scroll-track" id="sh-grammar-scroll-track" role="scrollbar" aria-label="Grammar explanation scroll position" aria-controls="sh-grammar-scroll-body" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="sh-scroll-thumb" id="sh-grammar-scroll-thumb"></div></div><button type="button" class="sh-scroll-arrow is-down" id="sh-grammar-scroll-down" aria-label="Scroll grammar explanation down" title="Scroll down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6"/></svg></button></div></div></div>
+      <div class="sh-grammar-chat" id="sh-grammar-chat"><div class="sh-grammar-chat-heading sr-only"><strong>Ask a follow-up</strong><span>Continue the conversation about this explanation</span></div><div class="sh-scroll-field sh-grammar-chat-scroll-field"><div class="sh-grammar-chat-messages sh-scroll-body" id="sh-grammar-chat-messages" role="log" aria-live="polite" aria-relevant="additions">${state.grammarChatMessages.map(message => `<div class="sh-grammar-chat-message ${message.role}" dir="auto">${escapeHtml(message.content)}</div>`).join('')}${state.grammarChatBusy ? '<div class="sh-grammar-chat-thinking" role="status" aria-label="AI is responding"><span></span><span></span><span></span></div>' : ''}${state.grammarChatError ? `<div class="status-box fail" role="alert">${escapeHtml(state.grammarChatError)}</div>` : ''}</div><div class="sh-scroll-rail"><button type="button" class="sh-scroll-arrow is-up" id="sh-grammar-chat-scroll-up" aria-label="Scroll follow-up messages up" title="Scroll up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg></button><div class="sh-scroll-track" id="sh-grammar-chat-scroll-track" role="scrollbar" aria-label="Follow-up messages scroll position" aria-controls="sh-grammar-chat-messages" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><div class="sh-scroll-thumb"></div></div><button type="button" class="sh-scroll-arrow is-down" id="sh-grammar-chat-scroll-down" aria-label="Scroll follow-up messages down" title="Scroll down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6 6 6-6"/></svg></button></div></div><div class="sh-grammar-chat-compose"><textarea class="form-input" id="sh-grammar-chat-input" aria-label="Ask a follow-up question" rows="1" maxlength="500" placeholder="Ask a follow-up question…" ${state.grammarChatBusy ? 'disabled' : ''}>${escapeHtml(state.grammarChatDraft)}</textarea><button type="button" class="sh-grammar-chat-send" id="sh-grammar-chat-send" aria-label="Send message" title="Send message" ${state.grammarChatBusy || !state.grammarChatDraft.trim() ? 'disabled' : ''}>${sxIcon('send', 'sx-icon sx-icon-lg')}</button></div></div>` : ''}
       ${state.translationStatus ? `<div class="status-box ${state.translationStatusType}" id="sh-translation-status" role="status" aria-live="polite">${escapeHtml(state.translationStatus)}</div>` : ''}
     </section>
       <details class="offline-quality-notice sh-api-capability-notice" id="sh-api-capability-notice" aria-label="Speech API capability notice" ${state.forceSpeechApiNotice ? '' : 'hidden'} ${state.forceSpeechApiNotice ? 'open' : ''}>
@@ -800,6 +842,14 @@ export function renderShadowingView(
       }).finally(() => shadowingTranslationRequests.delete(requestKey));
     }
   }
+  container.querySelectorAll<HTMLDetailsElement>('details[data-sx-details]').forEach(details => {
+    details.addEventListener('toggle', () => {
+      const key = details.dataset.sxDetails;
+      if (key === 'report') state.reportDetailsOpen = details.open;
+      else if (key === 'timing') state.timingDetailsOpen = details.open;
+      else if (key === 'transcript') state.transcriptDetailsOpen = details.open;
+    });
+  });
   container.querySelector<HTMLButtonElement>('#sh-auto-translation-retry')?.addEventListener('click', () => {
     if (!activeSet || !sentence) return;
     shadowingTranslationFailures.delete(`${activeSet.id}:${sentence.id}:${state.translationTargetLanguage}`);
