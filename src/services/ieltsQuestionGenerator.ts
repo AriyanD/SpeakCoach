@@ -682,7 +682,7 @@ export async function generateIeltsQuestionSets(
       topics: [...baseMemory.topics, ...memories.flatMap(item => item.topics)].slice(-40),
       questions: [...baseMemory.questions, ...memories.flatMap(item => item.questions)],
       titles: [...(baseMemory.titles ?? []), ...memories.flatMap(item => item.titles)],
-      part1Topics: [...(baseMemory.part1Topics ?? getRecentLlmPart1Topics()), ...memories.flatMap(item => item.part1Topics)].slice(-40)
+      part1Topics: [...getRecentLlmPart1Topics(), ...memories.flatMap(item => item.part1Topics)].slice(-40)
     };
   };
 
