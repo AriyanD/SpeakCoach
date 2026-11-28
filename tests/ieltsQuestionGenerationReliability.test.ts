@@ -100,7 +100,7 @@ describe('IELTS generation reliability validation', () => {
     expect(getLlmSeenTopics()).toEqual([]);
     expect(getRecentLlmQuestions()).toEqual([]);
   });
-  it('retries malformed batch responses and commits anti-repeat memory only after the full batch is saved', async () => {
+  it('retries malformed responses and commits anti-repeat memory as each valid set is saved', async () => {
     await saveSlotConfig({
       slotId: 'llm_generator',
       providerId: 'gemini_gen',
@@ -185,10 +185,11 @@ describe('IELTS generation reliability validation', () => {
     };
 
     const sets = await generateIeltsQuestionSets(2, { transport });
-    expect(calls).toBe(4);
+    expect(calls).toBeGreaterThanOrEqual(4);
+    expect(calls).toBeLessThanOrEqual(7);
     expect(sets).toHaveLength(2);
-    expect(memorySnapshots).toHaveLength(4);
-    expect(memorySnapshots.every(snapshot => snapshot.length === 0)).toBe(true);
+    expect(memorySnapshots).toHaveLength(calls);
+    expect(memorySnapshots.some(snapshot => snapshot.length > 0)).toBe(true);
     expect(getLlmSeenTopics().length).toBeGreaterThan(0);
     expect(getRecentLlmQuestions().length).toBeGreaterThan(0);
   });

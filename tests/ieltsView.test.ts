@@ -4,6 +4,7 @@ import { ieltsSessionEngine } from '../src/services/ieltsSessionEngine';
 import { audioRecorder } from '../src/services/audioRecorder';
 import { clearIeltsDraft, saveIeltsDraft } from '../src/storage/ieltsHistoryStore';
 import { generateIeltsSessionPlan } from './fixtures/legacyIeltsQuestionBank';
+import * as ieltsQuestionGenerator from '../src/services/ieltsQuestionGenerator';
 import { getActiveSlotRuntimeFailure, type GlobalTierSummary } from '../src/services/tierManager';
 import * as ttsService from '../src/services/ttsService';
 
@@ -316,6 +317,37 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     expect(container.querySelectorAll('[data-start-set]')).toHaveLength(1);
 
     cleanup();
+  });
+
+  it('updates both generation progress labels as sets are saved', async () => {
+    const onlineSummary: GlobalTierSummary = {
+      ...mockGlobalTierSummary,
+      slots: {
+        ...mockGlobalTierSummary.slots,
+        llm_generator: { ...mockGlobalTierSummary.slots.llm_generator, label: 'Online AI' }
+      }
+    };
+    let finishGeneration!: () => void;
+    const generateSpy = vi.spyOn(ieltsQuestionGenerator, 'generateIeltsQuestionSets')
+      .mockImplementation((_count, options) => new Promise((resolve) => {
+        options?.onProgress?.({ completed: 2, total: 5 });
+        finishGeneration = () => resolve([]);
+      }));
+
+    const cleanup = renderIeltsView(container, onlineSummary, {
+      onComplete: vi.fn(),
+      onViewHistory: vi.fn()
+    });
+
+    container.querySelector<HTMLButtonElement>('#ielts-refresh-sets-btn')?.click();
+    const button = container.querySelector<HTMLButtonElement>('#ielts-refresh-sets-btn');
+    await vi.waitFor(() => expect(button?.querySelector('.ielts-loading-copy > span')?.textContent).toBe('2 of 5 sets ready'));
+    expect(button?.querySelector('.ielts-loading-hint')?.textContent).toBe('2 of 5 ready');
+
+    finishGeneration();
+    await vi.waitFor(() => expect(container.querySelector('#ielts-refresh-sets-btn')?.textContent).toContain('Get new question sets'));
+    cleanup();
+    generateSpy.mockRestore();
   });
 
   it('does not offer question replacement during an active IELTS question', async () => {

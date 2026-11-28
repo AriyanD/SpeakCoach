@@ -21,7 +21,7 @@ import { markQuestionsSeen, markLlmTopicsSeen, markLlmQuestionsSeen, markLlmTitl
 import { CUE_CARD_SEEDS, IELTS_PART1_FORMS, IELTS_PART3_FORMS, takePersistedIeltsDeck } from './ieltsGenerationQuality';
 import { sharedTextSimilarity, lemmatizedTokenJaccard, lemmaToken } from './generationVariety';
 import type { IeltsTestMode } from './ieltsSessionEngine';
-import { replaceUncompletedIeltsQuestionSets, type StoredIeltsQuestionSet } from './ieltsQuestionSetStore';
+import { addIeltsQuestionSets, getIeltsQuestionSets, replaceUncompletedIeltsQuestionSets, type StoredIeltsQuestionSet } from './ieltsQuestionSetStore';
 
 export class LlmQuestionGenerationError extends Error {
   constructor(
@@ -48,6 +48,7 @@ export interface LlmQuestionPlanResult {
     total: number;
   };
   fallbackReason?: string;
+  fallbackUsed?: boolean;
 }
 
 export interface IeltsGenerationContext {
@@ -147,8 +148,9 @@ Part 3 angles: ${context.part3Angles.join(' / ')}; Part 3 forms in order: ${p3Fo
 ${themeLine}
 Recent topics already used (keywords): ${topicAvoid || 'none'}.
 Recent questions and cue-card titles (keywords only): ${avoid || 'none'}.
-RULES: Part 1 exactly 6 questions, 3 per assigned topic; follow each assigned form and use distinct openings within the part. Part 2 one concrete Describe cue card with exactly four useful bullets. Part 3 exactly 4 distinct discussion questions rooted in the Part 2 cue card’s underlying theme. Broaden from the candidate’s personal experience to wider social, cultural, economic, environmental, educational or policy implications. Do not switch to an unrelated subject or repeat the cue-card bullets. Use assigned angles and forms for varied perspectives within that shared theme; keep topic labels on the same broad theme or closely related facets. Avoid semantic repeats and clichés. Avoid close semantic equivalents, not merely identical wording. Keep spoken questions concise and accessible.
-JSON ONLY: {"part1Topics":["A","B"],"part1Questions":[{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."}],"part2CueCard":{"topic":"...","title":"...","prompt":"Describe ...","bullets":["...","...","...","..."]},"part3Questions":[{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."}]}`;
+RULES: Part 1 exactly 6 questions, 3 per assigned topic; follow forms in order and vary openings. Part 2 one concrete Describe cue card with exactly four useful bullets. Part 3 exactly 4 distinct questions rooted in the Part 2 cue card’s underlying theme, widening from personal experience to wider social, cultural, economic, environmental, educational or policy implications. Keep the same broad theme or related facets; do not switch subjects, repeat cue-card bullets, use clichés or semantic duplicates. Avoid close semantic equivalents, not merely identical wording. Use the assigned angles and forms for varied perspectives. Keep questions concise and accessible.
+Use the exact assigned Part 1 names in part1Topics and each question's topic. The A/B labels below are placeholders only; use the assigned names instead.
+JSON ONLY: {"part1Topics":["${context.part1Topics[0]}","${context.part1Topics[1]}"],"part1Questions":[{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"A","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."},{"topic":"B","question":"..."}],"part2CueCard":{"topic":"...","title":"...","prompt":"Describe ...","bullets":["...","...","...","..."]},"part3Questions":[{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."},{"topic":"...","question":"..."}]}`;
   const baseUser = 'Generate one complete IELTS Speaking test set. Follow every assignment and return only the requested JSON.';
   const user = retryGuidance
     ? `${baseUser} IMPORTANT CORRECTION: ${retryGuidance}`
@@ -273,6 +275,11 @@ export function parseLlmSessionPlanResponse(rawText: string, options: {
   }
   if (options.generationContext) {
     const assigned = options.generationContext.part1Topics;
+    // Some models copy the A/B schema placeholders instead of the assigned labels.
+    // The prompt defines a fixed 3+3 order, so restore labels only when all six are placeholders.
+    if (part1Questions.length === 6 && part1Questions.every(question => /^[ab]$/i.test(question.topic))) {
+      part1Questions.forEach((question, index) => { question.topic = assigned[index < 3 ? 0 : 1]; });
+    }
     for (const question of part1Questions) {
       const match = assigned.find(topic => topicMatchesAssigned(question.topic, topic));
       if (!match) {
@@ -280,9 +287,13 @@ export function parseLlmSessionPlanResponse(rawText: string, options: {
       }
       question.topic = match;
     }
-    const declaredTopics = Array.isArray(parsed.part1Topics ?? parsed.part1_topics ?? parsed.part_1_topics)
-      ? (parsed.part1Topics ?? parsed.part1_topics ?? parsed.part_1_topics).map((topic: unknown) => String(topic))
+    const rawDeclaredTopics = parsed.part1Topics ?? parsed.part1_topics ?? parsed.part_1_topics;
+    const declaredTopics = Array.isArray(rawDeclaredTopics)
+      ? rawDeclaredTopics.map((topic: unknown) => String(topic))
       : [];
+    if (declaredTopics.length === 2 && declaredTopics.every(topic => /^[ab]$/i.test(topic.trim()))) {
+      declaredTopics.splice(0, 2, assigned[0], assigned[1]);
+    }
     for (const declared of declaredTopics) {
       if (!assigned.some(topic => topicMatchesAssigned(declared, topic))) {
         throw new Error(`Part 1 declared topic mismatch: "${declared}" was not assigned to this set.`);
@@ -467,7 +478,7 @@ export async function requestLlmSessionPlan(params: {
           }
         },
         timeoutMs: 45000,
-        maxRetries: 1
+        maxRetries: 0 // IELTS uses slot-level API 2 fallback; do not replay a billable request on HTTP 429.
       },
       params.transport
     );
@@ -506,7 +517,7 @@ export async function requestLlmSessionPlan(params: {
           response_format: { type: 'json_object' }
         },
         timeoutMs: 45000,
-        maxRetries: 1
+        maxRetries: 0 // IELTS uses slot-level API 2 fallback; do not replay a billable request on HTTP 429.
       },
       params.transport
     );
@@ -534,7 +545,7 @@ function getQuestionSetRetryGuidance(message: string): string {
     return 'Use genuinely different question ideas and examples; do not reuse or lightly reword questions from earlier sets.';
   }
   if (/topic mismatch|Part 1 must contain exactly two/i.test(message)) {
-    return 'Use exactly the two assigned Part 1 topic labels and provide three distinct questions under each topic.';
+    return 'Use the exact assigned Part 1 topic names, not A/B placeholders, and provide three distinct questions under each topic in the required order.';
   }
   if (/parse LLM question JSON|empty response|missing valid part/i.test(message)) {
     return 'Return one complete, compact, valid JSON object only; include every required array and field, with no prose or code fences.';
@@ -625,7 +636,8 @@ export async function generateIeltsPlanWithTierFallback(options?: {
           part2: 1,
           part3: plan.part3Questions.length,
           total: plan.part1Questions.length + 1 + plan.part3Questions.length
-        }
+        },
+        fallbackUsed: attempt.account === 'secondary'
       };
     } else {
       fallbackReason = resolved.reason || `Slot 5 auto-fallback: ${resolved.detailLabel}`;
@@ -656,8 +668,8 @@ export async function generateIeltsPlanWithTierFallback(options?: {
 
 
 /**
- * Generate complete AI-only IELTS sets. Five-set batches use two workers.
- * Keep strict validation, the existing retry budget and atomic batch persistence.
+ * Generate AI-only IELTS sets with two workers in the normal case.
+ * Persist each valid set immediately; replace the previous pending batch only when all sets are ready.
  */
 export async function generateIeltsQuestionSets(
   count = 5,
@@ -667,11 +679,12 @@ export async function generateIeltsQuestionSets(
   const baseMemory = getCompactLlmGenerationMemory();
   const maxAttempts = target + 5;
   const generated: Array<{ plan: IeltsTestSessionPlan; providerName?: string; modelName?: string } | undefined> = new Array(target);
+  const previousPending = getIeltsQuestionSets().filter(set => set.status === 'new');
   let attempts = 0;
   let nextIndex = 0;
   let fatalError: unknown;
   let lastRetryReason = '';
-
+  let reducedConcurrency = false;
   const contexts = Array.from({ length: target }, () =>
     createIeltsGenerationContext(baseMemory.topics, options?.requestedTopic ?? '', getRecentLlmPart1Topics())
   );
@@ -685,9 +698,9 @@ export async function generateIeltsQuestionSets(
       part1Topics: [...getRecentLlmPart1Topics(), ...memories.flatMap(item => item.part1Topics)].slice(-40)
     };
   };
-
-  const worker = async (): Promise<void> => {
+  const worker = async (workerIndex: number): Promise<void> => {
     while (!fatalError && attempts < maxAttempts) {
+      if (workerIndex > 0 && reducedConcurrency) return;
       const index = nextIndex++;
       if (index >= target) return;
       let retryGuidance = '';
@@ -709,7 +722,6 @@ export async function generateIeltsQuestionSets(
           if (result.source !== 'online_ai' || !result.plan.id.includes('llm')) {
             throw new LlmQuestionGenerationError('IELTS question library accepts AI-generated sets only.', result.providerName, result.modelName);
           }
-
           const accepted = generated.filter((item): item is NonNullable<typeof item> => Boolean(item)).map(item => item.plan);
           const questions = accepted.flatMap(plan => [...plan.part1Questions, ...plan.part3Questions].map(item => item.question));
           const titles = accepted.map(plan => plan.part2CueCard.title);
@@ -721,30 +733,46 @@ export async function generateIeltsQuestionSets(
           if (duplicate || titleTier === 'exact' || titleTier === 'recent') {
             throw new LlmQuestionGenerationError('The generated set repeats or closely paraphrases another set in this batch.', result.providerName, result.modelName, undefined, true);
           }
-
+          const savedNow = addIeltsQuestionSets([{ plan: result.plan, providerName: result.providerName, modelName: result.modelName }]);
+          if (savedNow.length !== 1) {
+            throw new LlmQuestionGenerationError('The generated set overlaps with an existing question set and was not saved. Generate a different set.', result.providerName, result.modelName, undefined, true);
+          }
           generated[index] = { plan: result.plan, providerName: result.providerName, modelName: result.modelName };
+          commitGeneratedPlansMemory([result.plan]);
           completedThisSet = true;
+          if (result.fallbackUsed) reducedConcurrency = true;
           try { options?.onProgress?.({ completed: generated.filter(Boolean).length, total: target }); } catch { /* Ignore progress callback errors. */ }
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (/HTTP\s*(?:429|5\d\d)|rate limit|overloaded|timed?\s*out|cooldown/i.test(errorMessage)) reducedConcurrency = true;
           if (!(error instanceof LlmQuestionGenerationError) || !error.retryable) {
             fatalError = error;
             return;
           }
-          lastRetryReason = error.message.replace(/\s+/gu, ' ').slice(0, 240);
-          retryGuidance = getQuestionSetRetryGuidance(error.message);
-          console.warn('[ieltsQuestionGenerator] Retrying invalid AI question set (' + attempts + '/' + maxAttempts + '):', error.message);
+          lastRetryReason = errorMessage.replace(/\s+/gu, ' ').slice(0, 240);
+          retryGuidance = getQuestionSetRetryGuidance(errorMessage);
+          console.warn('[ieltsQuestionGenerator] Retrying invalid AI question set (' + attempts + '/' + maxAttempts + '):', errorMessage);
         }
       }
     }
   };
-
-  await Promise.all(Array.from({ length: target >= 5 ? 2 : 1 }, () => worker()));
-  if (fatalError) throw fatalError;
+  await Promise.all(Array.from({ length: target >= 5 ? 2 : 1 }, (_, index) => worker(index)));
   const completed = generated.filter((item): item is NonNullable<typeof item> => Boolean(item));
-  if (completed.length < target) {
-    throw new LlmQuestionGenerationError('The AI generated only ' + completed.length + ' of ' + target + ' requested sets after ' + attempts + ' attempts. Last issue: ' + (lastRetryReason || 'The provider could not complete a valid set.') + ' Your current unfinished sets have been kept; refresh again to try another batch.');
+  if (fatalError) {
+    const detail = fatalError instanceof Error ? fatalError.message : String(fatalError);
+    throw new LlmQuestionGenerationError(
+      'Generation stopped after ' + completed.length + ' of ' + target + ' sets. ' +
+      (completed.length ? completed.length + ' valid set(s) have already been saved and are available in your library. ' : '') +
+      'Your previous unfinished sets were kept. Reason: ' + detail
+    );
   }
-  const saved = replaceUncompletedIeltsQuestionSets(completed);
-  commitGeneratedPlansMemory(saved.map(item => item.plan));
-  return saved;
+  if (completed.length < target) {
+    throw new LlmQuestionGenerationError(
+      'The AI generated only ' + completed.length + ' of ' + target + ' requested sets after ' + attempts + ' attempts. ' +
+      (completed.length ? completed.length + ' valid set(s) have already been saved and are available in your library. ' : '') +
+      'Your previous unfinished sets were kept. Last issue: ' + (lastRetryReason || 'The provider could not complete a valid set.') +
+      ' Refresh again to generate another batch.'
+    );
+  }
+  return replaceUncompletedIeltsQuestionSets(completed, previousPending);
 }
