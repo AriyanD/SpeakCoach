@@ -1,7 +1,9 @@
 import { Capacitor } from '@capacitor/core';
+import { escapeHtml } from './shared/html';
 import { getPreset, SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
+import { QUICK_SETUP_PLAN, QUICK_SETUP_REUSABLE_PROVIDER_IDS, type QuickSetupProvider } from '../config/quickSetup';
 import { APP_VERSION } from '../config/appVersion';
-import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, type SpeakCoachUpdate } from '../services/appUpdater';
+import { checkForSpeakCoachUpdate, downloadSpeakCoachUpdate, installSpeakCoachUpdate, shouldShowApiSettingsUpdateWarning, type SpeakCoachUpdate } from '../services/appUpdater';
 import type { AllSlotsConfig, AuthStyle, ConnectionTestResult, SlotConfig, SlotId } from '../config/types';
 import { testSlotConnection, testAndPersistSlotAccount, persistSlotAccountTestResult, testSlotAccountsSequentially, describeConnectionTestFailure } from '../services/connectionTester';
 import { networkMonitor } from '../services/networkMonitor';
@@ -23,6 +25,7 @@ import { showSetupGuide, applyAppLanguage } from './OnboardingView';
 import { applyLanguageToDocument } from '../services/appLanguage';
 import { confirmInApp } from './confirmDialog';
 import { showToast } from './toast';
+import { bindSecondaryApiTestActions } from './secondaryApiTestBinding';
 import { createBackup, downloadBackupFile, parseBackupJsonText, readBackupFile, restoreBackup, type BackupKind } from '../services/dataBackup';
 import { isNativeBackupImportAvailable, selectNativeBackupFile } from '../services/nativeBackupImport';
 import { getIeltsQuestionStoreRecoveryNotices } from '../services/ieltsQuestionSetStore';
@@ -44,14 +47,6 @@ const lastTestResults = new Map<SlotId, ConnectionTestResult>();
 const dismissedVerificationErrors = new Set<SlotId>();
 let settingsProviderTestRunning = false;
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 export async function renderSettingsView(
   container: HTMLElement,
   configs: AllSlotsConfig,
@@ -59,6 +54,33 @@ export async function renderSettingsView(
   _onSettingsUpdated: () => Promise<void>,
   onOpenDiagnostics?: () => void
 ): Promise<void> {
+  let pendingImportScrollSnapshot: { windowY: number; containerTop: number; overflowAnchor: string } | null = null;
+  const captureImportScrollPosition = (): void => {
+    pendingImportScrollSnapshot = {
+      windowY: window.scrollY,
+      containerTop: container.scrollTop,
+      overflowAnchor: container.style.overflowAnchor
+    };
+    container.style.overflowAnchor = 'none';
+  };
+  const restoreImportScrollPosition = (): void => {
+    const snapshot = pendingImportScrollSnapshot;
+    if (!snapshot) return;
+    const restore = (): void => {
+      window.scrollTo(0, snapshot.windowY);
+      container.scrollTop = snapshot.containerTop;
+    };
+    restore();
+    requestAnimationFrame(() => {
+      restore();
+      requestAnimationFrame(() => {
+        restore();
+        container.style.overflowAnchor = snapshot.overflowAnchor;
+        pendingImportScrollSnapshot = null;
+      });
+    });
+  };
+
   const appSettings = await loadAppSettings();
   const keyStorageLabel = Capacitor.isNativePlatform() ? 'Securely stored on this device' : 'Browser storage (not encrypted)';
   const browserKeyStorageNoticeHtml = Capacitor.isNativePlatform()
@@ -156,6 +178,10 @@ export async function renderSettingsView(
     const apiRequiredOfflineSelected = (slotId === 'llm_evaluator' || slotId === 'llm_translation') && preset.tier === 3;
     const slotOnlineVerified = isOnlineProviderVerified(lastTest, slotCfg.secondary);
     const secondaryPreset = slotCfg.secondary ? getPreset(slotId, slotCfg.secondary.providerId) : null;
+    const secondaryHasUnrecognizedProvider = !!slotCfg.secondary && slotCfg.secondary.providerId !== secondaryPreset?.id;
+    const secondaryProviderDisplayName = secondaryHasUnrecognizedProvider
+      ? `Unrecognized saved provider: ${slotCfg.secondary!.providerId}`
+      : secondaryPreset?.name ?? 'Not configured';
     const secondarySuggestions = secondaryPreset ? (secondaryPreset.modelSuggestions || [secondaryPreset.defaultModelOrVoice]) : [];
     const secondaryIsCustom = secondaryPreset?.id.startsWith('custom_openai_') ?? false;
     const secondarySameModelAsPrimary = !!slotCfg.secondary && slotCfg.secondary.providerId === slotCfg.providerId && slotCfg.secondary.modelOrVoice.trim() === slotCfg.modelOrVoice.trim();
@@ -215,11 +241,9 @@ export async function renderSettingsView(
       const statusClass = health?.state === 'cooldown' ? 'info' : 'fail';
       return `<div class="status-box ${statusClass}" id="${account === 'primary' ? `status-${slotId}` : `secondary-status-${slotId}`}">${label} (${escapeHtml(providerName)}): ${escapeHtml(healthText)}</div>`;
     };
-    const secondaryStatusHtml = bothConfiguredApisReady
-      ? ''
-      : mixedApiReadiness && secondaryPreset
-        ? renderAccountStatus('secondary', secondaryPreset.name, secondaryAccountReady, secondaryTestResult, accountHealth?.secondary ?? null)
-        : `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
+    const secondaryStatusHtml = mixedApiReadiness && secondaryPreset
+      ? renderAccountStatus('secondary', secondaryPreset.name, secondaryAccountReady, secondaryTestResult, accountHealth?.secondary ?? null)
+      : `<div class="status-box ${secondaryStatusClass}" id="secondary-status-${slotId}">API 2: ${secondaryStatusText}</div>`;
     const showVoiceInput = slotId === 'voice_tts' && preset.id !== 'android_native_tts';
     const mismatchInfo = detectProviderUrlMismatch(slotCfg);
     const secondaryMismatchInfo = secondaryPreset ? detectProviderUrlMismatch({ slotId, providerId: secondaryPreset.id, baseUrl: slotCfg.secondary?.baseUrl || secondaryPreset.defaultBaseUrl, endpointPathOverride: slotCfg.secondary?.endpointPathOverride }) : { mismatch: false, reason: undefined as string | undefined };
@@ -227,10 +251,17 @@ export async function renderSettingsView(
     const visibleProviders = slotId === 'voice_tts'
       ? def.providers.filter((provider) => !['android_native_tts', 'groq_tts', 'openai_tts'].includes(provider.id))
       : def.providers;
-    const optionsHtml = visibleProviders
+    const hasUnrecognizedProvider = slotCfg.providerId !== preset.id;
+    const providerDisplayName = hasUnrecognizedProvider
+      ? `Unrecognized saved provider: ${slotCfg.providerId}`
+      : preset.name;
+    const unknownProviderOption = hasUnrecognizedProvider
+      ? `<option value="${escapeHtml(slotCfg.providerId)}" selected disabled>Unrecognized saved provider: ${escapeHtml(slotCfg.providerId)} (temporarily offline)</option>`
+      : '';
+    const optionsHtml = unknownProviderOption + visibleProviders
       .map(
         (p) =>
-          `<option value="${escapeHtml(p.id)}" ${p.id === preset.id ? 'selected' : ''} ${(slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3 ? 'disabled' : ''}>${escapeHtml(
+          `<option value="${escapeHtml(p.id)}" ${p.id === slotCfg.providerId ? 'selected' : ''} ${(slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3 ? 'disabled' : ''}>${escapeHtml(
             p.name
           )}</option>`
       )
@@ -288,11 +319,12 @@ export async function renderSettingsView(
         </div>
       </div>`;
 
-    const statusHtml = bothConfiguredApisReady
-      ? `<div class="status-box pass" id="status-${slotId}">Ready</div>`
-      : mixedApiReadiness && secondaryPreset
-        ? renderAccountStatus('primary', preset.name, primaryAccountReady, lastTest, accountHealth?.primary ?? null)
-        : apiRequiredOfflineSelected
+    // Keep API 1's detailed test result visible when both accounts are ready.
+    // API 2 already shows its persisted test result in that state; showing only
+    // "Ready" for API 1 made the two account statuses inconsistent after Test all APIs.
+    const statusHtml = mixedApiReadiness && secondaryPreset
+      ? renderAccountStatus('primary', preset.name, primaryAccountReady, lastTest, accountHealth?.primary ?? null)
+      : apiRequiredOfflineSelected
           ? `<div class="status-box info" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${slotId === 'llm_translation' ? 'Translation requires an online AI API. No offline translation engine is available.' : 'IELTS evaluation requires an online AI API. Offline IELTS evaluation is not available.'}</div>`
           : ['needs-retest', 'cooldown', 'ready-degraded', 'ready-cooldown'].includes(slotStatus) && resolved.reason
             ? `<div class="status-box ${slotStatus === 'needs-retest' ? 'fail' : 'info'}" id="status-${slotId}" style="${dismissedVerificationErrors.has(slotId) ? 'display:none;' : ''}">${escapeHtml(resolved.reason)}</div>`
@@ -339,11 +371,12 @@ export async function renderSettingsView(
             </select>
             <div class="provider-picker" id="provider-picker-${slotId}">
               <button type="button" class="provider-picker-trigger" id="provider-trigger-${slotId}" aria-expanded="false">
-                <span>${escapeHtml(preset.name)}</span><span class="provider-picker-chevron">⌄</span>
+                <span>${escapeHtml(providerDisplayName)}</span><span class="provider-picker-chevron">⌄</span>
               </button>
               <div class="provider-picker-options" id="provider-options-${slotId}" hidden>
                 <details class="settings-info-help"><summary aria-label="Provider setup information">i</summary><p>After selecting a provider and adding its API key, tap <strong>Test API 1</strong> below. Wait for a successful result before using online features. Test API 2 separately for a secondary provider.</p></details>
-                ${def.providers.filter((p) => slotId !== 'voice_tts' || (!['android_native_tts', 'groq_tts', 'openai_tts'].includes(p.id))).map((p) => `<button type="button" class="provider-picker-option ${p.id === preset.id ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
+                ${hasUnrecognizedProvider ? `<button type="button" class="provider-picker-option active" data-provider-id="${escapeHtml(slotCfg.providerId)}" disabled>Unrecognized saved provider: ${escapeHtml(slotCfg.providerId)} (temporarily offline)</button>` : ''}
+                ${def.providers.filter((p) => slotId !== 'voice_tts' || (!['android_native_tts', 'groq_tts', 'openai_tts'].includes(p.id))).map((p) => `<button type="button" class="provider-picker-option ${p.id === slotCfg.providerId ? 'active' : ''}" data-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
               </div>
             </div>
           </div>
@@ -513,12 +546,14 @@ export async function renderSettingsView(
             <div class="form-field"><label class="form-label" for="secondary-provider-${slotId}">Provider</label>
               <select class="form-select provider-native-select" id="secondary-provider-${slotId}" data-slot="${slotId}" aria-hidden="true" tabindex="-1">
                 <option value="">Not configured</option>
+                ${secondaryHasUnrecognizedProvider ? `<option value="${escapeHtml(slotCfg.secondary!.providerId)}" selected disabled>Unrecognized saved provider: ${escapeHtml(slotCfg.secondary!.providerId)} (temporarily offline)</option>` : ''}
                 ${visibleProviders.map((p) => `<option value="${escapeHtml(p.id)}" ${slotCfg.secondary?.providerId === p.id ? 'selected' : ''} ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</option>`).join('')}
               </select>
               <div class="provider-picker secondary-provider-picker" id="secondary-provider-picker-${slotId}">
-                <button type="button" class="provider-picker-trigger" id="secondary-provider-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(secondaryPreset?.name ?? 'Not configured')}</span><span class="provider-picker-chevron">⌄</span></button>
+                <button type="button" class="provider-picker-trigger" id="secondary-provider-trigger-${slotId}" aria-expanded="false"><span>${escapeHtml(secondaryProviderDisplayName)}</span><span class="provider-picker-chevron">⌄</span></button>
                 <div class="provider-picker-options" id="secondary-provider-options-${slotId}" hidden>
                   <details class="settings-info-help"><summary aria-label="Provider setup information">i</summary><p>After selecting a provider and adding its API key, tap <strong>Test API 2</strong> below. Wait for a successful result before using online features.</p></details>
+                  ${secondaryHasUnrecognizedProvider ? `<button type="button" class="provider-picker-option active" data-secondary-provider-id="${escapeHtml(slotCfg.secondary!.providerId)}" disabled>Unrecognized saved provider: ${escapeHtml(slotCfg.secondary!.providerId)} (temporarily offline)</button>` : ''}
                   ${visibleProviders.map((p) => `<button type="button" class="provider-picker-option ${slotCfg.secondary?.providerId === p.id ? 'active' : ''}" data-secondary-provider-id="${escapeHtml(p.id)}" ${((slotId === 'llm_evaluator' || slotId === 'llm_translation') && p.tier === 3) ? 'disabled' : ''}>${escapeHtml(p.name)}</button>`).join('')}
                 </div>
               </div>
@@ -581,7 +616,7 @@ export async function renderSettingsView(
         <section class="settings-connection-tests" aria-label="Provider connection tests">
         <div class="btn-row provider-test-actions" >
           <button type="button" class="btn btn-primary settings-test-button" data-test-slot="${slotId}">Test API 1</button>
-          <button type="button" class="btn btn-primary settings-test-button" id="test-secondary-${slotId}">Test API 2</button>
+          <button type="button" class="btn btn-primary settings-test-button" id="test-secondary-${slotId}" data-test-secondary-slot="${slotId}">Test API 2</button>
         </div>
         <p class="card-subtitle provider-save-help">Test each configured provider separately. The test saves its current settings and checks the connection.</p>
         <div class="provider-test-results" >
@@ -729,12 +764,12 @@ export async function renderSettingsView(
     </section>
     <section class="card settings-shadowing-performance-card">
       <div class="card-header"><h2 class="card-title">Shadowing performance</h2></div>
-      <div class="appearance-setting">
+      <div class="appearance-setting shadowing-prefetch-setting">
         <div class="appearance-setting-copy">
           <label class="form-label" for="shadowing-prefetch-enabled">Prepare upcoming model audio in advance</label>
           <p class="card-subtitle">When enabled, SpeakCoach prepares up to four upcoming sentences in the background to reduce waiting. This uses your configured TTS provider's quota, even if you do not reach every sentence. Turn it off to avoid background TTS requests.</p>
         </div>
-        <label class="form-label" for="shadowing-prefetch-enabled">
+        <label class="form-label shadowing-prefetch-toggle" for="shadowing-prefetch-enabled">
           <input type="checkbox" id="shadowing-prefetch-enabled" ${appSettings.prefetchShadowingAudio ? 'checked' : ''} />
           Enable audio prefetch
         </label>
@@ -819,6 +854,150 @@ export async function renderSettingsView(
     status.textContent = missing ? 'Core API setup needed' : 'Core APIs configured';
   };
 
+  const runSecondaryApiTest = async (slotId: SlotId, secondaryTestBtn: HTMLButtonElement): Promise<void> => {
+    let secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
+    if (!secondaryStatus) {
+      secondaryStatus = document.createElement('div');
+      secondaryStatus.id = `secondary-status-${slotId}`;
+      secondaryStatus.className = 'status-box info';
+      const results = secondaryTestBtn.closest<HTMLElement>('.settings-connection-tests')
+        ?.querySelector<HTMLElement>('.provider-test-results');
+      (results ?? secondaryTestBtn.parentElement)?.append(secondaryStatus);
+    }
+
+    if (settingsProviderTestRunning) {
+      secondaryStatus.className = 'status-box info';
+      secondaryStatus.textContent = 'API 2: Another provider test is already running. Try again when it finishes.';
+      return;
+    }
+
+    settingsProviderTestRunning = true;
+    if (testAllApisButton) testAllApisButton.disabled = true;
+    secondaryTestBtn.disabled = true;
+    secondaryStatus.hidden = false;
+    secondaryStatus.style.display = '';
+    secondaryStatus.className = 'status-box info';
+    secondaryStatus.textContent = 'API 2: Testing…';
+
+    try {
+      const secondaryProviderSelect = container.querySelector<HTMLSelectElement>(`#secondary-provider-${slotId}`);
+      const providerId = secondaryProviderSelect?.value || configs[slotId].secondary?.providerId || '';
+      if (!providerId) {
+        secondaryStatus.textContent = 'API 2: Choose a provider first.';
+        return;
+      }
+
+      const secondaryPreset = getPreset(slotId, providerId);
+      const secondaryBaseUrlInput = container.querySelector<HTMLInputElement>(`#secondary-baseurl-${slotId}`);
+      const secondaryModelInput = container.querySelector<HTMLInputElement>(`#secondary-model-${slotId}`);
+      const secondaryAuthSelect = container.querySelector<HTMLSelectElement>(`#secondary-authstyle-${slotId}`);
+      const secondaryHeaderInput = container.querySelector<HTMLInputElement>(`#secondary-custom-header-${slotId}`);
+      const secondaryQueryInput = container.querySelector<HTMLInputElement>(`#secondary-custom-query-${slotId}`);
+      const secondaryEndpointInput = container.querySelector<HTMLInputElement>(`#secondary-endpoint-${slotId}`);
+      const secondaryCustomVoiceInput = container.querySelector<HTMLInputElement>(`#secondary-custom-voice-${slotId}`);
+      const secondaryKeyInput = container.querySelector<HTMLInputElement>(`#secondary-key-${slotId}`);
+      const secondaryCfg: SlotConfig = {
+        slotId,
+        providerId: secondaryPreset.id,
+        baseUrl: secondaryBaseUrlInput?.value.trim() || secondaryPreset.defaultBaseUrl,
+        modelOrVoice: secondaryModelInput?.value.trim() || secondaryPreset.defaultModelOrVoice,
+        authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
+        customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
+        customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
+        endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined,
+        customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
+      };
+
+      // Show the running state before reading Android secure storage; that read can be slow.
+      const apiKey = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, secondaryPreset.id, 'secondary');
+      const result = await testAndPersistSlotAccount(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
+      const testResult = {
+        ok: result.ok && result.tier !== 3,
+        latencyMs: result.latencyMs,
+        message: result.message,
+        testedAt: Date.now(),
+        verificationFingerprint: result.verificationFingerprint
+      };
+
+      if (testResult.ok) {
+        await saveApiKey(slotId, secondaryPreset.id, apiKey, 'secondary');
+        if (slotId === 'voice_tts') {
+          await clearActiveShadowingAudioStore();
+          clearGeminiLanguageFailures('gemini_tts');
+        }
+        secondaryKeysBySlot[slotId] = apiKey;
+        if (secondaryKeyInput) {
+          secondaryKeyInput.value = '';
+          secondaryKeyInput.placeholder = 'API 2 key saved securely. Leave blank to keep it, or type a replacement.';
+        }
+      }
+
+      const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
+      clearPreloadedSentenceAudio();
+      if (slotId === 'voice_tts') {
+        await clearActiveShadowingAudioStore();
+        clearGeminiLanguageFailures('gemini_tts');
+      }
+      configs[slotId].secondary = verifiedConfig;
+      secondaryStatus.className = `status-box ${testResult.ok ? 'pass' : 'fail'}`;
+      secondaryStatus.textContent = `API 2: ${testResult.ok ? 'PASS' : 'FAIL'} — ${result.message}`;
+
+      const slotBadge = container.querySelector<HTMLElement>(`#badge-${slotId}`);
+      if (slotBadge) {
+        const primaryTest = lastTestResults.get(slotId);
+        const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
+        const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, verifiedConfig);
+        slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
+        slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
+      try {
+        const providerId = container.querySelector<HTMLSelectElement>(`#secondary-provider-${slotId}`)?.value || configs[slotId].secondary?.providerId;
+        if (providerId) {
+          const failedPreset = getPreset(slotId, providerId);
+          const failedConfig: SlotConfig = {
+            slotId,
+            providerId: failedPreset.id,
+            baseUrl: container.querySelector<HTMLInputElement>(`#secondary-baseurl-${slotId}`)?.value.trim() || failedPreset.defaultBaseUrl,
+            modelOrVoice: container.querySelector<HTMLInputElement>(`#secondary-model-${slotId}`)?.value.trim() || failedPreset.defaultModelOrVoice,
+            authStyle: (container.querySelector<HTMLSelectElement>(`#secondary-authstyle-${slotId}`)?.value as AuthStyle) || 'bearer',
+            customHeaderName: container.querySelector<HTMLInputElement>(`#secondary-custom-header-${slotId}`)?.value.trim() || undefined,
+            customQueryParamName: container.querySelector<HTMLInputElement>(`#secondary-custom-query-${slotId}`)?.value.trim() || undefined,
+            endpointPathOverride: container.querySelector<HTMLInputElement>(`#secondary-endpoint-${slotId}`)?.value.trim() || undefined,
+            customTtsVoice: container.querySelector<HTMLInputElement>(`#secondary-custom-voice-${slotId}`)?.value.trim() || undefined
+          };
+          const failedConfigWithResult = { ...failedConfig, verified: false, testResult };
+          await saveSecondarySlotConfig(slotId, failedConfigWithResult);
+          clearPreloadedSentenceAudio();
+          configs[slotId].secondary = failedConfigWithResult;
+        }
+      } catch {
+        // Keep the visible error even when local persistence is unavailable.
+      }
+      secondaryStatus.className = 'status-box fail';
+      secondaryStatus.textContent = `API 2: FAIL — ${message}`;
+      const slotBadge = container.querySelector<HTMLElement>(`#badge-${slotId}`);
+      if (slotBadge) {
+        const primaryTest = lastTestResults.get(slotId);
+        const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
+        const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, configs[slotId].secondary);
+        slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
+        slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
+      }
+    } finally {
+      secondaryTestBtn.disabled = false;
+      settingsProviderTestRunning = false;
+      if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount;
+      refreshRequiredApiStatus();
+    }
+  };
+
+  bindSecondaryApiTestActions(container, (slotId, button) => {
+    void runSecondaryApiTest(slotId, button);
+  });
+
   const quickSetupButton = container.querySelector<HTMLButtonElement>('#quick-setup-run-btn');
   const quickSetupStatus = container.querySelector<HTMLElement>('#quick-setup-status');
   quickSetupButton?.addEventListener('click', async () => {
@@ -837,18 +1016,7 @@ export async function renderSettingsView(
       gemini: geminiInput?.value.trim() ?? '',
       groq: groqInput?.value.trim() ?? ''
     };
-    type QuickProvider = { providerId: string; source: 'gemini' | 'groq'; baseUrl?: string; model?: string };
-    type QuickPlanItem = { slotId: SlotId; primary: QuickProvider; secondary?: QuickProvider };
-    const groqBaseUrl = 'https://api.groq.com/openai/v1';
-    const groqLlmModel = 'openai/gpt-oss-120b';
-    const plan: QuickPlanItem[] = [
-      { slotId: 'voice_tts', primary: { providerId: 'gemini_tts', source: 'gemini' } },
-      { slotId: 'pronunciation_scoring', primary: { providerId: 'gemini_pronunciation', source: 'gemini' }, secondary: { providerId: 'whisper_alignment', source: 'groq' } },
-      { slotId: 'ielts_stt', primary: { providerId: 'gemini_stt', source: 'gemini' }, secondary: { providerId: 'whisper_stt', source: 'groq' } },
-      { slotId: 'llm_evaluator', primary: { providerId: 'custom_openai_eval', source: 'groq', baseUrl: groqBaseUrl, model: groqLlmModel }, secondary: { providerId: 'gemini_eval', source: 'gemini' } },
-      { slotId: 'llm_generator', primary: { providerId: 'gemini_gen', source: 'gemini' }, secondary: { providerId: 'custom_openai_gen', source: 'groq', baseUrl: groqBaseUrl, model: groqLlmModel } },
-      { slotId: 'llm_translation', primary: { providerId: 'gemini_translation', source: 'gemini' }, secondary: { providerId: 'custom_openai_translation', source: 'groq', baseUrl: groqBaseUrl, model: groqLlmModel } }
-    ];
+    const plan = QUICK_SETUP_PLAN;
 
     quickSetupButton.disabled = true;
     settingsProviderTestRunning = true;
@@ -863,7 +1031,7 @@ export async function renderSettingsView(
     let passed = 0;
     let skipped = 0;
 
-    const resolveKey = async (slotId: SlotId, provider: QuickProvider, account: 'primary' | 'secondary'): Promise<string> => {
+    const resolveKey = async (slotId: SlotId, provider: QuickSetupProvider, account: 'primary' | 'secondary'): Promise<string> => {
       const supplied = suppliedKeys[provider.source];
       if (supplied) return supplied;
       try {
@@ -871,10 +1039,7 @@ export async function renderSettingsView(
         if (localKey.trim()) return localKey;
       } catch { /* Try another saved key from the same provider family. */ }
 
-      const reusableProviderIds: Record<'gemini' | 'groq', string[]> = {
-        gemini: ['gemini_tts', 'gemini_pronunciation', 'gemini_stt', 'gemini_eval', 'gemini_gen', 'gemini_translation'],
-        groq: ['whisper_alignment', 'whisper_stt', 'custom_openai_eval', 'custom_openai_gen', 'custom_openai_translation']
-      };
+      const reusableProviderIds = QUICK_SETUP_REUSABLE_PROVIDER_IDS;
       for (const otherSlotId of SLOT_ORDER) {
         for (const providerId of reusableProviderIds[provider.source]) {
           if (!SLOT_DEFINITIONS[otherSlotId].providers.some((preset) => preset.id === providerId)) continue;
@@ -889,7 +1054,7 @@ export async function renderSettingsView(
       return '';
     };
 
-    const makeConfig = (slotId: SlotId, provider: QuickProvider, account: 'primary' | 'secondary', previous?: SlotConfig['secondary'] | SlotConfig): SlotConfig => {
+    const makeConfig = (slotId: SlotId, provider: import('../config/quickSetup').QuickSetupProvider, account: 'primary' | 'secondary', previous?: SlotConfig['secondary'] | SlotConfig): SlotConfig => {
       const preset = getPreset(slotId, provider.providerId);
       const sameProvider = previous?.providerId === provider.providerId;
       const config: SlotConfig = {
@@ -1266,7 +1431,13 @@ export async function renderSettingsView(
       }
       availableUpdate = update;
       if (updateVersionLabel) updateVersionLabel.textContent = `Version ${update.version} is available`;
-      if (updateNotesLabel) updateNotesLabel.textContent = update.releaseNotes || 'No release notes were provided.';
+      if (updateNotesLabel) {
+        const releaseNotes = update.releaseNotes || 'No release notes were provided.';
+        const apiSettingsWarning = shouldShowApiSettingsUpdateWarning(update.version)
+          ? '\n\nImportant: Since SpeakCoach v1.2.1, API settings have changed. Older provider settings and saved API keys may not be read correctly. After updating, re-enter your API keys in Settings and test each provider.'
+          : '';
+        updateNotesLabel.textContent = `${releaseNotes}${apiSettingsWarning}`;
+      }
       if (updateReleaseLink) updateReleaseLink.href = update.releaseUrl;
       if (updateAvailablePanel) updateAvailablePanel.hidden = false;
       setUpdateStatus('A newer version is available. Download it when you are ready.', 'pass');
@@ -1395,21 +1566,16 @@ export async function renderSettingsView(
       cancelLabel: 'Cancel',
       tone: 'danger'
     });
-    if (!confirmed) return;
+    if (!confirmed) {
+      restoreImportScrollPosition();
+      return;
+    }
 
     const importButton = container.querySelector<HTMLButtonElement>(
       kind === 'ai-settings' ? '#import-ai-backup' : '#import-test-backup'
     );
     if (importButton) importButton.disabled = true;
     if (testAllApisButton) testAllApisButton.disabled = true;
-    // Native Android file pickers can restore focus by scrolling the WebView.
-    // Preserve the user's settings position across the import and UI refresh.
-    const settingsScrollTop = container.scrollTop;
-    const windowScrollTop = window.scrollY;
-    const restoreSettingsScroll = (): void => {
-      window.scrollTo({ top: windowScrollTop, behavior: 'auto' });
-      container.scrollTop = settingsScrollTop;
-    };
     const operationStatus = kind === 'ai-settings' ? backupStatus : testDataBackupStatus;
     if (operationStatus) {
       operationStatus.hidden = false;
@@ -1427,20 +1593,20 @@ export async function renderSettingsView(
           : 'Test history and practice data restored.';
       }
       await _onSettingsUpdated();
-      restoreSettingsScroll();
-      requestAnimationFrame(() => {
-        restoreSettingsScroll();
-        requestAnimationFrame(restoreSettingsScroll);
-      });
     } catch (error) {
       if (operationStatus) {
         operationStatus.hidden = false;
         operationStatus.className = 'status-box fail';
-        operationStatus.textContent = error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const apiSettingsWarning = kind === 'ai-settings'
+          ? ' Note: Since SpeakCoach v1.2.1, API settings have changed. Older provider settings or saved API keys may not be read correctly. Please re-enter your API keys in Settings and test each provider.'
+          : '';
+        operationStatus.textContent = `${errorMessage}${apiSettingsWarning}`;
       }
     } finally {
       if (importButton) importButton.disabled = false;
       if (testAllApisButton) testAllApisButton.disabled = settingsProviderTestRunning || !hasConfiguredOnlineAccount;
+      restoreImportScrollPosition();
     }
   };
 
@@ -1502,6 +1668,7 @@ export async function renderSettingsView(
       } finally { if (exportButton) exportButton.disabled = false; }
     });
     importButton?.addEventListener('click', () => {
+      captureImportScrollPosition();
       if (isNativeBackupImportAvailable()) {
         void restoreSelectedBackup(kind, async () => {
           const selected = await selectNativeBackupFile();
@@ -1513,7 +1680,11 @@ export async function renderSettingsView(
     });
     fileInput?.addEventListener('change', async () => {
       const file = fileInput.files?.[0];
-      if (!file) return;
+      fileInput.blur();
+      if (!file) {
+        restoreImportScrollPosition();
+        return;
+      }
       await restoreSelectedBackup(kind, () => readBackupFile(file));
       fileInput.value = '';
     });
@@ -1700,6 +1871,9 @@ export async function renderSettingsView(
           const result = tested.find(item => item.account === 'primary')!.result;
           primaryStatus.className = `status-box ${result.ok ? 'pass' : 'fail'}`;
           primaryStatus.textContent = `API 1 (${getPreset(slotId, result.providerId).name}): ${result.ok ? 'PASS' : 'FAIL'} — ${redactKeys(result.ok ? result.message : describeConnectionTestFailure(result))} · Tested: ${new Date().toLocaleTimeString()}`;
+          const verificationActions = container.querySelector<HTMLElement>(`#verification-actions-${slotId}`);
+          if (verificationActions) verificationActions.style.display = result.ok ? 'none' : 'flex';
+          if (result.ok) dismissedVerificationErrors.delete(slotId);
         }
         const secondaryStatus = container.querySelector<HTMLElement>(`#secondary-status-${slotId}`);
         if (secondaryStatus && tested.some(item => item.account === 'secondary')) {
@@ -1728,7 +1902,9 @@ export async function renderSettingsView(
       settingsProviderTestRunning = false;
       testAllButton.textContent = 'Test all APIs';
       testAllButton.disabled = !hasConfiguredOnlineAccount;
-      [...singleTestButtons, ...importButtons].forEach((button, index) => { button.disabled = previousDisabled[index]; });
+      [...singleTestButtons, ...importButtons].forEach((button, index) => {
+        button.disabled = button.classList.contains('settings-test-button') ? false : previousDisabled[index];
+      });
     }
   });
 
@@ -2821,85 +2997,6 @@ export async function renderSettingsView(
     persistSlotDrafts[slotId] = async () => {
       await persistCurrentSlot();
     };
-
-    secondaryTestBtn?.addEventListener('click', async () => {
-      if (!secondaryTestBtn || !secondaryStatus) return;
-      settingsProviderTestRunning = true;
-      if (testAllApisButton) testAllApisButton.disabled = true;
-      const providerId = secondaryProviderSelect?.value ?? '';
-      if (!providerId) { secondaryStatus.textContent = 'API 2: Choose a provider first.'; settingsProviderTestRunning = false; if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount; return; }
-      const secondaryPreset = getPreset(slotId, providerId);
-      const secondaryCfg: SlotConfig = {
-        slotId, providerId: secondaryPreset.id,
-        baseUrl: secondaryBaseUrlInput?.value.trim() || secondaryPreset.defaultBaseUrl,
-        modelOrVoice: secondaryModelInput?.value.trim() || secondaryPreset.defaultModelOrVoice,
-        authStyle: (secondaryAuthSelect?.value as AuthStyle) || 'bearer',
-        customHeaderName: secondaryHeaderInput?.value.trim() || undefined,
-        customQueryParamName: secondaryQueryInput?.value.trim() || undefined,
-        endpointPathOverride: secondaryEndpointInput?.value.trim() || undefined,
-        customTtsVoice: secondaryCustomVoiceInput?.value.trim() || undefined
-      };
-      const apiKey = secondaryKeyInput?.value.trim() || await readKeyForSettings(slotId, secondaryPreset.id, 'secondary');
-      secondaryTestBtn.disabled = true;
-      secondaryStatus.className = 'status-box info';
-      secondaryStatus.textContent = 'API 2: Testing…';
-      try {
-        const result = await testAndPersistSlotAccount(secondaryCfg, { apiKeyOverride: apiKey, account: 'secondary' });
-        const testResult = {
-          ok: result.ok && result.tier !== 3,
-          latencyMs: result.latencyMs,
-          message: result.message,
-          testedAt: Date.now(),
-          verificationFingerprint: result.verificationFingerprint
-        };
-        if (testResult.ok) {
-          await saveApiKey(slotId, secondaryPreset.id, apiKey, 'secondary');
-          if (slotId === 'voice_tts') {
-            await clearActiveShadowingAudioStore();
-            clearGeminiLanguageFailures('gemini_tts');
-          }
-          secondaryKeysBySlot[slotId] = apiKey;
-          if (secondaryKeyInput) {
-            secondaryKeyInput.value = '';
-            secondaryKeyInput.placeholder = 'API 2 key saved securely. Leave blank to keep it, or type a replacement.';
-          }
-        }
-        const verifiedConfig = { ...secondaryCfg, verified: testResult.ok, testResult };
-        clearPreloadedSentenceAudio();
-        if (slotId === 'voice_tts') {
-            await clearActiveShadowingAudioStore();
-            clearGeminiLanguageFailures('gemini_tts');
-          }
-        configs[slotId].secondary = verifiedConfig;
-        secondaryStatus.className = `status-box ${testResult.ok ? 'pass' : 'fail'}`;
-        secondaryStatus.textContent = `API 2: ${result.ok && result.tier !== 3 ? 'PASS' : 'FAIL'} — ${result.message}`;
-        if (slotBadge) {
-          const primaryTest = lastTestResults.get(slotId);
-          const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
-          const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, verifiedConfig);
-          slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
-          slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const testResult = { ok: false, latencyMs: 0, message, testedAt: Date.now() };
-        try {
-          const failedConfig = { ...secondaryCfg, verified: false, testResult };
-          await saveSecondarySlotConfig(slotId, failedConfig);
-clearPreloadedSentenceAudio();
-          configs[slotId].secondary = failedConfig;
-        } catch { /* Keep the visible test error even if storage is unavailable. */ }
-        secondaryStatus.className = 'status-box fail';
-        secondaryStatus.textContent = `API 2: FAIL — ${message}`;
-        if (slotBadge) {
-          const primaryTest = lastTestResults.get(slotId);
-          const currentPrimaryTest = primaryTest?.providerId === configs[slotId].providerId ? primaryTest : undefined;
-          const onlineVerified = isOnlineProviderVerified(currentPrimaryTest, configs[slotId].secondary);
-          slotBadge.className = `tier-badge ${onlineVerified ? 'online' : 'offline'}`;
-          slotBadge.innerHTML = `<span class="tier-dot"></span>${onlineVerified ? 'Online AI' : 'Basic offline'}`;
-        }
-      } finally { secondaryTestBtn.disabled = false; settingsProviderTestRunning = false; if (testAllApisButton) testAllApisButton.disabled = !hasConfiguredOnlineAccount; refreshRequiredApiStatus(); }
-    });
 
     saveBtn?.addEventListener('click', async () => {
       if (!saveBtn) return;

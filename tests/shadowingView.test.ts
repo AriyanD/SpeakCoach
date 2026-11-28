@@ -172,15 +172,19 @@ describe('Shadowing Trainer UI (Empty-By-Default Transcript, No Reference Fallba
     const missingChips = root.querySelectorAll('[data-word-status="missing"]');
     expect(missingChips.length).toBe(2);
 
-    // Diagnostics is now accessed from Settings.
+    // Diagnostics is now accessed from Settings. Wait for each lazy-loaded
+    // view to mount before interacting; fixed sleeps made this test timing-sensitive.
     root.querySelector<HTMLButtonElement>('#nav-settings')?.click();
-    await new Promise((r) => setTimeout(r, 40));
+    await expect.poll(
+      () => root.querySelector('#settings-open-diagnostics-btn'),
+      { timeout: 5000, interval: 25 }
+    ).not.toBeNull();
     root.querySelector<HTMLButtonElement>('#settings-open-diagnostics-btn')?.click();
-    await new Promise((r) => setTimeout(r, 40));
 
-    expect(root.querySelector('#diag-last-ref')?.textContent).toContain(
-      'Could you please tell me where the nearest train station is?'
-    );
+    await expect.poll(
+      () => root.querySelector('#diag-last-ref')?.textContent,
+      { timeout: 5000, interval: 25 }
+    ).toContain('Could you please tell me where the nearest train station is?');
     expect(root.querySelector('#diag-last-raw')?.textContent).toContain(
       '"Could you tell me where the train station is" (87%)'
     );

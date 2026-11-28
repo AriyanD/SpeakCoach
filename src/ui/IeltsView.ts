@@ -233,7 +233,6 @@ export function renderIeltsView(
         <article class="ielts-set-row">
           <div class="ielts-set-copy">
             <div class="ielts-set-title">${escapeHtml(set.title)}</div>
-            <div class="ielts-set-meta" data-part1-count="${set.plan.part1Questions.length}" data-part3-count="${set.plan.part3Questions.length}">${set.plan.part1Questions.length} Part 1 prompts · 1 Part 2 cue card · ${set.plan.part3Questions.length} Part 3 prompts</div>
           </div>
           ${set.status === 'completed' ? '<span class="ielts-set-status completed">Completed</span>' : ''}
           <button type="button" class="btn btn-primary ielts-set-start" data-start-set="${escapeHtml(set.id)}">Start practice</button>
@@ -287,7 +286,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
               <button type="button" class="btn btn-secondary" id="ielts-random-topic-btn">Random topic</button>
             </div>
             <div class="ielts-topic-generate-action">
-              <button type="button" class="btn btn-primary ielts-refresh-btn" id="ielts-refresh-sets-btn" ${isRegeneratingQuestions ? 'disabled' : ''}>${isRegeneratingQuestions ? 'Generating…' : 'Get new question sets'}</button>
+              <button type="button" class="btn btn-primary ielts-refresh-btn" id="ielts-refresh-sets-btn" ${isRegeneratingQuestions ? 'disabled aria-busy="true"' : 'aria-busy="false"'}>${isRegeneratingQuestions ? '<span class="ielts-loading-spinner" aria-hidden="true"></span><span class="ielts-loading-copy"><span>Generating five sets…</span><small class="ielts-loading-hint">This may take a while.</small></span>' : 'Get new question sets'}</button>
             </div>
             <div id="ielts-set-notice" class="ielts-library-notice" role="status" aria-live="polite" hidden></div>
           </div>
@@ -348,19 +347,6 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
 
       const modeSelect = container.querySelector<HTMLSelectElement>('#ielts-set-mode');
       const modeButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('[data-mode-choice]'));
-      const updateSetMetadata = (selectedMode: string): void => {
-        container.querySelectorAll<HTMLElement>('.ielts-set-meta[data-part1-count][data-part3-count]').forEach((meta) => {
-          const part1Count = Number(meta.dataset.part1Count || 0);
-          const part3Count = Number(meta.dataset.part3Count || 0);
-          meta.textContent = selectedMode === 'part1'
-            ? `${part1Count} Part 1 prompts`
-            : selectedMode === 'part2'
-              ? '1 Part 2 cue card'
-              : selectedMode === 'part3'
-                ? `${part3Count} Part 3 prompts`
-                : `${part1Count} Part 1 prompts · 1 Part 2 cue card · ${part3Count} Part 3 prompts`;
-        });
-      };
       const syncModeButtons = (selectedMode: string): void => {
         modeButtons.forEach((button) => {
           const active = button.dataset.modeChoice === selectedMode;
@@ -368,7 +354,6 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
           button.setAttribute('aria-checked', String(active));
           button.tabIndex = active ? 0 : -1;
         });
-        updateSetMetadata(selectedMode);
       };
       modeButtons.forEach((button, index) => {
         button.addEventListener('click', () => {
@@ -444,8 +429,12 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         }
         isRegeneratingQuestions = true;
         const button = container.querySelector<HTMLButtonElement>('#ielts-refresh-sets-btn');
-        if (button) { button.disabled = true; button.textContent = 'Generating five sets…'; }
-        if (notice) { notice.hidden = false; notice.textContent = 'Generating five new AI question sets. Your current unfinished sets will be replaced only after the new batch is saved.'; notice.classList.remove('error', 'is-visible'); }
+        if (button) {
+          button.disabled = true;
+          button.setAttribute('aria-busy', 'true');
+          button.innerHTML = '<span class="ielts-loading-spinner" aria-hidden="true"></span><span class="ielts-loading-copy"><span>Generating five sets…</span><small class="ielts-loading-hint">This may take a while.</small></span>';
+        }
+        if (notice) { notice.hidden = false; notice.textContent = 'Generating five new AI question sets. This may take a while. Your current unfinished sets will be replaced only after the new batch is saved.'; notice.classList.remove('error', 'is-visible'); }
         try {
           const requestedTopic = requestedTopicInput.trim();
           const added = await generateIeltsQuestionSets(5, { requestedTopic });

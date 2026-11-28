@@ -40,7 +40,7 @@ vi.mock('@capacitor/preferences', () => ({
   }
 }));
 
-vi.mock('../src/services/tierManager', () => ({
+vi.mock('../src/services/runtimeFailureStore', () => ({
   clearSlotRuntimeFailure: vi.fn()
 }));
 

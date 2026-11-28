@@ -4480,10 +4480,12 @@ body {
 .shadowing-main-card .sh-language-picker-label[for="sh-language-select"] {
   padding-inline-start: 4px;
 }
+.shadowing-main-card .sh-language-picker-label[for="sh-language-select"] svg {
+  transform: translateX(-4px);
+}
 .shadowing-main-card .sh-language-picker-label svg {
   stroke-width: 2.2;
 }
-.shadowing-main-card #sh-translation-language-global + .unused { display: none; }
 .shadowing-main-card #sh-auto-translate-toggle {
   flex: 0 0 48px;
   width: 48px;
@@ -4510,9 +4512,9 @@ body {
 #sh-translation-card .sh-translation-actions { display:grid; grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr); gap:8px; align-items:stretch; width:100%; min-width:0; }
 #sh-translation-card .sh-translate-btn { width:100%; min-width:0; height:48px; min-height:48px; box-sizing:border-box; border:0; border-radius:var(--radius-sm); background:var(--accent); color:var(--on-accent); box-shadow:inset 0 0 0 1px var(--accent); white-space:nowrap; }
 #sh-translation-card .sh-grammar-button-group { position:relative; display:flex; width:100%; min-width:0; height:48px; min-height:48px; box-sizing:border-box; border:0; border-radius:var(--radius-sm); background:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
-#sh-translation-card .sh-grammar-btn { flex:1 1 auto; min-width:0; height:100%; min-height:0; margin:0; padding-block:0; padding-inline-start:0; padding-inline-end:60px; border:0; border-radius:inherit; background:transparent; color:var(--on-accent); box-shadow:none; text-align:center; white-space:nowrap; font-size:clamp(.8rem,3.6vw,.875rem); }
-#sh-translation-card .sh-grammar-language-toggle { position:absolute; z-index:2; inset-block:0; inset-inline-end:0; display:grid; place-items:center; width:60px; min-width:60px; height:100%; min-height:0; padding:0; border:0; border-start-end-radius:var(--radius-sm); border-end-end-radius:var(--radius-sm); background:transparent; color:var(--on-accent); cursor:pointer; }
-#sh-translation-card .sh-grammar-language-toggle::before { content:""; position:absolute; inset-block-start:50%; inset-inline-start:50%; translate:-50% -50%; width:32px; height:32px; box-sizing:border-box; border:1.5px solid var(--on-accent); border-radius:50%; background:transparent; pointer-events:none; }
+#sh-translation-card .sh-grammar-btn { flex:1 1 auto; min-width:0; height:100%; min-height:0; margin:0; padding-block:0; padding-left:0; padding-right:60px; border:0; border-radius:inherit; background:transparent; color:var(--on-accent); box-shadow:none; text-align:center; white-space:nowrap; font-size:clamp(.8rem,3.6vw,.875rem); }
+#sh-translation-card .sh-grammar-language-toggle { position:absolute; z-index:2; top:0; right:0; left:auto; display:grid; place-items:center; width:60px; min-width:60px; height:100%; min-height:0; padding:0; border:0; border-top-right-radius:var(--radius-sm); border-bottom-right-radius:var(--radius-sm); background:transparent; color:var(--on-accent); cursor:pointer; }
+#sh-translation-card .sh-grammar-language-toggle::before { content:""; position:absolute; top:50%; left:50%; right:auto; translate:-50% -50%; width:32px; height:32px; box-sizing:border-box; border:1.5px solid var(--on-accent); border-radius:50%; background:transparent; pointer-events:none; }
 #sh-translation-card .sh-grammar-language-toggle.is-on { color:var(--accent); }
 #sh-translation-card .sh-grammar-language-toggle.is-on::before { border-color:var(--on-accent); background:var(--on-accent); }
 #sh-translation-card .sh-grammar-language-toggle.is-off { color:color-mix(in srgb,var(--on-accent) 65%,transparent); }
@@ -4561,3 +4563,106 @@ body {
 @media (max-width:380px) { #sh-translation-card .sh-grammar-chat-message.user { max-width:94%; } }
 .shadowing-main-card #sh-auto-translate-toggle { display:inline-flex; align-items:center; justify-content:center; }
 .shadowing-main-card #sh-auto-translate-toggle svg { display:block; margin:0; vertical-align:middle; transform:none; }
+
+/* Keep playback buttons equal in size; enlarge and center only the Play/Stop icon. */
+.shadowing-main-card .sh-player-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.shadowing-main-card .sh-player-controls .sh-player-icon-btn {
+  width: 100%;
+  min-width: 0;
+  height: 46px;
+  min-height: 46px;
+  padding: 5px 2px;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+}
+.shadowing-main-card .sh-player-controls #sh-play-normal-btn {
+  justify-self: stretch;
+  height: 46px;
+  min-height: 46px;
+  padding: 5px 2px;
+  border-radius: 14px;
+}
+.shadowing-main-card .sh-player-controls #sh-play-normal-btn .sh-inline-icon {
+  display: block;
+  width: 35px;
+  height: 35px;
+  max-width: 100%;
+  margin: 0;
+  justify-self: center;
+  align-self: center;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  transform: none;
+}
+
+
+/* Shadowing performance: explanatory copy first, preference controls below it. */
+.settings-shadowing-performance-card .shadowing-prefetch-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+.settings-shadowing-performance-card .shadowing-prefetch-setting .appearance-setting-copy {
+  grid-column: 1 / -1;
+}
+.settings-shadowing-performance-card .shadowing-prefetch-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 9px;
+  margin: 0;
+  white-space: normal;
+}
+.settings-shadowing-performance-card #shadowing-prefetch-status {
+  grid-column: 1 / -1;
+  min-height: 0;
+  margin: 0;
+}
+
+/* Make the IELTS question-set action visibly busy instead of merely faded. */
+.ielts-refresh-btn[aria-busy="true"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  opacity: 1;
+  cursor: wait;
+}
+.ielts-loading-spinner {
+  display: inline-block;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ielts-generation-spin .75s linear infinite;
+}
+.ielts-loading-copy {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  line-height: 1.15;
+  text-align: left;
+}
+.ielts-loading-hint {
+  font-size: .72rem;
+  font-weight: 500;
+  opacity: .9;
+}
+@keyframes ielts-generation-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ielts-loading-spinner { animation-duration: 1.8s; }
+}

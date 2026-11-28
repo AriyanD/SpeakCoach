@@ -17,13 +17,51 @@ export interface IeltsSessionLogEntry {
 let inMemoryLastRecord: IeltsTestRecord | null = null;
 let inMemorySessionLogs: IeltsSessionLogEntry[] = [];
 
+function sanitizeSessionLogEntry(entry: IeltsSessionLogEntry): IeltsSessionLogEntry {
+  if (entry.event === 'recognizer_result') {
+    const details = entry.details ?? '';
+    const legacyTranscript = details.match(/^Raw system-recognizer transcript: "([\s\S]*)" \| confidence:/i)?.[1];
+    const transcriptLength = details.match(/transcriptLength=(\d+)/i)?.[1] ??
+      (legacyTranscript !== undefined ? String(legacyTranscript.length) : 'unknown');
+    const confidence = details.match(/confidence[=:]\s*([^|;]+)/i)?.[1]?.trim() ?? 'N/A';
+    const duration = details.match(/duration[=:]\s*(\d+)s?/i)?.[1] ?? 'unknown';
+    return {
+      ...entry,
+      details: `System recognizer completed; transcript omitted; characters=${transcriptLength}; confidence=${confidence}; duration=${duration}s`
+    };
+  }
+  if (entry.event === 'whisper_recovered_transcript') {
+    return {
+      ...entry,
+      details: 'Recovered transcript via Tier 2 STT; transcript omitted from technical logs.'
+    };
+  }
+  if (entry.event === 'LLM Evaluation') {
+    const provider = entry.details?.match(/^Provider: ([^;|]{1,80})/i)?.[1]?.trim();
+    const httpStatus = entry.details?.match(/\bHTTP (\d{3})\b/i)?.[1] ??
+      entry.error?.match(/\bHTTP (\d{3})\b/i)?.[1];
+    return {
+      ...entry,
+      error: httpStatus
+        ? `LLM evaluation failed (HTTP ${httpStatus}); provider response omitted.`
+        : 'LLM evaluation failed; provider response omitted.',
+      details: [
+        provider ? `Provider: ${provider}` : 'Provider: unavailable',
+        httpStatus ? `HTTP ${httpStatus}` : 'Failure stage: evaluation',
+        'response omitted from technical logs'
+      ].join('; ')
+    };
+  }
+  return entry;
+}
+
 export function logIeltsSessionEvent(
   entry: Omit<IeltsSessionLogEntry, 'timestamp'>
 ): void {
-  const fullEntry: IeltsSessionLogEntry = {
+  const fullEntry = sanitizeSessionLogEntry({
     ...entry,
     timestamp: new Date().toISOString()
-  };
+  });
   inMemorySessionLogs.push(fullEntry);
   if (inMemorySessionLogs.length > 100) {
     inMemorySessionLogs.shift();
@@ -46,8 +84,20 @@ export function getIeltsSessionLogs(): IeltsSessionLogEntry[] {
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem(SESSION_LOG_KEY);
       if (raw) {
-        inMemorySessionLogs = JSON.parse(raw);
-        return inMemorySessionLogs;
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          inMemorySessionLogs = parsed.map((item) =>
+            sanitizeSessionLogEntry(item as IeltsSessionLogEntry)
+          );
+          if (JSON.stringify(inMemorySessionLogs) !== JSON.stringify(parsed)) {
+            try {
+              localStorage.setItem(SESSION_LOG_KEY, JSON.stringify(inMemorySessionLogs));
+            } catch {
+              // Keep sanitized entries in memory if storage is temporarily unavailable.
+            }
+          }
+          return inMemorySessionLogs;
+        }
       }
     }
   } catch {

@@ -65,7 +65,7 @@ describe('Whisper multipart request contract', () => {
     await requestWhisperWordTimestamps({
       slotConfig: {
         slotId: 'ielts_stt',
-        providerId: 'whisper_stt',
+        providerId: 'custom_openai_stt',
         baseUrl: 'https://api.groq.com/openai/v1',
         modelOrVoice: 'whisper-large-v3-turbo'
       },
@@ -105,7 +105,7 @@ describe('Whisper multipart request contract', () => {
     const result = await testSlotConnection(
       {
         slotId: 'ielts_stt',
-        providerId: 'whisper_stt',
+        providerId: 'custom_openai_stt',
         baseUrl: 'https://api.groq.com/openai/v1',
         modelOrVoice: 'whisper-large-v3-turbo'
       },

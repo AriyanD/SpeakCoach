@@ -1,7 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import type { SlotId } from '../config/types';
-import { clearSlotRuntimeFailure } from '../services/tierManager';
+import { clearSlotRuntimeFailure } from '../services/runtimeFailureStore';
 
 export interface SecureKeyPluginInterface {
   setKey(options: { keyId: string; value: string }): Promise<{ saved: boolean }>;

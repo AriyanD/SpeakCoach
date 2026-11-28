@@ -138,28 +138,43 @@ describe('IELTS generation reliability validation', () => {
       const topicA = prompt.match(/Part 1 topic A: "([^"]+)"/)?.[1];
       const topicB = prompt.match(/Part 1 topic B: "([^"]+)"/)?.[1];
       if (!topicA || !topicB) throw new Error('Could not read the assigned Part 1 topics from the prompt.');
-      const plan = {
-        part1Topics: [topicA, topicB],
-        part1Questions: [
+      const alternate = calls >= 4;
+      const part1Questions = alternate ? [
+          { topic: topicA, question: `Which aspects of ${topicA} appeal to you most?` },
+          { topic: topicA, question: `Did you take part in ${topicA} activities when you were younger?` },
+          { topic: topicA, question: `In what ways has your view of ${topicA} developed?` },
+          { topic: topicB, question: `What would you say is the main attraction of ${topicB}?` },
+          { topic: topicB, question: `How did you first become interested in ${topicB}?` },
+          { topic: topicB, question: `Would you consider exploring ${topicB} in greater depth?` }
+        ] : [
           { topic: topicA, question: `What do you enjoy about ${topicA}?` },
           { topic: topicA, question: `How often do you take part in ${topicA}?` },
           { topic: topicA, question: `Has your interest in ${topicA} changed over time?` },
           { topic: topicB, question: `What do you find interesting about ${topicB}?` },
           { topic: topicB, question: `When did you last experience ${topicB}?` },
           { topic: topicB, question: `Would you like to learn more about ${topicB}?` }
-        ],
+        ];
+      const part3Questions = alternate ? [
+          { topic: topicB, question: `What factors explain the growing interest in ${topicB}?` },
+          { topic: topicB, question: `In what ways could communities make ${topicB} more accessible?` },
+          { topic: topicB, question: `To what extent should public authorities support ${topicB}?` },
+          { topic: topicB, question: `What might happen to ${topicB} as society changes?` }
+        ] : [
+          { topic: topicB, question: `How can local communities support ${topicB}?` },
+          { topic: topicB, question: `What changes might affect ${topicB} in the future?` },
+          { topic: topicB, question: `Should public authorities invest more in ${topicB}?` },
+          { topic: topicB, question: `How does ${topicB} influence people's quality of life?` }
+        ];
+      const plan = {
+        part1Topics: [topicA, topicB],
+        part1Questions,
         part2CueCard: {
           topic: topicB,
           title: `An experience related to ${topicB}`,
           prompt: `Describe an experience related to ${topicB}.`,
           bullets: ['When it happened', 'Where you were', 'What you did', 'And explain why you remember it']
         },
-        part3Questions: [
-          { topic: topicB, question: `How can local communities support ${topicB}?` },
-          { topic: topicB, question: `What changes might affect ${topicB} in the future?` },
-          { topic: topicB, question: `Should public authorities invest more in ${topicB}?` },
-          { topic: topicB, question: `How does ${topicB} influence people's quality of life?` }
-        ]
+        part3Questions
       };
       return {
         status: 200,
@@ -177,5 +192,7 @@ describe('IELTS generation reliability validation', () => {
     expect(getLlmSeenTopics().length).toBeGreaterThan(0);
     expect(getRecentLlmQuestions().length).toBeGreaterThan(0);
   });
+
+
 
 });

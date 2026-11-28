@@ -1,0 +1,175 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SHADOWING_LANGUAGES } from '../src/data/shadowingLanguages';
+import { SHADOWING_LANGUAGE_PROFILES } from '../src/data/shadowingLanguageProfiles';
+import { buildShadowingPrompt, estimatePromptTokens } from '../src/services/shadowingPromptBuilder';
+import {
+  buildVarietySlots, exportGenerationVarietySnapshot, getVarietyMemory, importGenerationVarietySnapshot,
+  makeMemoryEntry, openingKey, sentenceSimilarity, seedVarietyMemory, validateVarietyBatch
+} from '../src/services/generationVariety';
+
+const store = vi.hoisted(() => new Map<string, string>());
+vi.mock('@capacitor/preferences', () => ({
+  Preferences: {
+    get: async ({ key }: { key: string }) => ({ value: store.get(key) ?? null }),
+    set: async ({ key, value }: { key: string; value: string }) => { store.set(key, value); },
+    remove: async ({ key }: { key: string }) => { store.delete(key); }
+  }
+}));
+
+describe('Shadowing generation variety', () => {
+  beforeEach(() => { store.clear(); localStorage.clear(); });
+
+  it('uses the 60-situation shuffled deck without replacement, including after reload', async () => {
+    const foci = SHADOWING_LANGUAGE_PROFILES.en.foci;
+    const first = await buildVarietySlots('en', 'easy', 22, foci);
+    localStorage.clear(); // Simulate a WebView reload; Preferences retains the deck.
+    const second = await buildVarietySlots('en', 'easy', 22, foci);
+    const third = await buildVarietySlots('en', 'easy', 16, foci);
+    const situations = [...first.slots, ...second.slots, ...third.slots].map(slot => slot.situation);
+    expect(new Set(situations).size).toBe(60);
+    const afterExhaustion = await buildVarietySlots('en', 'easy', 1, foci);
+    expect(situations).toContain(afterExhaustion.slots[0].situation);
+  });
+
+
+  it('rotates all four object-backed prompt variants without replacement across reloads', async () => {
+    const variants: string[] = [];
+    for (let index = 0; index < 4; index++) {
+      const result = await buildVarietySlots('en', 'easy', 1, SHADOWING_LANGUAGE_PROFILES.en.foci);
+      variants.push(result.promptVariantId);
+      if (index === 1) localStorage.clear(); // Preferences survives a WebView reload.
+    }
+    expect(new Set(variants).size).toBe(4);
+  });
+
+  it('migrates legacy object-backed prompt decks to stored IDs', async () => {
+    const key = 'speakcoach_generation_variety_v1.prompt.en.easy';
+    store.set(key, JSON.stringify({
+      deck: [{ id: 'v1' }, { id: 'v2' }, { id: 'v3' }, { id: 'v4' }],
+      cursor: 1
+    }));
+    const result = await buildVarietySlots('en', 'easy', 1, SHADOWING_LANGUAGE_PROFILES.en.foci);
+    expect(result.promptVariantId).toBe('v2');
+    expect(JSON.parse(store.get(key) ?? '{}').deck).toEqual(['v1', 'v2', 'v3', 'v4']);
+  });
+
+
+  it('exports and restores selection decks additively while accepting old memory-only snapshots', async () => {
+    const first = await buildVarietySlots('en', 'easy', 1, SHADOWING_LANGUAGE_PROFILES.en.foci);
+    const snapshot = await exportGenerationVarietySnapshot();
+    const levelDecks = (snapshot.decks as Record<string, Record<string, { deck: string[]; cursor: number }>>)['en:easy'];
+    expect(levelDecks.prompt.deck).toHaveLength(4);
+    const expectedNext = levelDecks.prompt.deck[levelDecks.prompt.cursor];
+
+    store.clear();
+    localStorage.clear();
+    await importGenerationVarietySnapshot(snapshot);
+    const next = await buildVarietySlots('en', 'easy', 1, SHADOWING_LANGUAGE_PROFILES.en.foci);
+    expect(next.promptVariantId).toBe(expectedNext);
+    expect(next.promptVariantId).not.toBe(first.promptVariantId);
+
+    await expect(importGenerationVarietySnapshot({ version: 1, memory: { 'en:easy': [] } })).resolves.toBeUndefined();
+  });
+
+  it('keeps memory isolated by language and level and stores compact entries', async () => {
+    await seedVarietyMemory('en', 'easy', ['The train arrived late after the heavy rain.']);
+    expect(await getVarietyMemory('en', 'easy')).toHaveLength(1);
+    expect(await getVarietyMemory('en', 'hard')).toHaveLength(0);
+    expect(await getVarietyMemory('sv', 'easy')).toHaveLength(0);
+    expect((await getVarietyMemory('en', 'easy'))[0]).toMatchObject({
+      openingKey: 'the train', text: 'The train arrived late after the heavy rain.'
+    });
+  });
+
+  it('migrates the legacy shared English and per-language memory keys', async () => {
+    localStorage.setItem('speakcoach_shadowing_recent_sentences_v1', JSON.stringify([
+      'The old English memory entry remains available after migration.'
+    ]));
+    localStorage.setItem('speakcoach_shadowing_recent_sentences_v2.sv', JSON.stringify([
+      'Den gamla svenska meningen finns kvar efter migreringen.'
+    ]));
+    expect((await getVarietyMemory('en', 'easy')).some(item => item.text.startsWith('The old English'))).toBe(true);
+    expect((await getVarietyMemory('sv', 'hard')).some(item => item.text.startsWith('Den gamla svenska'))).toBe(true);
+  });
+
+  it('uses script-aware opening keys and similarity for Chinese and Japanese', () => {
+    expect(openingKey('今天我去车站接朋友。', 'zh')).toBe('今天我');
+    expect(openingKey('今日は駅で友達に会いました。', 'ja')).toBe('今日は');
+    expect(sentenceSimilarity('今天我去车站接朋友。', '今天我去车站接同学。', 'zh')).toBeGreaterThan(0.5);
+    expect(sentenceSimilarity('今日は駅で友達に会いました。', '今日は駅で友人に会いました。', 'ja')).toBeGreaterThan(0.5);
+  });
+
+  it('rejects repeated openings and near-duplicates locally', () => {
+    const result = validateVarietyBatch([
+      'The train arrived late after a sudden storm.',
+      'The train arrived late because a sudden storm delayed it.',
+      'The train stopped outside the station for several minutes.',
+      'The train departed early after the driver changed the schedule.',
+      'The train waited beside the platform while passengers checked their messages.',
+      'My neighbour offered to collect the parcel after work.'
+    ], 'en', []);
+    expect(result.accepted).toHaveLength(3);
+    expect(result.rejected).toHaveLength(3);
+  });
+
+
+  it('labels row columns and preserves caller-supplied original row numbers', async () => {
+    const slots = await buildVarietySlots('en', 'easy', 2, SHADOWING_LANGUAGE_PROFILES.en.foci);
+    const prompt = buildShadowingPrompt({
+      languageCode: 'en', difficulty: 'easy', slots: slots.slots,
+      avoidOpenings: [], avoidWords: [], promptVariantId: slots.promptVariantId, rowNumbers: [3, 5]
+    });
+    expect(prompt).toContain('Row: n|situation|speech act|grammar|words|pronunciation focus.');
+    expect(prompt).toContain('3|');
+    expect(prompt).toContain('5|');
+    expect(prompt).toContain('"n":1');
+  });
+
+
+  it('does not reject short sentences merely because they share two content words', () => {
+    const first = 'A bicycle needs careful maintenance.';
+    const second = 'Careful drivers inspect every bicycle regularly.';
+    expect(sentenceSimilarity(first, second, 'en')).toBeLessThan(0.5);
+    const result = validateVarietyBatch([first, second], 'en', []);
+    expect(result.accepted).toEqual([0, 1]);
+  });
+
+  it('uses a softer similarity threshold for memory older than the latest forty entries', () => {
+    const candidate = 'How can public libraries support lifelong learning in modern communities?';
+    const nearMatch = 'How can local libraries encourage adult learning in modern communities?';
+    const older = [makeMemoryEntry(nearMatch, 'en'), ...Array.from({ length: 40 }, (_, index) => makeMemoryEntry(`Unrelated recent memory sentence number ${index}.`, 'en'))];
+    const recent = [...Array.from({ length: 40 }, (_, index) => makeMemoryEntry(`Unrelated recent memory sentence number ${index}.`, 'en')), makeMemoryEntry(nearMatch, 'en')];
+    expect(validateVarietyBatch([candidate], 'en', older).accepted).toEqual([0]);
+    expect(validateVarietyBatch([candidate], 'en', recent).rejected).toEqual([{ index: 0, reason: 'similar' }]);
+  });
+
+  it('keeps 22 by 120 similarity comparisons comfortably below 100 ms', () => {
+    const memory = Array.from({ length: 120 }, (_, index) =>
+      `A different person described an ordinary experience number ${index} during a quiet afternoon.`
+    );
+    const candidates = Array.from({ length: 22 }, (_, index) =>
+      `A learner explained a completely separate situation number ${index} while travelling across town.`
+    );
+    const started = performance.now();
+    for (const candidate of candidates) for (const previous of memory) sentenceSimilarity(candidate, previous, 'en');
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
+  it('builds a compact profile-aware prompt for all 15 languages and four levels', async () => {
+    for (const language of SHADOWING_LANGUAGES) {
+      expect(SHADOWING_LANGUAGE_PROFILES[language.code].foci.length).toBeGreaterThanOrEqual(10);
+      for (const level of ['easy', 'medium', 'hard', 'ielts'] as const) {
+        const slots = await buildVarietySlots(language.code, level, 22, SHADOWING_LANGUAGE_PROFILES[language.code].foci);
+        const prompt = buildShadowingPrompt({
+          languageCode: language.code, difficulty: level, slots: slots.slots,
+          avoidOpenings: ['after work', 'near the station', 'before lunch', 'during class', 'on Friday', 'at home', 'while waiting', 'last weekend'],
+          avoidWords: ['neighbour', 'delivery', 'appointment', 'garden', 'platform', 'weather', 'parcel', 'kitchen'],
+          promptVariantId: slots.promptVariantId
+        });
+        expect(prompt).toContain(SHADOWING_LANGUAGE_PROFILES[language.code].register);
+        expect(prompt).toContain(slots.slots[0].focus);
+        expect(estimatePromptTokens(prompt)).toBeLessThan(600);
+      }
+    }
+  });
+});

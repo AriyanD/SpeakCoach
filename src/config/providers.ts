@@ -160,11 +160,11 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         slotId: 'pronunciation_scoring',
         tier: 2,
         requiresKey: true,
-        defaultBaseUrl: 'https://api.groq.com/openai/v1',
-        defaultModelOrVoice: 'whisper-large-v3-turbo',
-        modelSuggestions: ['whisper-large-v3-turbo', 'whisper-large-v3', 'distil-whisper-large-v3-en'],
-        modelFieldLabel: 'Whisper Model (e.g. whisper-large-v3-turbo or whisper-1)',
-        baseUrlPlaceholder: 'https://api.groq.com/openai/v1 or https://api.openai.com/v1',
+        defaultBaseUrl: 'https://api.openai.com/v1',
+        defaultModelOrVoice: 'whisper-1',
+        modelSuggestions: ['whisper-1'],
+        modelFieldLabel: 'OpenAI Whisper Model (whisper-1)',
+        baseUrlPlaceholder: 'https://api.openai.com/v1',
         description: 'Word-timestamp STT aligned to reference text to score word accuracy & timing.'
       },
       {
@@ -186,12 +186,12 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         slotId: 'pronunciation_scoring',
         tier: 2,
         requiresKey: true,
-        defaultBaseUrl: 'https://api.openai.com/v1',
-        defaultModelOrVoice: 'whisper-1',
-        modelSuggestions: ['whisper-1', 'whisper-large-v3-turbo', 'whisper-large-v3'],
-        modelFieldLabel: 'Model Name (e.g. whisper-1)',
-        baseUrlPlaceholder: 'https://your-custom-stt-gateway.com/v1',
-        description: 'Custom OpenAI-compatible /audio/transcriptions endpoint with free-text model and selectable auth.'
+        defaultBaseUrl: 'https://api.groq.com/openai/v1',
+        defaultModelOrVoice: 'whisper-large-v3-turbo',
+        modelSuggestions: ['whisper-large-v3-turbo', 'whisper-large-v3', 'distil-whisper-large-v3-en'],
+        modelFieldLabel: 'Groq Whisper Model',
+        baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
+        description: 'Groq-compatible /audio/transcriptions endpoint with word-level timestamps; URL and model remain editable.'
       },
       {
         id: 'offline_pronunciation',
@@ -220,11 +220,11 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         slotId: 'ielts_stt',
         tier: 2,
         requiresKey: true,
-        defaultBaseUrl: 'https://api.groq.com/openai/v1',
-        defaultModelOrVoice: 'whisper-large-v3-turbo',
-        modelSuggestions: ['whisper-large-v3-turbo', 'whisper-large-v3', 'distil-whisper-large-v3-en'],
-        modelFieldLabel: 'Whisper Model (whisper-large-v3-turbo or whisper-1)',
-        baseUrlPlaceholder: 'https://api.groq.com/openai/v1 or https://api.openai.com/v1',
+        defaultBaseUrl: 'https://api.openai.com/v1',
+        defaultModelOrVoice: 'whisper-1',
+        modelSuggestions: ['whisper-1'],
+        modelFieldLabel: 'OpenAI Whisper Model (whisper-1)',
+        baseUrlPlaceholder: 'https://api.openai.com/v1',
         description: 'Online Whisper transcription for IELTS answer text; pronunciation timing is not used here.'
       },
       {
@@ -246,12 +246,12 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         slotId: 'ielts_stt',
         tier: 2,
         requiresKey: true,
-        defaultBaseUrl: 'https://api.openai.com/v1',
-        defaultModelOrVoice: 'whisper-1',
-        modelSuggestions: ['whisper-1', 'whisper-large-v3-turbo', 'whisper-large-v3'],
-        modelFieldLabel: 'Model Name (e.g. whisper-1)',
-        baseUrlPlaceholder: 'https://your-custom-stt-gateway.com/v1',
-        description: 'Custom OpenAI-compatible /audio/transcriptions endpoint with free-text model and selectable auth.'
+        defaultBaseUrl: 'https://api.groq.com/openai/v1',
+        defaultModelOrVoice: 'whisper-large-v3-turbo',
+        modelSuggestions: ['whisper-large-v3-turbo', 'whisper-large-v3', 'distil-whisper-large-v3-en'],
+        modelFieldLabel: 'Groq Whisper Model',
+        baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
+        description: 'Groq-compatible /audio/transcriptions endpoint with word-level timestamps; URL and model remain editable.'
       },
       {
         id: 'offline_stt',
@@ -275,6 +275,19 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     subtitle: 'Band 0–9 criteria scoring, sentence rewrites, and vocabulary upgrades',
     providers: [
       {
+        id: 'gemini_eval',
+        name: 'Google Gemini API',
+        slotId: 'llm_evaluator',
+        tier: 1,
+        requiresKey: true,
+        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        defaultModelOrVoice: 'gemini-3.5-flash',
+        modelSuggestions: ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+        modelFieldLabel: 'Gemini Model (e.g. gemini-3.5-flash, gemini-2.0-flash)',
+        baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
+        description: 'Google Gemini structured JSON evaluation for IELTS Parts 1–3.'
+      },
+      {
         id: 'openai_compat_eval',
         name: 'OpenAI-Compatible LLM',
         slotId: 'llm_evaluator',
@@ -293,25 +306,12 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         slotId: 'llm_evaluator',
         tier: 1,
         requiresKey: true,
-        defaultBaseUrl: 'https://api.openai.com/v1',
-        defaultModelOrVoice: 'gpt-4o-mini',
-        modelSuggestions: ['gpt-4o-mini', 'gpt-4o', 'qwen-2.5-72b-instruct', 'deepseek-chat', 'mistral-large-latest'],
+        defaultBaseUrl: 'https://api.groq.com/openai/v1',
+        defaultModelOrVoice: 'openai/gpt-oss-120b',
+        modelSuggestions: ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'qwen/qwen3-32b', 'deepseek-r1-distill-llama-70b'],
         modelFieldLabel: 'Free-Text Model Name',
-        baseUrlPlaceholder: 'https://your-llm-gateway.example.com/v1',
+        baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
         description: 'Custom OpenAI-compatible /chat/completions endpoint with free-text model and selectable auth.'
-      },
-      {
-        id: 'gemini_eval',
-        name: 'Google Gemini API',
-        slotId: 'llm_evaluator',
-        tier: 1,
-        requiresKey: true,
-        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-        defaultModelOrVoice: 'gemini-3.5-flash',
-        modelSuggestions: ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
-        modelFieldLabel: 'Gemini Model (e.g. gemini-3.5-flash, gemini-2.0-flash)',
-        baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
-        description: 'Google Gemini structured JSON evaluation for IELTS Parts 1–3.'
       },
       {
         id: 'offline_rule_eval',
@@ -335,6 +335,19 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     subtitle: 'AI-generated IELTS questions & shadowing practice sentences',
     providers: [
       {
+        id: 'gemini_gen',
+        name: 'Google Gemini Generator',
+        slotId: 'llm_generator',
+        tier: 1,
+        requiresKey: true,
+        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        defaultModelOrVoice: 'gemini-3.5-flash-lite',
+        modelSuggestions: ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'],
+        modelFieldLabel: 'Gemini Model (e.g. gemini-3.5-flash-lite, gemini-2.0-flash)',
+        baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
+        description: 'Batch-generates structured practice material via Google Gemini API.'
+      },
+      {
         id: 'openai_compat_gen',
         name: 'OpenAI-Compatible Generator',
         slotId: 'llm_generator',
@@ -353,25 +366,12 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         slotId: 'llm_generator',
         tier: 1,
         requiresKey: true,
-        defaultBaseUrl: 'https://api.openai.com/v1',
-        defaultModelOrVoice: 'gpt-4o-mini',
-        modelSuggestions: ['gpt-4o-mini', 'gpt-4o', 'qwen-2.5-72b-instruct', 'deepseek-chat', 'mistral-large-latest'],
+        defaultBaseUrl: 'https://api.groq.com/openai/v1',
+        defaultModelOrVoice: 'openai/gpt-oss-120b',
+        modelSuggestions: ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'qwen/qwen3-32b', 'deepseek-r1-distill-llama-70b'],
         modelFieldLabel: 'Free-Text Model Name',
-        baseUrlPlaceholder: 'https://your-llm-gateway.example.com/v1',
+        baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
         description: 'Custom OpenAI-compatible /chat/completions endpoint with free-text model and selectable auth.'
-      },
-      {
-        id: 'gemini_gen',
-        name: 'Google Gemini Generator',
-        slotId: 'llm_generator',
-        tier: 1,
-        requiresKey: true,
-        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-        defaultModelOrVoice: 'gemini-3.5-flash-lite',
-        modelSuggestions: ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'],
-        modelFieldLabel: 'Gemini Model (e.g. gemini-3.5-flash-lite, gemini-2.0-flash)',
-        baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
-        description: 'Batch-generates structured practice material via Google Gemini API.'
       },
       {
         id: 'offline_bank_gen',
@@ -395,6 +395,19 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
     subtitle: 'A separate AI connection for Shadowing translation and on-demand grammar explanations.',
     providers: [
       {
+        id: 'gemini_translation',
+        name: 'Google Gemini Translator',
+        slotId: 'llm_translation',
+        tier: 1,
+        requiresKey: true,
+        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        defaultModelOrVoice: 'gemini-3.1-flash-lite',
+        modelSuggestions: ['gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-pro-latest'],
+        modelFieldLabel: 'Gemini Model',
+        baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
+        description: 'Google Gemini translation API with plain-text responses.'
+      },
+      {
         id: 'openai_compat_translation',
         name: 'OpenAI-Compatible Translator',
         slotId: 'llm_translation',
@@ -413,25 +426,12 @@ export const SLOT_DEFINITIONS: Record<SlotId, SlotDefinition> = {
         slotId: 'llm_translation',
         tier: 1,
         requiresKey: true,
-        defaultBaseUrl: 'https://api.openai.com/v1',
-        defaultModelOrVoice: 'gpt-4o-mini',
-        modelSuggestions: ['gpt-4o-mini', 'gpt-4o', 'qwen-2.5-72b-instruct', 'deepseek-chat', 'mistral-large-latest'],
+        defaultBaseUrl: 'https://api.groq.com/openai/v1',
+        defaultModelOrVoice: 'openai/gpt-oss-120b',
+        modelSuggestions: ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'qwen/qwen3-32b', 'deepseek-r1-distill-llama-70b'],
         modelFieldLabel: 'Free-text Model Name',
-        baseUrlPlaceholder: 'https://your-translation-gateway.example.com/v1',
+        baseUrlPlaceholder: 'https://api.groq.com/openai/v1',
         description: 'Custom OpenAI-compatible /chat/completions endpoint with selectable authentication.'
-      },
-      {
-        id: 'gemini_translation',
-        name: 'Google Gemini Translator',
-        slotId: 'llm_translation',
-        tier: 1,
-        requiresKey: true,
-        defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-        defaultModelOrVoice: 'gemini-3.1-flash-lite',
-        modelSuggestions: ['gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-pro-latest'],
-        modelFieldLabel: 'Gemini Model',
-        baseUrlPlaceholder: 'https://generativelanguage.googleapis.com/v1beta',
-        description: 'Google Gemini translation API with plain-text responses.'
       },
       {
         id: 'offline_translation',

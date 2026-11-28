@@ -319,9 +319,9 @@ describe('IeltsHistoryView Component & Tab Integration (Stage 4.4)', () => {
 
     // Click IELTS nav button
     navIelts?.click();
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    expect(root.innerHTML).toContain('Question sets');
+    await vi.waitFor(() => {
+      expect(root.innerHTML).toContain('Question sets');
+    }, { timeout: 2000, interval: 20 });
   });
 
   it('escapes untrusted history record IDs before inserting them into HTML attributes', async () => {

@@ -54,7 +54,7 @@ describe('Stage 2 Part 2A — Tier 2 Whisper STT Adapter & Word Timestamps', () 
     const res = await requestWhisperWordTimestamps({
       slotConfig: {
         slotId: 'ielts_stt',
-        providerId: 'whisper_stt',
+        providerId: 'custom_openai_stt',
         baseUrl: 'https://api.groq.com/openai/v1',
         modelOrVoice: 'whisper-large-v3-turbo'
       },
@@ -178,7 +178,7 @@ describe('Stage 2 Part 2A — Tier 2 Whisper STT Adapter & Word Timestamps', () 
     const conn = await testSlotConnection(
       {
         slotId: 'ielts_stt',
-        providerId: 'whisper_stt',
+        providerId: 'custom_openai_stt',
         baseUrl: 'https://api.groq.com/openai/v1',
         modelOrVoice: 'whisper-large-v3-turbo'
       },
@@ -198,7 +198,7 @@ describe('Stage 2 Part 2A — Tier 2 Whisper STT Adapter & Word Timestamps', () 
   it('automatically falls back to Tier 3 on Whisper endpoint error and displays raw word timestamps in Diagnostics', async () => {
     await saveSlotConfig({
       slotId: 'ielts_stt',
-      providerId: 'whisper_stt',
+      providerId: 'custom_openai_stt',
       baseUrl: 'https://api.groq.com/openai/v1',
       modelOrVoice: 'whisper-large-v3-turbo'
     });

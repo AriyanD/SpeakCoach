@@ -10,6 +10,8 @@ import type {
 import { hasConfiguredApiKey, loadApiKey } from '../storage/keyStore';
 import { loadAllSlotsConfig, loadSlotConnectionTestResult } from '../storage/localStore';
 import { networkMonitor } from './networkMonitor';
+import { clearSlotRuntimeFailure, getActiveSlotRuntimeFailure, markSlotRuntimeFailure } from './runtimeFailureStore';
+export { clearAllRuntimeFailures, clearSlotRuntimeFailure, getActiveSlotRuntimeFailure, markSlotRuntimeFailure } from './runtimeFailureStore';
 import { createProviderVerificationFingerprint, getProviderAccountHealth } from './providerHealth';
 
 export interface GlobalTierSummary {
@@ -22,15 +24,6 @@ export interface GlobalTierSummary {
 
 export const RUNTIME_FAILURE_TTL_MS = 3 * 60 * 1000; // 3 minutes
 export const CONNECTION_VERIFICATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-
-export interface SlotRuntimeFailureEntry {
-  reason: string;
-  at: number;
-  status?: number;
-  sticky: boolean;
-}
-
-const slotRuntimeFailures = new Map<SlotId, SlotRuntimeFailureEntry>();
 
 export function isStickyAuthFailure(errOrStatusOrMsg?: unknown): boolean {
   if (typeof errOrStatusOrMsg === 'number') {
@@ -51,47 +44,6 @@ export function isStickyAuthFailure(errOrStatusOrMsg?: unknown): boolean {
         ? errOrStatusOrMsg
         : '';
   return /\bHTTP\s*(401|403)\b/i.test(text) || /\b(401|403)\b/.test(text);
-}
-
-export function markSlotRuntimeFailure(
-  slotId: SlotId,
-  reason: string,
-  options?: { status?: number; at?: number; sticky?: boolean }
-): void {
-  const sticky =
-    options?.sticky ??
-    (isStickyAuthFailure(options?.status) || isStickyAuthFailure(reason));
-  if (!sticky) {
-    // Only 401/403 auth errors are sticky; transient errors (429/5xx/timeouts) do not stick
-    return;
-  }
-  slotRuntimeFailures.set(slotId, {
-    reason,
-    at: options?.at ?? Date.now(),
-    status: options?.status,
-    sticky: true
-  });
-}
-
-export function getActiveSlotRuntimeFailure(
-  slotId: SlotId,
-  nowMs = Date.now()
-): SlotRuntimeFailureEntry | null {
-  const entry = slotRuntimeFailures.get(slotId);
-  if (!entry) return null;
-  if (!entry.sticky || nowMs - entry.at >= RUNTIME_FAILURE_TTL_MS) {
-    slotRuntimeFailures.delete(slotId);
-    return null;
-  }
-  return entry;
-}
-
-export function clearSlotRuntimeFailure(slotId: SlotId): void {
-  slotRuntimeFailures.delete(slotId);
-}
-
-export function clearAllRuntimeFailures(): void {
-  slotRuntimeFailures.clear();
 }
 
 /** Tier 1 and Tier 2 are both online; only Tier 3 is offline. */

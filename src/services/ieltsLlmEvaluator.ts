@@ -536,11 +536,18 @@ export async function evaluateIeltsWithTierFallback(params: {
     lastLlmEvaluationError = rawMsg;
     lastLlmEvaluationSnippet = rawSnippet;
 
+    const safeHttpStatus = err instanceof SpeakCoachHttpError
+      ? String(err.status)
+      : rawMsg.match(/\bHTTP\s*(\d{3})\b/i)?.[1] ??
+        rawMsg.match(/\bstatus(?:\s+code)?\s*[:=]?\s*(\d{3})\b/i)?.[1];
+
     logIeltsSessionEvent({
       event: 'LLM Evaluation',
       status: 'error',
-      error: rawMsg,
-      details: rawSnippet ? `Snippet: ${rawSnippet} | Reason: ${formattedReason}` : `Reason: ${formattedReason}`
+      error: safeHttpStatus
+        ? `LLM evaluation failed (HTTP ${safeHttpStatus}); provider response omitted.`
+        : 'LLM evaluation failed; provider response omitted.',
+      details: `Provider: ${preset.name}; ${safeHttpStatus ? `HTTP ${safeHttpStatus}` : 'evaluation response validation'}; response omitted`
     });
 
     throw new LlmEvaluationFailureError(formattedReason, rawMsg, rawSnippet);

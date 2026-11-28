@@ -1,7 +1,7 @@
 import { confirmInApp } from './confirmDialog';
 import { SLOT_DEFINITIONS, SLOT_ORDER } from '../config/providers';
 import { runFullDiagnostics, type DiagnosticsReport } from '../services/diagnostics';
-import { getLastIeltsEvaluation, getIeltsSessionLogs } from '../services/ieltsTelemetry';
+import { clearIeltsSessionLogs, getLastIeltsEvaluation, getIeltsSessionLogs } from '../services/ieltsTelemetry';
 import { clearLastShadowingAttempt } from '../services/shadowingTelemetry';
 
 let cachedReport: DiagnosticsReport | null = null;
@@ -260,8 +260,9 @@ function renderIeltsSessionLogsSection(): string {
       <div class="card-header">
         <div>
           <h2 class="card-title"><svg class="diag-heading-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8M9 3h6v3H9zM6 5H4v16h16V5h-2"/><path d="M8 11h8M8 15h8"/></svg> Last IELTS Session Log</h2>
-          <p class="card-subtitle">${logs.length} event(s) recorded in session history</p>
+          <p class="card-subtitle">${logs.length} technical event(s) recorded</p>
         </div>
+        <button type="button" class="btn btn-secondary" id="diag-clear-ielts-logs-btn">Clear technical logs</button>
         <span class="tier-badge ${hasError ? 'offline' : 'online'}">
           <span class="tier-dot"></span>${hasError ? 'ERRORS LOGGED' : 'HEALTHY'}
         </span>
@@ -383,6 +384,22 @@ export async function renderDiagnosticsView(
   const reqMicBtn = container.querySelector<HTMLButtonElement>('#diag-request-mic-btn');
   const runAllBtn = container.querySelector<HTMLButtonElement>('#diag-run-all-btn');
   const clearShadowingAttemptBtn = container.querySelector<HTMLButtonElement>('#diag-clear-shadowing-attempt-btn');
+  const clearIeltsLogsBtn = container.querySelector<HTMLButtonElement>('#diag-clear-ielts-logs-btn');
+
+  clearIeltsLogsBtn?.addEventListener('click', async () => {
+    const confirmed = await confirmInApp({
+      title: 'Clear IELTS technical logs?',
+      message: 'This removes only technical session events stored for diagnostics. Your saved IELTS answers, questions, scores, feedback and practice history will remain untouched.',
+      confirmLabel: 'Clear technical logs',
+      cancelLabel: 'Keep logs',
+      tone: 'danger'
+    });
+    if (!confirmed) return;
+    clearIeltsLogsBtn.disabled = true;
+    clearIeltsSessionLogs();
+    cachedReport = null;
+    await onRefreshShell();
+  });
 
   clearShadowingAttemptBtn?.addEventListener('click', async () => {
     const confirmed = await confirmInApp({

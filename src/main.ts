@@ -5,12 +5,6 @@ import { networkMonitor } from './services/networkMonitor';
 import { initializeShadowingAudioStore } from './services/shadowingAudioStore';
 import { resolveGlobalTierSummary } from './services/tierManager';
 import { loadAllSlotsConfig } from './storage/localStore';
-import { clearDiagnosticsCache, renderDiagnosticsView } from './ui/DiagnosticsView';
-import { renderSettingsView } from './ui/SettingsView';
-import { renderShadowingView, resetShadowingViewState, pauseShadowingRecordingForBackground } from './ui/ShadowingView';
-import { renderIeltsView } from './ui/IeltsView';
-import { renderIeltsResultView } from './ui/IeltsResultView';
-import { renderIeltsHistoryView } from './ui/IeltsHistoryView';
 import { ieltsSessionEngine } from './services/ieltsSessionEngine';
 import { stopAllTts } from './services/ttsService';
 import { audioRecorder } from './services/audioRecorder';
@@ -184,13 +178,9 @@ export async function bootstrapApp(
   let activeCleanup: (() => void) | null = null;
   let refreshGeneration = 0;
   let lifecyclePauseInProgress = false;
+  let shadowingViewInitialized = false;
 
-  clearDiagnosticsCache();
-  resetShadowingViewState();
-  await initializeTheme();
-  await initializeShadowingAudioStore().catch(error => {
-    console.warn('[SpeakCoach] Active-set Shadowing audio reconciliation was skipped.', error);
-  });
+  void import('./ui/DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
   root.innerHTML = `
     <main class="view-container" id="view-container"></main>
     <nav class="bottom-nav" aria-label="Main navigation">
@@ -199,6 +189,13 @@ export async function bootstrapApp(
       <button type="button" class="nav-btn" id="nav-settings"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Settings"><path d="M10.14 4.53 L10.71 1.78 L13.29 1.78 L13.86 4.53 L15.97 5.40 L18.31 3.86 L20.14 5.69 L18.60 8.03 L19.47 10.14 L22.22 10.71 L22.22 13.29 L19.47 13.86 L18.60 15.97 L20.14 18.31 L18.31 20.14 L15.97 18.60 L13.86 19.47 L13.29 22.22 L10.71 22.22 L10.14 19.47 L8.03 18.60 L5.69 20.14 L3.86 18.31 L5.40 15.97 L4.53 13.86 L1.78 13.29 L1.78 10.71 L4.53 10.14 L5.40 8.03 L3.86 5.69 L5.69 3.86 L8.03 5.40 Z"/><circle cx="12" cy="12" r="3.2"/></svg><span>Settings</span></button>
     </nav>
   `;
+
+  // Mount the app shell immediately so startup never leaves a blank root while
+  // theme and local Shadowing storage initialization are pending.
+  await initializeTheme();
+  await initializeShadowingAudioStore().catch(error => {
+    console.warn('[SpeakCoach] Active-set Shadowing audio reconciliation was skipped.', error);
+  });
 
   observeAppLanguage(document.body);
 
@@ -277,8 +274,16 @@ export async function bootstrapApp(
     navSettingsBtn?.classList.toggle('active', currentTab === 'settings' || currentTab === 'diagnostics');
 
     if (currentTab === 'shadowing') {
-      activeCleanup = renderShadowingView(viewContainer, summary);
+      const shadowingView = await import('./ui/ShadowingView');
+      if (generation !== refreshGeneration) return;
+      if (!shadowingViewInitialized) {
+        shadowingView.resetShadowingViewState();
+        shadowingViewInitialized = true;
+      }
+      activeCleanup = shadowingView.renderShadowingView(viewContainer, summary);
     } else if (currentTab === 'ielts') {
+      const { renderIeltsView } = await import('./ui/IeltsView');
+      if (generation !== refreshGeneration) return;
       activeCleanup = renderIeltsView(viewContainer, summary, {
         onComplete: (record) => {
           activeIeltsResult = record;
@@ -290,6 +295,8 @@ export async function bootstrapApp(
         onOpenSettings: () => navigateTo('settings')
       });
     } else if (currentTab === 'ielts-result' && activeIeltsResult) {
+      const { renderIeltsResultView } = await import('./ui/IeltsResultView');
+      if (generation !== refreshGeneration) return;
       renderIeltsResultView(viewContainer, activeIeltsResult, {
         onRetake: () => {
           stopAllTts();
@@ -310,6 +317,8 @@ export async function bootstrapApp(
         }
       });
     } else if (currentTab === 'ielts-history') {
+      const { renderIeltsHistoryView } = await import('./ui/IeltsHistoryView');
+      if (generation !== refreshGeneration) return;
       activeCleanup = await renderIeltsHistoryView(viewContainer, {
         onSelectResult: (record) => {
           activeIeltsResult = record;
@@ -330,13 +339,17 @@ export async function bootstrapApp(
         }
       });
     } else if (currentTab === 'settings') {
+      const { renderSettingsView } = await import('./ui/SettingsView');
+      if (generation !== refreshGeneration) return;
       await renderSettingsView(viewContainer, configs, summary, async () => {
-        clearDiagnosticsCache();
+        void import('./ui/DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
         await refreshUI();
       }, () => {
         navigateTo('diagnostics');
       });
     } else {
+      const { renderDiagnosticsView } = await import('./ui/DiagnosticsView');
+      if (generation !== refreshGeneration) return;
       await renderDiagnosticsView(viewContainer, getAppVersion(), refreshUI);
     }
   };
@@ -491,7 +504,7 @@ export async function bootstrapApp(
 
   await networkMonitor.init();
   networkMonitor.subscribe((online) => {
-    clearDiagnosticsCache();
+    void import('./ui/DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
     // Publish connectivity without rebuilding the active view. Rebuilding it
     // can cancel an IELTS session and interrupt a Shadowing recording.
     document.documentElement.dataset.networkStatus = online ? 'online' : 'offline';
@@ -519,7 +532,7 @@ export async function bootstrapApp(
     } else if (currentTab === 'shadowing' || audioRecorder.isRecording()) {
       lifecyclePauseInProgress = true;
       const stopActiveCapture = currentTab === 'shadowing'
-        ? pauseShadowingRecordingForBackground()
+        ? import('./ui/ShadowingView').then(({ pauseShadowingRecordingForBackground }) => pauseShadowingRecordingForBackground())
         : audioRecorder.stop().then(() => undefined);
       void stopActiveCapture.finally(() => {
         lifecyclePauseInProgress = false;

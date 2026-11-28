@@ -1,4 +1,6 @@
 import type { ShadowingDifficulty, ShadowingSentence } from '../data/shadowingBank';
+import { getTranslationLanguageLabel, renderTranslationLanguageOptions } from './shadowing/translationOptions';
+import { escapeHtml } from './shared/html';
 import {
   appendShadowingSet,
   getActiveShadowingSet,
@@ -28,7 +30,6 @@ import { transcribeWithTier2WhisperOrFallback } from '../services/whisperSttServ
 import { getCachedModelWordTimings } from '../services/modelTimingService';
 import { generateAiShadowingSentenceBatch } from '../services/shadowingAiGenerator';
 import { ShadowingPrefetchScheduler, runShadowingPrefetchBatch } from '../services/shadowingPrefetch';
-import { clearDiagnosticsCache } from './DiagnosticsView';
 import { attachScrollRail } from './scrollRail';
 import { SHADOWING_LANGUAGES, getShadowingLanguage, countShadowingLanguageUnits, type ShadowingLanguageCode } from '../data/shadowingLanguages';
 import { loadShadowingLanguageHistories, saveShadowingLanguageHistories, getShadowingHistoryForLanguage, createShadowingHistoryForLanguage, setShadowingHistoryForLanguage, loadSelectedShadowingLanguage, saveSelectedShadowingLanguage, type ShadowingLanguageHistories } from '../services/shadowingLanguageHistory';
@@ -122,29 +123,6 @@ const state: ShadowingState = {
   isTranslating: false,
   forceSpeechApiNotice: false
 };
-
-const TRANSLATION_LANGUAGES = [
-  { code: 'fa', label: 'Persian (فارسی)' },
-  { code: 'ar', label: 'Arabic (العربية)' },
-  { code: 'de', label: 'German (Deutsch)' },
-  { code: 'es', label: 'Spanish (Español)' },
-  { code: 'fr', label: 'French (Français)' },
-  { code: 'it', label: 'Italian (Italiano)' },
-  { code: 'nl', label: 'Dutch (Nederlands)' },
-  { code: 'pt', label: 'Portuguese (Português)' },
-  { code: 'ru', label: 'Russian (Русский)' },
-  { code: 'sv', label: 'Swedish (Svenska)' },
-  { code: 'tr', label: 'Turkish (Türkçe)' },
-  { code: 'zh', label: 'Chinese (简体中文)' },
-  { code: 'ja', label: 'Japanese (日本語)' },
-  { code: 'ko', label: 'Korean (한국어)' }
-];
-
-function renderTranslationLanguageOptions(selected: string): string {
-  return TRANSLATION_LANGUAGES.map(language =>
-    `<option value="${language.code}" ${language.code === selected ? 'selected' : ''}>${escapeHtml(language.label)}</option>`
-  ).join('');
-}
 
 let sentenceSetHistory: ShadowingSetHistory | null = null;
 let sentenceSetHistoryPromise: Promise<ShadowingSetHistory> | null = null;
@@ -249,14 +227,6 @@ function clearAttemptState(): void {
   state.emptyAttemptError = null;
   state.lastRecording = null;
   state.lastReport = null;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function renderVadWaveformSection(vad?: WavVadAnalysisResult): string {
@@ -653,8 +623,8 @@ export function renderShadowingView(
           <input type="text" class="form-input sh-topic-input" id="sh-topic-input" maxlength="100" placeholder="Leave blank for a mix of topics." value="${escapeHtml(state.topicInput)}" />
         </div>
         <div class="btn-row sh-generate-actions">
-          <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''}>
-            ${state.isGeneratingAi ? 'Generating sentence set…' : 'Get new sentence set'}
+          <button type="button" class="btn ${hasLanguageSentenceSet ? 'btn-secondary' : 'btn-primary'}" id="sh-generate-ai-btn" ${state.isGeneratingAi || isRec || isStopping ? 'disabled' : ''} aria-busy="${state.isGeneratingAi}">
+            ${state.isGeneratingAi ? '<span class="ielts-loading-spinner" aria-hidden="true"></span><span>Generating sentence set…</span>' : 'Get new sentence set'}
           </button>
           <button type="button" class="btn btn-secondary sh-translation-toggle ${state.autoTranslateSentenceSets ? 'is-on' : 'is-off'}" id="sh-auto-translate-toggle" aria-label="Translate new sentence sets automatically" title="Translate new sentence sets automatically" aria-pressed="${state.autoTranslateSentenceSets}" ${isRec || isStopping || state.isGeneratingAi ? 'disabled' : ''}><svg class="sh-inline-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M7.5 3.5V6"/><path d="M5.2 6c.5 2.9 2.2 5 5 6.3"/><path d="M10 6c-.6 3-2.4 5.3-5.6 6.7"/><path d="m12.2 20.5 3.8-9 3.8 9"/><path d="M13.6 17.5h4.8"/></svg></button>
         </div>
@@ -814,7 +784,7 @@ export function renderShadowingView(
     const requestKey = `${requestSetId}:${sentence.id}:${requestTargetCode}`;
     if (!shadowingTranslationRequests.has(requestKey) && !shadowingTranslationFailures.has(requestKey)) {
       shadowingTranslationRequests.add(requestKey);
-      const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === requestTargetCode)?.label ?? requestTargetCode;
+      const targetLanguage = getTranslationLanguageLabel(requestTargetCode);
       void translateShadowingText(sentence.text, targetLanguage).then(async result => {
         const savedSet = historyForRequest?.[requestDifficulty].sets.find(set => set.id === requestSetId);
         const savedSentence = savedSet?.sentences.find(item => item.id === sentence.id);
@@ -961,7 +931,7 @@ export function renderShadowingView(
     try {
       const targetLanguage = mode === 'grammar' && !state.explainGrammarInTranslationLanguage
         ? selectedLanguage.label
-        : TRANSLATION_LANGUAGES.find(language => language.code === requestTargetLanguage)?.label ?? requestTargetLanguage;
+        : getTranslationLanguageLabel(requestTargetLanguage);
       const result = await translateShadowingText(textToTranslate, targetLanguage, undefined, mode);
       if (state.translationText.trim() === textToTranslate && state.translationTargetLanguage === requestTargetLanguage) {
         if (mode === 'grammar') {
@@ -1009,7 +979,7 @@ export function renderShadowingView(
     const sentenceText = state.translationSourceText ?? state.translationText;
     const explanation = state.grammarResult;
     const explanationLanguage = state.explainGrammarInTranslationLanguage
-      ? (TRANSLATION_LANGUAGES.find(language => language.code === state.translationTargetLanguage)?.label ?? state.translationTargetLanguage)
+      ? (getTranslationLanguageLabel(state.translationTargetLanguage))
       : selectedLanguage.label;
     state.grammarChatMessages = [...state.grammarChatMessages, { role: 'user', content: question }];
     state.grammarChatDraft = '';
@@ -1153,7 +1123,7 @@ export function renderShadowingView(
         const setIdForBatch = savedSetForBatch.id;
         const batchKeys = savedSetForBatch.sentences.map(item => `${setIdForBatch}:${item.id}:${targetCodeForBatch}`);
         batchKeys.forEach(key => shadowingTranslationRequests.add(key));
-        const targetLanguage = TRANSLATION_LANGUAGES.find(language => language.code === targetCodeForBatch)?.label ?? targetCodeForBatch;
+        const targetLanguage = getTranslationLanguageLabel(targetCodeForBatch);
         void translateShadowingSentenceBatch(savedSetForBatch.sentences.map(item => item.text), targetLanguage).then(async translations => {
           const savedSet = historyForBatch[difficultyForBatch].sets.find(set => set.id === setIdForBatch);
           if (!savedSet) return;
@@ -1502,7 +1472,7 @@ export function renderShadowingView(
         sttActiveTierLabel: sttOutcome.activeTier.detailLabel,
         report: null
       });
-      clearDiagnosticsCache();
+      await import('./DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
       shadowingIsStopping = false;
       state.audioActivity = 'idle';
       renderShadowingView(container, summary);
@@ -1552,7 +1522,7 @@ export function renderShadowingView(
       sttActiveTierLabel: sttOutcome.activeTier.detailLabel,
       report: state.lastReport
     });
-    clearDiagnosticsCache();
+    await import('./DiagnosticsView').then(({ clearDiagnosticsCache }) => clearDiagnosticsCache());
 
     state.statusMessage = `${sttOutcome.error ? `${sttOutcome.error} ` : ''}Scored recognizer output ("${rawRecognized}") against reference.`;
     shadowingIsStopping = false;
