@@ -432,7 +432,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
         if (button) {
           button.disabled = true;
           button.setAttribute('aria-busy', 'true');
-          button.innerHTML = '<span class="ielts-loading-spinner" aria-hidden="true"></span><span class="ielts-loading-copy"><span>Generating five sets…</span><small class="ielts-loading-hint">This may take a while.</small></span>';
+          button.innerHTML = '<span class="ielts-loading-spinner" aria-hidden="true"></span><span class="ielts-loading-copy"><span>Preparing five sets…</span><small class="ielts-loading-hint">0 of 5 ready</small></span>';
         }
         if (notice) { notice.hidden = false; notice.textContent = 'Preparing five new AI question sets (0 of 5 ready). Your current unfinished sets will be replaced only after the new batch is saved.'; notice.classList.remove('error', 'is-visible'); }
         try {
