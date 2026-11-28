@@ -735,7 +735,7 @@ export class IeltsSessionController {
 
       if (!this.isSessionActive || this.stepRunToken !== token) return;
 
-      await this.advanceToNextStep();
+      await this.advanceToNextStep(step.stepType === 'part2_prep' ? 2 : 1);
     } finally {
       this.isProcessingAnswer = false;
     }
@@ -805,6 +805,15 @@ export class IeltsSessionController {
 
     this.isProcessingAnswer = true;
     try {
+      // Invalidate any in-flight examiner prompt and stop its audio/timers before
+      // recording the skipped answer. This also handles Skip during Part 2 prep.
+      this.stepRunToken++;
+      this.clearAllTimers();
+      stopAllTts();
+      if (audioRecorder.isRecording()) {
+        await audioRecorder.stop().catch(() => undefined);
+      }
+
       const canonical = step.canonicalQuestion;
       logIeltsSessionEvent({
         event: 'skip_step',
@@ -1046,8 +1055,8 @@ export class IeltsSessionController {
     this.activePreloadPromise = promise;
     return promise;
   }
-  private async advanceToNextStep(): Promise<void> {
-    const nextIndex = this.currentStepIndex + 1;
+  private async advanceToNextStep(stepCount = 1): Promise<void> {
+    const nextIndex = this.currentStepIndex + stepCount;
     if (nextIndex >= this.steps.length) {
       // All answers collected; run evaluation without advancing index beyond bounds
       await this.persistDraft();

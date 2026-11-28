@@ -238,9 +238,17 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     expect(disclosure?.open).toBe(false);
     expect(disclosure?.querySelector('summary')?.textContent).toContain('Show question text');
     expect(disclosure?.querySelector('.ielts-question-text')?.textContent?.trim()).toBeTruthy();
-    expect(container.querySelector('#ielts-question-source-label')?.textContent).toContain('AI question');
+    expect(container.querySelector('#ielts-question-source-label')).toBeNull();
+    expect(container.querySelector('.ielts-session-step-label')).toBeNull();
+    expect(container.querySelector('.ielts-session-topbar')?.textContent).not.toContain('Speaking test');
+    const skipButton = container.querySelector<HTMLButtonElement>('#ielts-skip-active-question-btn');
+    expect(skipButton?.textContent).toContain('Skip question');
     disclosure?.querySelector('summary')?.click();
     expect(disclosure?.open).toBe(true);
+
+    skipButton?.click();
+    await vi.waitFor(() => expect(ieltsSessionEngine.getState().currentStepIndex).toBe(1));
+    expect(ieltsSessionEngine.getState().completedAnswers[0]?.wasSkipped).toBe(true);
 
     cleanup();
   });
@@ -257,7 +265,7 @@ describe('IeltsView UI Component (Question Set Library)', () => {
     const state = ieltsSessionEngine.getState();
     expect(state.mode).toBe('part2');
     expect(state.status).not.toBe('idle');
-    expect(container.querySelector('.ielts-source-ai')).not.toBeNull();
+    expect(container.querySelector('.ielts-source-ai')).toBeNull();
     expect(container.querySelector('.ielts-builtin-warning')).toBeNull();
     expect(container.querySelector('.ielts-cue-card')).not.toBeNull();
     const progress = container.querySelector<HTMLElement>('.ielts-progress-track[role="progressbar"]');
