@@ -167,7 +167,8 @@ export function addIeltsQuestionSets(
  * Completed sets are retained so their saved test results remain reviewable.
  */
 export function replaceUncompletedIeltsQuestionSets(
-  incoming: Array<{ plan: IeltsTestSessionPlan; providerName?: string; modelName?: string }>
+  incoming: Array<{ plan: IeltsTestSessionPlan; providerName?: string; modelName?: string }>,
+  previousPendingSnapshot?: StoredIeltsQuestionSet[]
 ): StoredIeltsQuestionSet[] {
   const completed = getIeltsQuestionSets().filter((set) => set.status === 'completed');
   const known = new Set(completed.flatMap((set) => [
@@ -203,7 +204,7 @@ export function replaceUncompletedIeltsQuestionSets(
   const oldGenerationsRaw = localStorage.getItem(PREVIOUS_GENERATIONS_KEY);
   try {
     const previousGenerations = getPreviousGenerations();
-    const currentPending = getIeltsQuestionSets().filter(set => set.status === 'new');
+    const currentPending = previousPendingSnapshot ?? getIeltsQuestionSets().filter(set => set.status === 'new');
     if (currentPending.length) previousGenerations.push(currentPending);
     savePreviousGenerations(previousGenerations);
     const serializedSets = JSON.stringify([...completed, ...replacement]);

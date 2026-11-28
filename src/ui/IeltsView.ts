@@ -434,7 +434,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
           button.setAttribute('aria-busy', 'true');
           button.innerHTML = '<span class="ielts-loading-spinner" aria-hidden="true"></span><span class="ielts-loading-copy"><span>Preparing five sets…</span><small class="ielts-loading-hint">0 of 5 ready</small></span>';
         }
-        if (notice) { notice.hidden = false; notice.textContent = 'Preparing five new AI question sets (0 of 5 ready). Your current unfinished sets will be replaced only after the new batch is saved.'; notice.classList.remove('error', 'is-visible'); }
+        if (notice) { notice.hidden = false; notice.textContent = 'Preparing five new AI question sets (0 of 5 ready). Each completed set is saved immediately; your existing unfinished sets remain available until the new batch is complete.'; notice.classList.remove('error', 'is-visible'); }
         try {
           const requestedTopic = requestedTopicInput.trim();
           const added = await generateIeltsQuestionSets(5, {
@@ -443,7 +443,7 @@ ${summary.slots.llm_evaluator.tier === 3 ? `<div class="status-box info" role="s
               const progressText = completed + ' of ' + total + ' sets ready';
               if (notice) {
                 notice.hidden = false;
-                notice.textContent = progressText + '. Generating the remaining sets; your current unfinished sets will be replaced only after the new batch is saved.';
+                notice.textContent = progressText + '. Generating the remaining sets; completed sets are already saved and your previous unfinished sets remain available.';
               }
               if (button) {
                 const copy = button.querySelector<HTMLElement>('.ielts-loading-copy > span');
