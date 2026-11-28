@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.1 — 2026-11-28
 
 ### Improved
 - IELTS question generation now checks the full stored question/title history with separate recent and older similarity thresholds, and produces more useful Avoid keywords.
@@ -11,11 +11,8 @@
 - Shadowing prompt variants now rotate by persisted IDs across reloads; generation-variety backups include selection decks.
 - IELTS weighted seed ordering now scores each seed once before sorting.
 
-Notable user-facing changes are recorded here. A version tag triggers creation of a draft release; it stays unpublished until intentionally published.
-
-## 1.2.1 — 2026-11-27
-
 ### Security
+
 - IELTS technical diagnostics now omit raw LLM evaluation responses and provider error bodies. Existing stored LLM evaluation diagnostic entries are redacted when read.
 
 ### Compatibility
