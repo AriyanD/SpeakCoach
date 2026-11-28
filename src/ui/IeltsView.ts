@@ -53,27 +53,6 @@ export function renderIeltsView(
   let evaluatorWarningText: string | null = null;
   let lastRenderedViewKey: string | null = null;
 
-  /** Keep source provenance visible without exposing provider configuration during the exam. */
-  function renderSourceChip(state: IeltsSessionStateSnapshot): string {
-    if (state.questionSource === 'AI') {
-      return `<span
-        id="ielts-question-source-label"
-        class="ielts-source-chip ielts-source-ai"
-        title="AI-generated IELTS question"
-        aria-label="Question source: AI-generated">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="5"/></svg>
-        <span>AI question</span>
-      </span>`;
-    }
-    return `<span
-      id="ielts-question-source-label"
-      class="ielts-source-chip ielts-source-bank"
-      title="Saved question set"
-      aria-label="Question source: saved question">
-      <span>Saved question</span>
-    </span>`;
-  }
-
   function formatTime(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -673,13 +652,13 @@ ${!isPart2
                 </div>
               </details>`
             : ''}
-          <div class="ielts-source-row">${renderSourceChip(state)}</div>
           ${cueCardHtml}
         </div>
         <div class="ielts-action-area">
           ${examinerStatusHtml}
           ${examinerVoiceNoticeHtml}
           ${actionAreaHtml}
+          <button type="button" class="btn btn-secondary ielts-skip-active-question" id="ielts-skip-active-question-btn">Skip question</button>
         </div>
 
       `;
@@ -690,7 +669,6 @@ ${!isPart2
         <div class="ielts-session-topbar">
           ${state.status !== 'evaluating' ? `<button type="button" class="ielts-session-close" id="ielts-cancel-test-btn" aria-label="Quit test" title="Quit test">×</button>` : '<span class="ielts-session-close-placeholder"></span>'}
           <strong>${partLabel} · ${currentQNum} of ${totalQ}</strong>
-          <span class="ielts-session-step-label">${state.status === 'evaluating' ? 'Reviewing' : 'Speaking test'}</span>
         </div>
         ${contentHtml}
       </section>
@@ -734,6 +712,14 @@ ${!isPart2
 
     container.querySelector<HTMLButtonElement>('#ielts-skip-question-btn')?.addEventListener('click', () => {
       ieltsSessionEngine.skipCurrentStep().catch(() => {});
+    });
+
+    container.querySelector<HTMLButtonElement>('#ielts-skip-active-question-btn')?.addEventListener('click', () => {
+      const btn = container.querySelector<HTMLButtonElement>('#ielts-skip-active-question-btn');
+      if (btn) btn.disabled = true;
+      ieltsSessionEngine.skipCurrentStep().catch(() => {
+        if (btn) btn.disabled = false;
+      });
     });
 
     container.querySelector<HTMLButtonElement>('#ielts-done-speaking-btn')?.addEventListener('click', () => {

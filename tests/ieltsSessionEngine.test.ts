@@ -272,6 +272,24 @@ describe('IELTS Test Session State Machine Engine (Stage 3.5 & Bugfix)', () => {
     ctrl.reset();
   });
 
+  it('stops an active recording when the candidate skips directly from the question screen', async () => {
+    const ctrl = new IeltsSessionController({ mode: 'part1', plan: createAiPlan() });
+    const stopSpy = vi.spyOn(audioRecorder, 'stop');
+
+    await ctrl.startCandidateRecording();
+    expect(ctrl.getSnapshot().status).toBe('recording');
+
+    await ctrl.skipCurrentStep();
+
+    const snap = ctrl.getSnapshot();
+    expect(stopSpy).toHaveBeenCalledTimes(1);
+    expect(snap.currentStepIndex).toBe(1);
+    expect(snap.completedAnswers[0]?.wasSkipped).toBe(true);
+    expect(snap.completedAnswers[0]?.transcript).toBe('[Question skipped by candidate]');
+
+    ctrl.clearAllTimers();
+  });
+
   it('does not allow Skip to advance while evaluation is active', async () => {
     const ctrl = new IeltsSessionController({ mode: 'part1', plan: createAiPlan() });
     const initialQuestionId = ctrl.getSnapshot().currentStep?.questionId;
